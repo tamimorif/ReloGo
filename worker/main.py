@@ -19,6 +19,12 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 from supabase import create_client, Client
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -65,54 +71,42 @@ def init_supabase() -> Client:
 def fetch_official_sources(sb: Client) -> list[dict]:
     """Fetch all rows from the `official_sources` table."""
     response = sb.table("official_sources").select(
-        "id, corridor_rule_id, agency_name, official_url, last_verified"
+        "id, corridor_rule_id, agency_name, official_url, last_verified, last_content_hash"
     ).execute()
     rows = response.data or []
     logger.info("Fetched %d official source(s) to scrape.", len(rows))
     return rows
 
 
-def get_latest_hash_for_source(sb: Client, source_id: str) -> str | None:
-    """
-    Return the most recent `new_hash` stored in `rule_change_alerts`
-    for the given *source_id*, or ``None`` if no alert exists yet.
-    """
-    response = (
-        sb.table("rule_change_alerts")
-        .select("new_hash")
-        .eq("source_id", source_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    rows = response.data or []
-    if rows:
-        return rows[0]["new_hash"]
-    return None
-
-
 def insert_alert(
     sb: Client,
-    source_id: str,
-    corridor_rule_id: str,
-    old_hash: str | None,
+    official_source_id: str,
+    old_hash: str,
     new_hash: str,
 ) -> None:
     """Insert a new PENDING alert into `rule_change_alerts`."""
     payload = {
-        "source_id": source_id,
-        "corridor_rule_id": corridor_rule_id,
-        "old_hash": old_hash or "",
+        "official_source_id": official_source_id,
+        "old_hash": old_hash,
         "new_hash": new_hash,
         "status": "PENDING",
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     sb.table("rule_change_alerts").insert(payload).execute()
     logger.info(
         "  ✅ Alert inserted — old_hash=%s… new_hash=%s…",
-        (old_hash or "")[:12],
+        old_hash[:12],
         new_hash[:12],
     )
+
+
+def record_scrape_result(sb: Client, official_source_id: str, content_hash: str) -> None:
+    """Persist the scrape baseline: last_verified timestamp + content hash."""
+    sb.table("official_sources").update(
+        {
+            "last_verified": datetime.now(timezone.utc).isoformat(),
+            "last_content_hash": content_hash,
+        }
+    ).eq("id", official_source_id).execute()
 
 
 # ---------------------------------------------------------------------------
@@ -120,18 +114,30 @@ def insert_alert(
 # ---------------------------------------------------------------------------
 
 
+@retry(
+    retry=retry_if_exception_type(PlaywrightTimeoutError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=2, min=2, max=30),
+    reraise=True,
+)
+async def _scrape_with_retry(page, url: str) -> str:
+    """Navigate to *url* and return the full body text. Retries on timeout."""
+    await page.goto(url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+    # Give dynamic pages a moment to settle
+    await page.wait_for_timeout(2000)
+    text: str = await page.evaluate("() => document.body.innerText")
+    return text.strip()
+
+
 async def scrape_url(page, url: str) -> str | None:
     """
     Navigate to *url* and return the full body text, or ``None`` on failure.
+    Flaky government sites get 3 attempts with exponential backoff.
     """
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
-        # Give dynamic pages a moment to settle
-        await page.wait_for_timeout(2000)
-        text: str = await page.evaluate("() => document.body.innerText")
-        return text.strip()
+        return await _scrape_with_retry(page, url)
     except PlaywrightTimeoutError:
-        logger.warning("  ⏱  Timeout loading %s", url)
+        logger.warning("  ⏱  Timeout loading %s (after 3 attempts)", url)
         return None
     except Exception as exc:  # noqa: BLE001
         logger.error("  ❌ Error scraping %s: %s", url, exc)
@@ -165,9 +171,9 @@ async def run() -> None:
 
         for source in sources:
             source_id: str = source["id"]
-            corridor_rule_id: str = source["corridor_rule_id"]
             agency: str = source.get("agency_name", "Unknown")
             url: str = source["official_url"]
+            last_hash: str | None = source.get("last_content_hash")
 
             logger.info("Scraping [%s] %s …", agency, url)
             body_text = await scrape_url(page, url)
@@ -179,25 +185,24 @@ async def run() -> None:
             stats["scraped"] += 1
             new_hash = sha256(body_text)
 
-            # Retrieve the most recent hash we recorded for this source
-            last_hash = get_latest_hash_for_source(sb, source_id)
-
-            if last_hash == new_hash:
+            if last_hash is None:
+                # First scrape of this source — record the baseline, no alert.
+                logger.info("  — Baseline recorded (hash=%s…)", new_hash[:12])
+                stats["unchanged"] += 1
+            elif last_hash == new_hash:
                 logger.info("  — No change detected (hash=%s…)", new_hash[:12])
                 stats["unchanged"] += 1
             else:
                 logger.info(
                     "  ⚡ Change detected! old=%s… → new=%s…",
-                    (last_hash or "")[:12],
+                    last_hash[:12],
                     new_hash[:12],
                 )
-                insert_alert(sb, source_id, corridor_rule_id, last_hash, new_hash)
+                insert_alert(sb, source_id, last_hash, new_hash)
                 stats["changed"] += 1
 
-            # Update last_verified timestamp on the source row
-            sb.table("official_sources").update(
-                {"last_verified": datetime.now(timezone.utc).isoformat()}
-            ).eq("id", source_id).execute()
+            # Persist the new baseline (last_verified + last_content_hash)
+            record_scrape_result(sb, source_id, new_hash)
 
         await browser.close()
 

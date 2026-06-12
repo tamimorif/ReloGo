@@ -3,10 +3,18 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { LoginForm } from "./components/LoginForm";
 import { AlertsTable } from "./components/AlertsTable";
+import { UsersTable } from "./components/UsersTable";
+import { NotAuthorized } from "./components/NotAuthorized";
+
+type AdminView = "alerts" | "users";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // null = not yet checked (or no session); true/false = is_admin() result
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [adminCheckLoading, setAdminCheckLoading] = useState(false);
+  const [view, setView] = useState<AdminView>("alerts");
 
   useEffect(() => {
     // Check for existing session
@@ -24,6 +32,29 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // ── Server-side admin check (admin_users table via is_admin() RPC) ──
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    if (!userId) {
+      setIsAdmin(null);
+      return;
+    }
+
+    let cancelled = false;
+    setAdminCheckLoading(true);
+
+    supabase.rpc("is_admin").then(({ data, error }) => {
+      if (cancelled) return;
+      // Any error (network, RPC missing, etc.) is treated as not authorized.
+      setIsAdmin(!error && data === true);
+      setAdminCheckLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
@@ -54,6 +85,28 @@ export default function App() {
 
           {session && (
             <div className="flex items-center gap-4">
+              {isAdmin && (
+                <nav className="flex items-center gap-1 rounded-lg bg-slate-900/60 p-1">
+                  {(
+                    [
+                      ["alerts", "Alerts"],
+                      ["users", "Users"],
+                    ] as [AdminView, string][]
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setView(key)}
+                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                        view === key
+                          ? "bg-slate-700 text-white"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+              )}
               <span className="hidden text-sm text-slate-400 sm:inline">
                 {session.user.email}
               </span>
@@ -70,7 +123,21 @@ export default function App() {
 
       {/* ─── Main content ─── */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {session ? <AlertsTable /> : <LoginForm />}
+        {!session ? (
+          <LoginForm />
+        ) : adminCheckLoading || isAdmin === null ? (
+          <div className="flex min-h-[70vh] items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+          </div>
+        ) : isAdmin ? (
+          view === "alerts" ? (
+            <AlertsTable />
+          ) : (
+            <UsersTable />
+          )
+        ) : (
+          <NotAuthorized onSignOut={handleLogout} />
+        )}
       </main>
     </div>
   );

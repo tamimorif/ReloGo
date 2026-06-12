@@ -17,7 +17,7 @@ export function AlertsTable() {
     const { data, error: fetchErr } = await supabase
       .from("rule_change_alerts")
       .select(
-        "id, source_id, corridor_rule_id, old_hash, new_hash, status, created_at, official_sources(agency_name, official_url)",
+        "id, official_source_id, old_hash, new_hash, diff_summary, status, created_at, official_sources(agency_name, official_url, corridor_rule_id)",
       )
       .eq("status", "PENDING")
       .order("created_at", { ascending: false });
@@ -127,6 +127,14 @@ export function AlertsTable() {
                 >
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-white">
                     {alert.official_sources?.agency_name ?? "—"}
+                    {alert.diff_summary && (
+                      <div
+                        className="max-w-xs truncate text-xs font-normal text-slate-500"
+                        title={alert.diff_summary}
+                      >
+                        {alert.diff_summary}
+                      </div>
+                    )}
                   </td>
                   <td className="max-w-xs truncate px-4 py-3 text-slate-300">
                     <a

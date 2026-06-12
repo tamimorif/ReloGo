@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
-import type { AlertWithSource, CorridorTaskRule } from "../types/database";
+import type {
+  AlertWithSource,
+  CorridorTaskRuleWithTask,
+} from "../types/database";
 
 interface EditRuleModalProps {
   alert: AlertWithSource;
@@ -8,14 +11,19 @@ interface EditRuleModalProps {
 }
 
 export function EditRuleModal({ alert, onClose }: EditRuleModalProps) {
-  const [rule, setRule] = useState<CorridorTaskRule | null>(null);
+  const [rule, setRule] = useState<CorridorTaskRuleWithTask | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Editable fields
-  const [daysDeadline, setDaysDeadline] = useState<number>(0);
+  // Editable fields. days_deadline is kept as a string so the empty input
+  // can faithfully represent NULL ("no fixed deadline") — coercing to a
+  // number would silently rewrite NULL rules to 0 days on save.
+  const [daysDeadline, setDaysDeadline] = useState<string>("");
   const [isMandatory, setIsMandatory] = useState<boolean>(false);
+
+  // The corridor rule is reached through the alert's official source.
+  const corridorRuleId = alert.official_sources.corridor_rule_id;
 
   // ── Fetch the related corridor_task_rules row ─────────────────────────
   useEffect(() => {
@@ -25,24 +33,25 @@ export function EditRuleModal({ alert, onClose }: EditRuleModalProps) {
 
       const { data, error: fetchErr } = await supabase
         .from("corridor_task_rules")
-        .select("*")
-        .eq("corridor_rule_id", alert.corridor_rule_id)
-        .limit(1)
+        .select("*, global_tasks(title_en, base_description_en)")
+        .eq("id", corridorRuleId)
         .single();
 
       if (fetchErr) {
         setError(fetchErr.message);
       } else if (data) {
-        const typed = data as CorridorTaskRule;
+        const typed = data as unknown as CorridorTaskRuleWithTask;
         setRule(typed);
-        setDaysDeadline(typed.days_deadline);
+        setDaysDeadline(
+          typed.days_deadline === null ? "" : String(typed.days_deadline),
+        );
         setIsMandatory(typed.is_mandatory);
       }
       setLoading(false);
     };
 
     fetchRule();
-  }, [alert.corridor_rule_id]);
+  }, [corridorRuleId]);
 
   // ── Save changes ──────────────────────────────────────────────────────
   const handleSave = async (e: FormEvent) => {
@@ -52,29 +61,17 @@ export function EditRuleModal({ alert, onClose }: EditRuleModalProps) {
     setSaving(true);
     setError(null);
 
-    // 1. Update the corridor_task_rules row
-    const { error: ruleErr } = await supabase
-      .from("corridor_task_rules")
-      .update({
-        days_deadline: daysDeadline,
-        is_mandatory: isMandatory,
-      })
-      .eq("id", rule.id);
+    // Atomic server-side: updates the rule AND approves the alert in one
+    // transaction (empty deadline input = no fixed deadline).
+    const { error: rpcErr } = await supabase.rpc("approve_rule_change", {
+      p_alert_id: alert.id,
+      p_days_deadline:
+        daysDeadline.trim() === "" ? null : Number(daysDeadline),
+      p_is_mandatory: isMandatory,
+    });
 
-    if (ruleErr) {
-      setError(ruleErr.message);
-      setSaving(false);
-      return;
-    }
-
-    // 2. Mark the alert as APPROVED
-    const { error: alertErr } = await supabase
-      .from("rule_change_alerts")
-      .update({ status: "APPROVED" })
-      .eq("id", alert.id);
-
-    if (alertErr) {
-      setError(alertErr.message);
+    if (rpcErr) {
+      setError(rpcErr.message);
       setSaving(false);
       return;
     }
@@ -124,17 +121,17 @@ export function EditRuleModal({ alert, onClose }: EditRuleModalProps) {
                   Task Name
                 </p>
                 <p className="mt-1 text-sm font-medium text-white">
-                  {rule.task_name}
+                  {rule.global_tasks.title_en}
                 </p>
               </div>
 
-              {rule.description && (
+              {rule.global_tasks.base_description_en && (
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
                     Description
                   </p>
                   <p className="mt-1 text-sm text-slate-300">
-                    {rule.description}
+                    {rule.global_tasks.base_description_en}
                   </p>
                 </div>
               )}
@@ -151,11 +148,14 @@ export function EditRuleModal({ alert, onClose }: EditRuleModalProps) {
                   id="days-deadline"
                   type="number"
                   min={0}
-                  required
                   value={daysDeadline}
-                  onChange={(e) => setDaysDeadline(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                  onChange={(e) => setDaysDeadline(e.target.value)}
+                  placeholder="No fixed deadline"
+                  className="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Leave empty for no fixed deadline.
+                </p>
               </div>
 
               {/* Editable: is_mandatory */}

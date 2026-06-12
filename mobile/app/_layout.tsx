@@ -1,21 +1,27 @@
 /**
  * Root layout — wraps the entire app with:
  * 1. Supabase auth session provider
- * 2. NativeWind CSS import
- * 3. Splash screen management
+ * 2. TanStack Query client provider
+ * 3. NativeWind CSS import
+ * 4. Splash screen management
  */
 import "../global.css";
 
-import { useEffect, useState, createContext, useContext } from "react";
+import { useEffect, useRef, useState, createContext, useContext } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator } from "react-native";
 import { Session } from "@supabase/supabase-js";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { wipeFilledPDFs } from "@/lib/pdfEngine";
 
 // Prevent auto-hide so we control when splash goes away
 SplashScreen.preventAutoHideAsync();
+
+// Module-level client so cache survives re-renders of the root layout.
+const queryClient = new QueryClient();
 
 // ──────────────────────────────────────────────
 // Auth Context
@@ -51,6 +57,18 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
 
+  // Monotonic sequence so a slow, stale profile check can never overwrite
+  // the result of a newer one (or of onboarding's setHasProfile(true)).
+  const profileCheckSeq = useRef(0);
+
+  // PIPEDA hygiene: clear any filled PDFs left from a previous session
+  // (Android defers cleanup until after the share target has read them).
+  useEffect(() => {
+    wipeFilledPDFs().catch(() => {
+      // Best-effort — the directory may simply not exist yet.
+    });
+  }, []);
+
   // Listen for auth state changes
   useEffect(() => {
     // Get initial session
@@ -83,18 +101,25 @@ export default function RootLayout() {
   }, []);
 
   async function checkProfile(userId: string) {
+    const seq = ++profileCheckSeq.current;
     try {
       const { data, error } = await supabase
         .from("user_profiles")
         .select("id")
-        .eq("user_id", userId)
+        .eq("id", userId)
         .maybeSingle();
+
+      if (seq !== profileCheckSeq.current) {
+        return; // a newer check superseded this one — discard stale result
+      }
 
       if (error) {
         console.error("Error checking profile:", error);
       }
 
-      setHasProfile(!!data);
+      // Never downgrade: this SELECT can race onboarding's profile INSERT,
+      // and a stale "no row yet" must not bounce the user back to onboarding.
+      setHasProfile((prev) => prev || !!data);
     } catch (err) {
       console.error("Profile check failed:", err);
     } finally {
@@ -143,9 +168,13 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthContext.Provider value={{ session, isLoading, hasProfile, setHasProfile }}>
-      <StatusBar style="auto" />
-      <Slot />
-    </AuthContext.Provider>
+    <QueryClientProvider client={queryClient}>
+      <AuthContext.Provider
+        value={{ session, isLoading, hasProfile, setHasProfile }}
+      >
+        <StatusBar style="auto" />
+        <Slot />
+      </AuthContext.Provider>
+    </QueryClientProvider>
   );
 }

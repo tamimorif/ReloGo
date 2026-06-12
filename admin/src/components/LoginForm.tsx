@@ -2,17 +2,11 @@ import { useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 
 /**
- * Allow-list of admin emails.
- * In production this would come from a server-side check or a custom claim,
- * but for the MVP we gate on the client side.
+ * No client-side admin allowlist here on purpose: a VITE_-env list would be
+ * baked into the public JS bundle, handing attackers the admin emails.
+ * Authorization is entirely server-side — App.tsx calls the is_admin() RPC
+ * (admin_users table + RLS, migration 002) and shows NotAuthorized on false.
  */
-const ADMIN_EMAILS: string[] = (
-  import.meta.env.VITE_ADMIN_EMAILS ?? ""
-)
-  .split(",")
-  .map((e: string) => e.trim().toLowerCase())
-  .filter(Boolean);
-
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,16 +16,6 @@ export function LoginForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    // Check allow-list (if configured)
-    if (
-      ADMIN_EMAILS.length > 0 &&
-      !ADMIN_EMAILS.includes(email.toLowerCase())
-    ) {
-      setError("This account is not authorized to access the admin dashboard.");
-      return;
-    }
-
     setLoading(true);
     const { error: authError } = await supabase.auth.signInWithPassword({
       email,

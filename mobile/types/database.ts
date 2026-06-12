@@ -1,6 +1,10 @@
 /**
- * TypeScript types matching the ReloGo Supabase schema.
- * These map directly to database tables used by the mobile app.
+ * TypeScript types matching the ReloGo Supabase schema
+ * (supabase/migrations/001_init.sql + 002_hardening_and_user_deletion.sql).
+ *
+ * ⚠️ KEEP IN SYNC with admin/src/types/database.ts — the `Database` interface
+ * must be identical in both files until types are centralized (#C3 in the
+ * master plan). Regenerate/update BOTH whenever a migration changes the schema.
  */
 
 // ──────────────────────────────────────────────
@@ -22,17 +26,12 @@ export type Province =
   | "SK"
   | "YT";
 
+/** corridor_task_rules province columns also accept the wildcard. */
+export type ProvinceOrAny = Province | "ANY";
+
 export type TaskStatus = "LOCKED" | "AVAILABLE" | "COMPLETED";
 
-export type TaskCategory =
-  | "DOCUMENTS"
-  | "HEALTH"
-  | "VEHICLE"
-  | "HOUSING"
-  | "FINANCE"
-  | "UTILITIES"
-  | "EDUCATION"
-  | "GENERAL";
+export type AlertStatus = "PENDING" | "APPROVED" | "DISMISSED";
 
 // ──────────────────────────────────────────────
 // Province labels
@@ -71,85 +70,308 @@ export const PROVINCES: Province[] = [
 ];
 
 // ──────────────────────────────────────────────
-// Database Row Types
+// Admin RPC payload shapes (admin_list_users / admin_get_user_detail).
+// Keep identical in mobile/types/database.ts and admin/src/types/database.ts.
 // ──────────────────────────────────────────────
 
-export interface UserProfile {
-  id: string;
-  user_id: string;
-  origin_province: Province;
-  destination_province: Province;
-  move_date: string; // ISO 8601 date
-  has_vehicle: boolean;
-  has_dependents: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface UserProfileInsert {
-  origin_province: Province;
-  destination_province: Province;
-  move_date: string;
-  has_vehicle: boolean;
-  has_dependents: boolean;
-}
-
-export interface GlobalTask {
-  id: string;
+export interface AdminUserTask {
+  task_rule_id: string;
+  task_key: string;
   title: string;
-  description: string;
-  category: TaskCategory;
+  days_deadline: number | null;
+  is_mandatory: boolean;
+  status: TaskStatus;
+  status_updated_at: string | null;
   official_url: string | null;
-  pdf_template_asset: string | null;
-  requires_vehicle: boolean;
-  requires_dependents: boolean;
-  sort_order: number;
-  created_at: string;
 }
 
-export interface CorridorTaskRule {
-  id: string;
-  global_task_id: string;
-  origin_province: Province | "ANY";
-  destination_province: Province;
-  deadline_days_offset: number;
-  notes: string | null;
-  created_at: string;
-}
-
-export interface UserTaskProgress {
-  id: string;
+export interface AdminUserListRow {
   user_id: string;
-  global_task_id: string;
-  status: TaskStatus;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
+  email: string | null;
+  is_anonymous: boolean;
+  joined_at: string | null;
+  last_sign_in_at: string | null;
+  origin_prov: Province | null;
+  dest_prov: Province | null;
+  move_date: string | null;
+  has_vehicle: boolean;
+  has_dependents: boolean;
+  profile_updated_at: string;
+  tasks_completed: number;
+  tasks_total: number;
 }
 
-export interface UserTaskProgressInsert {
-  global_task_id: string;
-  status: TaskStatus;
+export interface AdminUserDetail {
+  user_id: string;
+  email: string | null;
+  is_anonymous: boolean;
+  joined_at: string | null;
+  last_sign_in_at: string | null;
+  origin_prov: Province | null;
+  dest_prov: Province | null;
+  move_date: string | null;
+  has_vehicle: boolean;
+  has_dependents: boolean;
+  profile_created_at: string;
+  profile_updated_at: string;
+  tasks: AdminUserTask[];
 }
+
+// ──────────────────────────────────────────────
+// Supabase Database interface
+// ──────────────────────────────────────────────
+
+export interface Database {
+  public: {
+    Tables: {
+      global_tasks: {
+        Row: {
+          id: string;
+          task_key: string;
+          title_en: string;
+          base_description_en: string;
+          requires_vehicle: boolean;
+          requires_dependents: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_key: string;
+          title_en: string;
+          base_description_en?: string;
+          requires_vehicle?: boolean;
+          requires_dependents?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["global_tasks"]["Insert"]>;
+        Relationships: [];
+      };
+      corridor_task_rules: {
+        Row: {
+          id: string;
+          task_id: string;
+          origin_province: ProvinceOrAny;
+          dest_province: ProvinceOrAny;
+          days_deadline: number | null;
+          is_mandatory: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          origin_province?: ProvinceOrAny;
+          dest_province?: ProvinceOrAny;
+          days_deadline?: number | null;
+          is_mandatory?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["corridor_task_rules"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      official_sources: {
+        Row: {
+          id: string;
+          corridor_rule_id: string;
+          agency_name: string;
+          official_url: string;
+          last_verified: string | null;
+          last_content_hash: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          corridor_rule_id: string;
+          agency_name: string;
+          official_url: string;
+          last_verified?: string | null;
+          last_content_hash?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["official_sources"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      rule_change_alerts: {
+        Row: {
+          id: string;
+          official_source_id: string;
+          old_hash: string;
+          new_hash: string;
+          diff_summary: string | null;
+          status: AlertStatus;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          official_source_id: string;
+          old_hash: string;
+          new_hash: string;
+          diff_summary?: string | null;
+          status?: AlertStatus;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["rule_change_alerts"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      user_profiles: {
+        Row: {
+          id: string;
+          move_date: string | null;
+          origin_prov: Province | null;
+          dest_prov: Province | null;
+          has_vehicle: boolean;
+          has_dependents: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          move_date?: string | null;
+          origin_prov?: Province | null;
+          dest_prov?: Province | null;
+          has_vehicle?: boolean;
+          has_dependents?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["user_profiles"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      user_task_progress: {
+        Row: {
+          user_id: string;
+          task_rule_id: string;
+          status: TaskStatus;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          task_rule_id: string;
+          status?: TaskStatus;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["user_task_progress"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      waitlist: {
+        Row: {
+          id: string;
+          email: string;
+          origin_province: Province | null;
+          dest_province: Province | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          origin_province?: Province | null;
+          dest_province?: Province | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["waitlist"]["Insert"]>;
+        Relationships: [];
+      };
+      admin_users: {
+        Row: {
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["admin_users"]["Insert"]>;
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      admin_get_user_detail: {
+        Args: { p_user_id: string };
+        Returns: AdminUserDetail;
+      };
+      admin_list_users: {
+        Args: Record<string, never>;
+        Returns: AdminUserListRow[];
+      };
+      approve_rule_change: {
+        Args: {
+          p_alert_id: string;
+          p_days_deadline: number | null;
+          p_is_mandatory: boolean;
+        };
+        Returns: undefined;
+      };
+      delete_current_user: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      is_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      join_waitlist: {
+        Args: {
+          p_email: string;
+          p_origin_province?: string | null;
+          p_dest_province?: string | null;
+        };
+        Returns: undefined;
+      };
+    };
+    Enums: Record<string, never>;
+  };
+}
+
+// ──────────────────────────────────────────────
+// Convenience row aliases
+// ──────────────────────────────────────────────
+
+export type GlobalTask =
+  Database["public"]["Tables"]["global_tasks"]["Row"];
+export type CorridorTaskRule =
+  Database["public"]["Tables"]["corridor_task_rules"]["Row"];
+export type OfficialSource =
+  Database["public"]["Tables"]["official_sources"]["Row"];
+export type RuleChangeAlert =
+  Database["public"]["Tables"]["rule_change_alerts"]["Row"];
+export type UserProfile =
+  Database["public"]["Tables"]["user_profiles"]["Row"];
+export type UserProfileInsert =
+  Database["public"]["Tables"]["user_profiles"]["Insert"];
+export type UserTaskProgress =
+  Database["public"]["Tables"]["user_task_progress"]["Row"];
+export type UserTaskProgressInsert =
+  Database["public"]["Tables"]["user_task_progress"]["Insert"];
 
 // ──────────────────────────────────────────────
 // Computed / Joined Types (for UI)
 // ──────────────────────────────────────────────
 
+/** A corridor rule joined with its global task, as consumed by the checklist. */
 export interface ChecklistTask {
+  /** corridor_task_rules.id — the key used in user_task_progress */
+  taskRuleId: string;
   /** global_tasks.id */
   taskId: string;
+  taskKey: string;
   title: string;
   description: string;
-  category: TaskCategory;
-  officialUrl: string | null;
-  pdfTemplateAsset: string | null;
-  deadlineDaysOffset: number;
-  corridorNotes: string | null;
+  requiresVehicle: boolean;
+  requiresDependents: boolean;
+  daysDeadline: number | null;
+  isMandatory: boolean;
   status: TaskStatus;
-  completedAt: string | null;
-  sortOrder: number;
-  /** Computed absolute deadline from move_date + offset */
+  /** Computed absolute deadline: move_date + days_deadline (ISO date) */
   deadlineDate: string | null;
 }
 

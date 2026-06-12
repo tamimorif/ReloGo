@@ -35,6 +35,17 @@ import {
   UserProfileInsert,
 } from "@/types/database";
 
+/**
+ * Format a Date as YYYY-MM-DD in LOCAL time. toISOString() converts to UTC,
+ * which shifts evening picks to the next calendar day in every Canadian
+ * timezone — and every checklist deadline is computed from this date.
+ */
+function formatLocalDate(d: Date): string {
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const { session, setHasProfile } = useAuth();
@@ -84,13 +95,12 @@ export default function OnboardingScreen() {
     try {
       let userId = session?.user?.id;
 
-      // If no session, sign up anonymously
+      // If no session, sign in anonymously.
+      // Requires "Allow anonymous sign-ins" to be enabled in the
+      // Supabase dashboard (Authentication → Providers).
       if (!userId) {
         const { data: authData, error: authError } =
-          await supabase.auth.signUp({
-            email: `${Date.now()}-${Math.random().toString(36).slice(2)}@relogo.app`,
-            password: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
-          });
+          await supabase.auth.signInAnonymously();
 
         if (authError) {
           throw authError;
@@ -103,16 +113,21 @@ export default function OnboardingScreen() {
       }
 
       const profile: UserProfileInsert = {
-        origin_province: originProvince,
-        destination_province: destinationProvince,
-        move_date: moveDate.toISOString().split("T")[0],
+        id: userId,
+        origin_prov: originProvince,
+        dest_prov: destinationProvince,
+        move_date: formatLocalDate(moveDate),
         has_vehicle: hasVehicle,
         has_dependents: hasDependents,
       };
 
+      // Upsert (last-write-wins): if a profile row already exists — a prior
+      // submit that timed out client-side, or a transient checkProfile
+      // failure routing an existing user back here — the user's freshly
+      // entered details replace it instead of being silently discarded.
       const { error: profileError } = await supabase
         .from("user_profiles")
-        .insert({ ...profile, user_id: userId });
+        .upsert(profile, { onConflict: "id" });
 
       if (profileError) {
         throw profileError;
