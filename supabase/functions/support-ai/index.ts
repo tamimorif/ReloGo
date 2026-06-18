@@ -31,10 +31,16 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-// Gemini model — free tier, easily editable.
-const MODEL = "gemini-2.0-flash";
-const GEMINI_ENDPOINT =
-  `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Gemini models tried in order (free tier). We try the newest first and fall
+// through to the next on 429 (no free quota), 503 (overloaded), or any error,
+// so the user always gets an answer. Edit/reorder this list freely.
+//   - gemini-3.5-flash      newest full flash (can be 503 under high demand)
+//   - gemini-2.5-flash      reliable full flash, good quality
+//   - gemini-3.1-flash-lite newest lite model, fast, reliable free quota
+// (Note: gemini-2.0-flash / -lite return 429 — no free-tier quota on this key.)
+const MODELS = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.1-flash-lite"];
+const endpointFor = (model: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 // ----------------------------------------------------------------------------
 // CORS (shared inline helper)
@@ -170,10 +176,11 @@ async function buildGroundingContext(
 // Call Gemini and parse { reply, escalate }. Throws on any failure so the
 // caller can insert a graceful fallback.
 // ----------------------------------------------------------------------------
-async function callGemini(
+async function callGeminiModel(
   apiKey: string,
   grounding: string,
   messages: ChatMessage[],
+  model: string,
 ): Promise<{ reply: string; escalate: boolean }> {
   // Map the conversation into Gemini "contents". Defense-in-depth: never send
   // 'admin' (human) turns to Gemini. user -> user role, ai -> model role.
@@ -201,7 +208,7 @@ async function callGemini(
 
   // Auth via the x-goog-api-key header (not the query string) so the key can
   // never land in URL/proxy access logs.
-  const resp = await fetch(GEMINI_ENDPOINT, {
+  const resp = await fetch(endpointFor(model), {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify(requestBody),
@@ -209,9 +216,11 @@ async function callGemini(
 
   if (!resp.ok) {
     // The Gemini error body does NOT contain the API key (sent via header), so
-    // it is safe to surface for debugging.
+    // it is safe to log for debugging.
     const errBody = await resp.text().catch(() => "");
-    throw new Error(`Gemini HTTP ${resp.status}: ${errBody.slice(0, 300)}`);
+    throw new Error(
+      `Gemini HTTP ${resp.status} [${model}]: ${errBody.slice(0, 300)}`,
+    );
   }
 
   const data = await resp.json();
@@ -227,6 +236,28 @@ async function callGemini(
     throw new Error("Gemini returned an empty reply");
   }
   return { reply, escalate };
+}
+
+// ----------------------------------------------------------------------------
+// Try each model in MODELS until one answers; fall through on 429/503/errors so
+// the user always gets a reply even if the newest model is overloaded.
+// ----------------------------------------------------------------------------
+async function callGemini(
+  apiKey: string,
+  grounding: string,
+  messages: ChatMessage[],
+): Promise<{ reply: string; escalate: boolean }> {
+  const errors: string[] = [];
+  for (const model of MODELS) {
+    try {
+      return await callGeminiModel(apiKey, grounding, messages, model);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      errors.push(m);
+      console.error(`support-ai: model ${model} failed; trying next.`, m);
+    }
+  }
+  throw new Error("All Gemini models failed :: " + errors.join(" :: "));
 }
 
 // ----------------------------------------------------------------------------
@@ -361,12 +392,9 @@ Deno.serve(async (req: Request) => {
 
   // ---- 5/6. Call Gemini, then persist. On any error -> graceful fallback.
   if (!GEMINI_API_KEY) {
+    console.error("support-ai: GEMINI_API_KEY is not set; inserting fallback.");
     await persistAiReply(admin, threadId, FALLBACK_REPLY, true);
-    return json({
-      reply: FALLBACK_REPLY,
-      escalate: true,
-      debug: "GEMINI_API_KEY is not set in the function environment",
-    });
+    return json({ reply: FALLBACK_REPLY, escalate: true });
   }
 
   try {
@@ -378,11 +406,11 @@ Deno.serve(async (req: Request) => {
     await persistAiReply(admin, threadId, reply, escalate);
     return json({ reply, escalate });
   } catch (err) {
-    // TEMPORARY debug surface: the message is a Gemini API/transport error and
-    // never contains the API key (sent via header) or the service-role key.
+    // Log the real error server-side (never contains the API/service-role key),
+    // but return only the graceful fallback to the client.
     const detail = err instanceof Error ? err.message : String(err);
     console.error("support-ai: Gemini call failed; inserting fallback.", detail);
     await persistAiReply(admin, threadId, FALLBACK_REPLY, true);
-    return json({ reply: FALLBACK_REPLY, escalate: true, debug: detail });
+    return json({ reply: FALLBACK_REPLY, escalate: true });
   }
 });
