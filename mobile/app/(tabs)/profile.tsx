@@ -27,6 +27,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
@@ -103,6 +104,7 @@ export default function ProfileScreen() {
   const { session, setHasProfile } = useAuth();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   // ── Move details form state ──────────────────
   const [originProvince, setOriginProvince] = useState<Province | null>(null);
@@ -594,6 +596,21 @@ export default function ProfileScreen() {
       {/* Account */}
       <View className="rounded-xl border border-slate-200 bg-white p-4">
         <Text className="mb-3 text-lg font-bold text-slate-900">Account</Text>
+
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/contact")}
+          className="mb-3 flex-row items-center justify-center rounded-xl border border-slate-200 bg-slate-50 py-3.5"
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={"chatbubbles-outline" as IconName}
+            size={18}
+            color="#475569"
+          />
+          <Text className="ml-1.5 text-base font-semibold text-slate-700">
+            Help & support
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handleSignOut}

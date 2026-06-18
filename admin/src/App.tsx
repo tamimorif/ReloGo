@@ -4,9 +4,10 @@ import { supabase } from "./lib/supabase";
 import { LoginForm } from "./components/LoginForm";
 import { AlertsTable } from "./components/AlertsTable";
 import { UsersTable } from "./components/UsersTable";
+import { MessagesTable } from "./components/MessagesTable";
 import { NotAuthorized } from "./components/NotAuthorized";
 
-type AdminView = "alerts" | "users";
+type AdminView = "alerts" | "users" | "messages";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -91,6 +92,7 @@ export default function App() {
                     [
                       ["alerts", "Alerts"],
                       ["users", "Users"],
+                      ["messages", "Messages"],
                     ] as [AdminView, string][]
                   ).map(([key, label]) => (
                     <button
@@ -132,8 +134,10 @@ export default function App() {
         ) : isAdmin ? (
           view === "alerts" ? (
             <AlertsTable />
-          ) : (
+          ) : view === "users" ? (
             <UsersTable />
+          ) : (
+            <MessagesTable />
           )
         ) : (
           <NotAuthorized onSignOut={handleLogout} />

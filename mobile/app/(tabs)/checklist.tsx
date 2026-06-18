@@ -12,18 +12,20 @@
  * Completion toggles are optimistic: the cache is updated immediately,
  * rolled back on error, and re-validated on settle.
  */
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
 import { fillAndSharePDF } from "@/lib/pdfEngine";
@@ -35,8 +37,6 @@ import {
   TaskStatus,
   UserTaskProgress,
 } from "@/types/database";
-
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 /** corridor_task_rules row with its embedded global_tasks parent. */
 type RuleWithTask = CorridorTaskRule & { global_tasks: GlobalTask };
@@ -78,6 +78,410 @@ function formatDeadline(date: Date): string {
 }
 
 // ──────────────────────────────────────────────
+// Platform styling primitives
+// ──────────────────────────────────────────────
+
+/**
+ * Soft card elevation, split per platform: a subtle shadow on iOS
+ * (NativeWind shadow classes map to native shadow props) and a numeric
+ * `elevation` on Android, where iOS shadow props are no-ops.
+ */
+const cardShadowClass = Platform.select({ ios: "shadow-sm", default: "" });
+const cardElevation = Platform.OS === "android" ? { elevation: 2 } : undefined;
+
+/** iOS press feedback (Android gets a ripple via `android_ripple`). */
+function iosPressOpacity({ pressed }: { pressed: boolean }) {
+  return Platform.OS === "ios" && pressed ? { opacity: 0.55 } : null;
+}
+
+const subtleRipple = { color: "rgba(15, 23, 42, 0.08)" };
+const brandRipple = { color: "rgba(37, 99, 235, 0.14)" };
+
+// ──────────────────────────────────────────────
+// Render-time list sectioning (order-preserving with the memoized sort:
+// overdue → due soon → no deadline → completed are contiguous by construction)
+// ──────────────────────────────────────────────
+
+type SectionKey = "overdue" | "dueSoon" | "noDeadline" | "completed";
+
+const SECTION_LABELS: Record<SectionKey, string> = {
+  overdue: "Overdue",
+  dueSoon: "Due soon",
+  noDeadline: "No deadline",
+  completed: "Completed",
+};
+
+function sectionForItem(item: ChecklistTask, today: Date): SectionKey {
+  if (item.status === "COMPLETED") return "completed";
+  if (!item.deadlineDate) return "noDeadline";
+  return parseISODate(item.deadlineDate) < today ? "overdue" : "dueSoon";
+}
+
+type SectionHeaderProps = {
+  label: string;
+  count: number;
+  accent?: boolean;
+  first: boolean;
+};
+
+function SectionHeader({ label, count, accent, first }: SectionHeaderProps) {
+  return (
+    <View
+      className={`mb-3 flex-row items-center px-1 ${first ? "" : "mt-4"}`}
+      accessibilityRole="header"
+      accessibilityLabel={`${label}, ${count} ${count === 1 ? "task" : "tasks"}`}
+    >
+      <Text
+        className={`text-xs font-semibold uppercase ${
+          accent ? "text-red-600" : "text-slate-500"
+        }`}
+      >
+        {label}
+      </Text>
+      <View
+        className={`ml-2 rounded-full px-2 py-0.5 ${
+          accent ? "bg-red-50" : "bg-slate-200"
+        }`}
+      >
+        <Text
+          className={`text-xs font-bold ${
+            accent ? "text-red-700" : "text-slate-600"
+          }`}
+        >
+          {count}
+        </Text>
+      </View>
+      <View className="ml-3 h-px flex-1 bg-slate-200" />
+    </View>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Header (replaces the native navigator header)
+// ──────────────────────────────────────────────
+
+type ScreenHeaderProps = {
+  topInset: number;
+  routeLine: { origin: string; dest: string } | null;
+  moveDateLabel: string | null;
+  progress: {
+    completed: number;
+    total: number;
+    pct: number;
+    overdue: number;
+  } | null;
+};
+
+function ScreenHeader({
+  topInset,
+  routeLine,
+  moveDateLabel,
+  progress,
+}: ScreenHeaderProps) {
+  return (
+    <View
+      className="border-b border-slate-200 bg-white px-5 pb-4"
+      style={{ paddingTop: topInset + 12 }}
+    >
+      <Text
+        className="text-3xl font-bold text-slate-900"
+        accessibilityRole="header"
+      >
+        Checklist
+      </Text>
+
+      {routeLine && (
+        <View className="mt-1.5 flex-row flex-wrap items-center">
+          <Text className="text-sm font-semibold text-slate-600">
+            {routeLine.origin}
+          </Text>
+          <View className="mx-1.5">
+            <Ionicons
+              name="arrow-forward"
+              size={13}
+              color="#2563eb"
+            />
+          </View>
+          <Text className="text-sm font-semibold text-slate-600">
+            {routeLine.dest}
+          </Text>
+          {moveDateLabel && (
+            <Text className="text-sm text-slate-500">
+              {`  ·  Moving ${moveDateLabel}`}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {progress && (
+        <View className="mt-4">
+          <View className="flex-row items-baseline justify-between">
+            <Text className="text-sm font-medium text-slate-500">
+              {progress.completed} of {progress.total} tasks done
+            </Text>
+            <View className="flex-row items-baseline">
+              {progress.overdue > 0 && (
+                <Text className="text-sm font-semibold text-red-600">
+                  {`${progress.overdue} overdue`}
+                  <Text className="font-normal text-slate-300">{"  ·  "}</Text>
+                </Text>
+              )}
+              <Text className="text-sm font-semibold text-brand-600">
+                {progress.pct}%
+              </Text>
+            </View>
+          </View>
+          <View
+            className="mt-2 h-1.5 flex-row overflow-hidden rounded-full bg-slate-100"
+            accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: 100, now: progress.pct }}
+          >
+            <View
+              className="rounded-full bg-brand-600"
+              style={{ flex: progress.pct }}
+            />
+            <View style={{ flex: 100 - progress.pct }} />
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Task card
+// ──────────────────────────────────────────────
+
+type TaskCardProps = {
+  item: ChecklistTask;
+  isExpanded: boolean;
+  isSharing: boolean;
+  shareDisabled: boolean;
+  today: Date;
+  onToggle: () => void;
+  onExpand: () => void;
+  onShare: () => void;
+};
+
+function TaskCard({
+  item,
+  isExpanded,
+  isSharing,
+  shareDisabled,
+  today,
+  onToggle,
+  onExpand,
+  onShare,
+}: TaskCardProps) {
+  const isCompleted = item.status === "COMPLETED";
+  const isLocked = item.status === "LOCKED";
+  const deadline = item.deadlineDate ? parseISODate(item.deadlineDate) : null;
+  const isOverdue = !!deadline && deadline < today && !isCompleted;
+  // While one share runs, only the OTHER buttons drop to the dimmed style —
+  // the busy button keeps its brand tint behind the spinner.
+  const shareDimmed = shareDisabled && !isSharing;
+
+  return (
+    <View
+      className={`mb-3 rounded-2xl border border-slate-100 bg-white p-4 ${cardShadowClass}`}
+      style={cardElevation}
+    >
+      <View className="flex-row items-start">
+        {/* Checkbox — 44pt touch target wrapping a 28pt visual */}
+        <Pressable
+          onPress={onToggle}
+          disabled={isLocked}
+          className="-ml-2 -mt-2 h-11 w-11 items-center justify-center"
+          android_ripple={{ ...brandRipple, borderless: true, radius: 22 }}
+          style={iosPressOpacity}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: isCompleted, disabled: isLocked }}
+          accessibilityLabel={
+            isLocked
+              ? `"${item.title}" is locked`
+              : `Mark "${item.title}" as ${isCompleted ? "not done" : "done"}`
+          }
+        >
+          <View
+            className={`h-7 w-7 items-center justify-center rounded-full border-2 ${
+              isCompleted
+                ? "border-brand-600 bg-brand-600"
+                : isLocked
+                  ? "border-slate-200 bg-slate-100"
+                  : "border-slate-300 bg-white"
+            }`}
+          >
+            {isCompleted && (
+              <Ionicons
+                name="checkmark"
+                size={16}
+                color="#ffffff"
+              />
+            )}
+            {isLocked && (
+              <Ionicons
+                name="lock-closed"
+                size={13}
+                color="#94a3b8"
+              />
+            )}
+          </View>
+        </Pressable>
+
+        {/* Title + badges (tap to expand description) */}
+        <Pressable
+          onPress={onExpand}
+          className="ml-1 flex-1"
+          android_ripple={subtleRipple}
+          style={iosPressOpacity}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isExpanded }}
+          accessibilityHint="Shows or hides the task details"
+        >
+          <View className="flex-row items-start justify-between">
+            <Text
+              className={`flex-1 pr-2 text-base font-semibold ${
+                isCompleted
+                  ? "text-slate-400 line-through"
+                  : isLocked
+                    ? "text-slate-500"
+                    : "text-slate-900"
+              }`}
+            >
+              {item.title}
+            </Text>
+            <View className="mt-1">
+              <Ionicons
+                name={isExpanded ? "chevron-up" : "chevron-down"}
+                size={16}
+                color="#94a3b8"
+              />
+            </View>
+          </View>
+
+          {/* Badges */}
+          <View className="mt-2 flex-row flex-wrap items-center gap-2">
+            {/* Deadline chip */}
+            {deadline ? (
+              <View
+                className={`flex-row items-center rounded-full px-2.5 py-1 ${
+                  isOverdue
+                    ? "bg-red-50"
+                    : isCompleted || isLocked
+                      ? "bg-slate-100"
+                      : "bg-brand-50"
+                }`}
+              >
+                <Ionicons
+                  name={isOverdue ? "alert-circle" : "calendar-outline"}
+                  size={12}
+                  color={
+                    isOverdue
+                      ? "#b91c1c"
+                      : isCompleted || isLocked
+                        ? "#64748b"
+                        : "#2563eb"
+                  }
+                />
+                <Text
+                  className={`ml-1 text-xs font-semibold ${
+                    isOverdue
+                      ? "text-red-700"
+                      : isCompleted || isLocked
+                        ? "text-slate-500"
+                        : "text-brand-700"
+                  }`}
+                >
+                  {isOverdue
+                    ? `Overdue · ${formatDeadline(deadline)}`
+                    : `Due ${formatDeadline(deadline)}`}
+                </Text>
+              </View>
+            ) : (
+              <View className="rounded-full bg-slate-100 px-2.5 py-1">
+                <Text className="text-xs font-medium text-slate-500">
+                  No fixed deadline
+                </Text>
+              </View>
+            )}
+
+            {/* Mandatory badge */}
+            {item.isMandatory && (
+              <View className="rounded-full bg-amber-50 px-2.5 py-1">
+                <Text className="text-xs font-semibold text-amber-700">
+                  Required
+                </Text>
+              </View>
+            )}
+
+            {/* Locked badge */}
+            {isLocked && (
+              <View className="flex-row items-center rounded-full bg-slate-100 px-2.5 py-1">
+                <Ionicons
+                  name="lock-closed"
+                  size={11}
+                  color="#94a3b8"
+                />
+                <Text className="ml-1 text-xs font-medium text-slate-500">
+                  Locked
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Collapsible description */}
+          {isExpanded && item.description.length > 0 && (
+            <Text className="mt-3 text-sm leading-5 text-slate-600">
+              {item.description}
+            </Text>
+          )}
+        </Pressable>
+      </View>
+
+      {/* Fill & Share PDF (all buttons disabled while any share runs) */}
+      <Pressable
+        onPress={onShare}
+        disabled={shareDisabled}
+        className={`mt-3 h-11 flex-row items-center justify-center overflow-hidden rounded-xl border ${
+          shareDimmed
+            ? "border-slate-100 bg-slate-50"
+            : "border-brand-100 bg-brand-50"
+        }`}
+        android_ripple={brandRipple}
+        style={iosPressOpacity}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: shareDisabled, busy: isSharing }}
+        accessibilityLabel={`Fill and share PDF for ${item.title}`}
+      >
+        {isSharing ? (
+          <>
+            <ActivityIndicator size="small" color="#2563EB" />
+            <Text className="ml-2 text-sm font-semibold text-brand-700">
+              Preparing…
+            </Text>
+          </>
+        ) : (
+          <>
+            <Ionicons
+              name="document-text-outline"
+              size={16}
+              color={shareDimmed ? "#94a3b8" : "#2563eb"}
+            />
+            <Text
+              className={`ml-1.5 text-sm font-semibold ${
+                shareDimmed ? "text-slate-400" : "text-brand-700"
+              }`}
+            >
+              Fill & Share PDF
+            </Text>
+          </>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
+// ──────────────────────────────────────────────
 // Screen
 // ──────────────────────────────────────────────
 
@@ -85,6 +489,7 @@ export default function ChecklistScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [sharingTaskKey, setSharingTaskKey] = useState<string | null>(null);
@@ -328,6 +733,16 @@ export default function ChecklistScreen() {
     if (progressQuery.isError) progressQuery.refetch();
   }
 
+  // ── Derived header display values ────────────
+
+  const routeLine =
+    origin && dest
+      ? { origin: PROVINCE_LABELS[origin], dest: PROVINCE_LABELS[dest] }
+      : null;
+  const moveDateLabel = profile?.move_date
+    ? formatDeadline(parseISODate(profile.move_date))
+    : null;
+
   // ── Render guards ────────────────────────────
 
   const showError =
@@ -341,52 +756,101 @@ export default function ChecklistScreen() {
 
   if (showError) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 px-8">
-        <Ionicons
-          name={"cloud-offline-outline" as IconName}
-          size={44}
-          color="#94a3b8"
+      <View className="flex-1 bg-slate-50">
+        <ScreenHeader
+          topInset={insets.top}
+          routeLine={routeLine}
+          moveDateLabel={moveDateLabel}
+          progress={null}
         />
-        <Text className="mt-4 text-lg font-semibold text-slate-900">
-          Couldn't load your checklist
-        </Text>
-        <Text className="mt-1 text-center text-sm text-slate-500">
-          Check your connection and try again.
-        </Text>
-        <TouchableOpacity
-          onPress={handleRetry}
-          className="mt-6 rounded-xl bg-blue-600 px-8 py-3.5"
-          activeOpacity={0.8}
-        >
-          <Text className="text-base font-bold text-white">Retry</Text>
-        </TouchableOpacity>
+        <View className="flex-1 items-center justify-center px-8">
+          <View className="h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+            <Ionicons
+              name="cloud-offline-outline"
+              size={30}
+              color="#64748b"
+            />
+          </View>
+          <Text className="mt-5 text-lg font-semibold text-slate-900">
+            Couldn't load your checklist
+          </Text>
+          <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500">
+            Check your connection and try again.
+          </Text>
+          <Pressable
+            onPress={handleRetry}
+            className="mt-6 h-12 items-center justify-center overflow-hidden rounded-full bg-brand-600 px-8"
+            android_ripple={{ color: "rgba(255, 255, 255, 0.25)" }}
+            style={iosPressOpacity}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading your checklist"
+          >
+            <Text className="text-base font-semibold text-white">
+              Try Again
+            </Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50">
-        <ActivityIndicator size="large" color="#2563EB" />
+      <View className="flex-1 bg-slate-50">
+        <ScreenHeader
+          topInset={insets.top}
+          routeLine={routeLine}
+          moveDateLabel={moveDateLabel}
+          progress={null}
+        />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text className="mt-3 text-sm text-slate-400">
+            Building your checklist…
+          </Text>
+        </View>
       </View>
     );
   }
 
   if (!corridorReady) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 px-8">
-        <Ionicons
-          name={"map-outline" as IconName}
-          size={44}
-          color="#94a3b8"
+      <View className="flex-1 bg-slate-50">
+        <ScreenHeader
+          topInset={insets.top}
+          routeLine={null}
+          moveDateLabel={null}
+          progress={null}
         />
-        <Text className="mt-4 text-lg font-semibold text-slate-900">
-          Tell us about your move
-        </Text>
-        <Text className="mt-1 text-center text-sm text-slate-500">
-          Set your origin and destination provinces in your profile to build
-          your checklist.
-        </Text>
+        <View className="flex-1 items-center justify-center px-8">
+          <View className="h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+            <Ionicons
+              name="map-outline"
+              size={30}
+              color="#2563eb"
+            />
+          </View>
+          <Text className="mt-5 text-lg font-semibold text-slate-900">
+            Tell us about your move
+          </Text>
+          <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500">
+            Set your origin and destination provinces in your profile to build
+            your checklist.
+          </Text>
+          <View
+            className={`mt-6 flex-row items-center rounded-full border border-slate-200 bg-white px-4 py-2.5 ${cardShadowClass}`}
+            style={cardElevation}
+          >
+            <Ionicons
+              name="person-circle-outline"
+              size={16}
+              color="#2563eb"
+            />
+            <Text className="ml-1.5 text-sm font-semibold text-slate-700">
+              Profile tab → Set your corridor
+            </Text>
+          </View>
+        </View>
       </View>
     );
   }
@@ -398,241 +862,134 @@ export default function ChecklistScreen() {
     items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
   const today = startOfToday();
 
+  // Render-time section bookkeeping (no change to the memoized sort).
+  const sectionCounts: Record<SectionKey, number> = {
+    overdue: 0,
+    dueSoon: 0,
+    noDeadline: 0,
+    completed: 0,
+  };
+  for (const item of items) {
+    sectionCounts[sectionForItem(item, today)] += 1;
+  }
+  const allDone = items.length > 0 && progressPct === 100;
+
   // ── Main list ────────────────────────────────
 
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor="#2563EB"
-          colors={["#2563EB"]}
-        />
-      }
-    >
-      {/* Progress summary */}
-      <View className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-        <Text className="text-sm font-medium text-slate-500">
-          {origin ? PROVINCE_LABELS[origin] : "—"} →{" "}
-          {dest ? PROVINCE_LABELS[dest] : "—"}
-          {profile?.move_date
-            ? ` · Moving ${formatDeadline(parseISODate(profile.move_date))}`
-            : ""}
-        </Text>
-        <Text className="mt-1 text-2xl font-bold text-slate-900">
-          {completedCount} of {items.length} tasks done
-        </Text>
-        <View className="mt-3 flex-row overflow-hidden rounded-full bg-slate-100">
-          <View
-            className="h-2 rounded-full bg-blue-600"
-            style={{ flex: progressPct }}
+    <View className="flex-1 bg-slate-50">
+      <ScreenHeader
+        topInset={insets.top}
+        routeLine={routeLine}
+        moveDateLabel={moveDateLabel}
+        progress={
+          items.length > 0
+            ? {
+                completed: completedCount,
+                total: items.length,
+                pct: progressPct,
+                overdue: sectionCounts.overdue,
+              }
+            : null
+        }
+      />
+
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 20,
+          paddingBottom: 48,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#2563EB"
+            colors={["#2563EB"]}
           />
-          <View style={{ flex: 100 - progressPct }} />
-        </View>
-      </View>
-
-      {/* Empty state */}
-      {items.length === 0 && (
-        <View className="items-center rounded-xl border border-slate-200 bg-white px-6 py-12">
-          <Ionicons
-            name={"checkmark-done-circle-outline" as IconName}
-            size={44}
-            color="#94a3b8"
-          />
-          <Text className="mt-4 text-lg font-semibold text-slate-900">
-            No tasks yet
-          </Text>
-          <Text className="mt-1 text-center text-sm text-slate-500">
-            We don't have tasks for your corridor yet. Pull down to refresh —
-            new rules are added regularly.
-          </Text>
-        </View>
-      )}
-
-      {/* Task rows */}
-      {items.map((item) => {
-        const isCompleted = item.status === "COMPLETED";
-        const isLocked = item.status === "LOCKED";
-        const isExpanded = expandedIds.has(item.taskRuleId);
-        const deadline = item.deadlineDate
-          ? parseISODate(item.deadlineDate)
-          : null;
-        const isOverdue = !!deadline && deadline < today && !isCompleted;
-        const isSharing = sharingTaskKey === item.taskKey;
-        const shareDisabled = sharingTaskKey !== null;
-
-        return (
+        }
+      >
+        {/* Empty state */}
+        {items.length === 0 && (
           <View
-            key={item.taskRuleId}
-            className="mb-3 rounded-xl border border-slate-200 bg-white p-4"
+            className={`items-center rounded-2xl border border-slate-100 bg-white px-6 py-12 ${cardShadowClass}`}
+            style={cardElevation}
           >
-            <View className="flex-row items-start">
-              {/* Checkbox */}
-              <TouchableOpacity
-                onPress={() => handleToggle(item)}
-                disabled={isLocked}
-                className={`mt-0.5 h-7 w-7 items-center justify-center rounded-lg border-2 ${
-                  isCompleted
-                    ? "border-blue-600 bg-blue-600"
-                    : isLocked
-                      ? "border-slate-200 bg-slate-100"
-                      : "border-slate-300 bg-white"
-                }`}
-                activeOpacity={0.7}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: isCompleted, disabled: isLocked }}
-                accessibilityLabel={
-                  isLocked
-                    ? `"${item.title}" is locked`
-                    : `Mark "${item.title}" as ${
-                        isCompleted ? "not done" : "done"
-                      }`
-                }
-              >
-                {isCompleted && (
-                  <Ionicons
-                    name={"checkmark" as IconName}
-                    size={18}
-                    color="#ffffff"
-                  />
-                )}
-                {isLocked && (
-                  <Ionicons
-                    name={"lock-closed" as IconName}
-                    size={14}
-                    color="#94a3b8"
-                  />
-                )}
-              </TouchableOpacity>
-
-              {/* Title + badges (tap to expand description) */}
-              <TouchableOpacity
-                onPress={() => toggleExpanded(item.taskRuleId)}
-                className="ml-3 flex-1"
-                activeOpacity={0.7}
-              >
-                <View className="flex-row items-start justify-between">
-                  <Text
-                    className={`flex-1 pr-2 text-base font-semibold ${
-                      isCompleted
-                        ? "text-slate-400 line-through"
-                        : "text-slate-900"
-                    }`}
-                  >
-                    {item.title}
-                  </Text>
-                  <Ionicons
-                    name={
-                      (isExpanded
-                        ? "chevron-up"
-                        : "chevron-down") as IconName
-                    }
-                    size={16}
-                    color="#94a3b8"
-                  />
-                </View>
-
-                {/* Badges */}
-                <View className="mt-2 flex-row flex-wrap items-center gap-2">
-                  {/* Deadline chip */}
-                  {deadline ? (
-                    <View
-                      className={`flex-row items-center rounded-full px-2.5 py-1 ${
-                        isOverdue
-                          ? "bg-red-100"
-                          : isCompleted
-                            ? "bg-slate-100"
-                            : "bg-blue-50"
-                      }`}
-                    >
-                      <Ionicons
-                        name={
-                          (isOverdue
-                            ? "alert-circle"
-                            : "calendar-outline") as IconName
-                        }
-                        size={12}
-                        color={
-                          isOverdue
-                            ? "#b91c1c"
-                            : isCompleted
-                              ? "#64748b"
-                              : "#2563eb"
-                        }
-                      />
-                      <Text
-                        className={`ml-1 text-xs font-semibold ${
-                          isOverdue
-                            ? "text-red-700"
-                            : isCompleted
-                              ? "text-slate-500"
-                              : "text-blue-700"
-                        }`}
-                      >
-                        {isOverdue
-                          ? `Overdue · ${formatDeadline(deadline)}`
-                          : `Due ${formatDeadline(deadline)}`}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View className="rounded-full bg-slate-100 px-2.5 py-1">
-                      <Text className="text-xs font-medium text-slate-500">
-                        No fixed deadline
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Mandatory badge */}
-                  {item.isMandatory && (
-                    <View className="rounded-full bg-amber-100 px-2.5 py-1">
-                      <Text className="text-xs font-semibold text-amber-700">
-                        Required
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Collapsible description */}
-                {isExpanded && item.description.length > 0 && (
-                  <Text className="mt-3 text-sm leading-5 text-slate-600">
-                    {item.description}
-                  </Text>
-                )}
-              </TouchableOpacity>
+            <View className="h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+              <Ionicons
+                name="checkmark-done-circle-outline"
+                size={30}
+                color="#2563eb"
+              />
             </View>
-
-            {/* Fill & Share PDF (all buttons disabled while any share runs) */}
-            <TouchableOpacity
-              onPress={() => handleSharePDF(item)}
-              disabled={shareDisabled}
-              className={`mt-3 flex-row items-center justify-center rounded-xl border py-2.5 ${
-                shareDisabled
-                  ? "border-slate-200 bg-slate-50"
-                  : "border-blue-200 bg-blue-50"
-              }`}
-              activeOpacity={0.7}
-            >
-              {isSharing ? (
-                <ActivityIndicator size="small" color="#2563EB" />
-              ) : (
-                <>
-                  <Ionicons
-                    name={"document-text-outline" as IconName}
-                    size={16}
-                    color="#2563eb"
-                  />
-                  <Text className="ml-1.5 text-sm font-semibold text-blue-700">
-                    Fill & Share PDF
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <Text className="mt-5 text-lg font-semibold text-slate-900">
+              No tasks yet
+            </Text>
+            <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500">
+              We don't have tasks for your corridor yet. Pull down to refresh —
+              new rules are added regularly.
+            </Text>
           </View>
-        );
-      })}
-    </ScrollView>
+        )}
+
+        {/* 100%-complete celebration */}
+        {allDone && (
+          <View
+            className={`mb-4 flex-row items-center rounded-2xl bg-brand-600 p-4 ${cardShadowClass}`}
+            style={cardElevation}
+            accessibilityRole="text"
+            accessibilityLabel="All set for the move! Every task on your checklist is complete."
+          >
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-brand-500">
+              <Ionicons
+                name="trophy-outline"
+                size={20}
+                color="#ffffff"
+              />
+            </View>
+            <View className="ml-3 flex-1">
+              <Text className="text-base font-bold text-white">
+                All set for the move!
+              </Text>
+              <Text className="mt-0.5 text-sm leading-5 text-brand-50">
+                Every task on your checklist is complete.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Task rows (sorted: incomplete first, then completed) with
+            render-time urgency sections — contiguous by construction */}
+        {items.map((item, index) => {
+          const section = sectionForItem(item, today);
+          const prevSection =
+            index > 0 ? sectionForItem(items[index - 1], today) : null;
+
+          return (
+            <Fragment key={item.taskRuleId}>
+              {section !== prevSection && (
+                <SectionHeader
+                  label={SECTION_LABELS[section]}
+                  count={sectionCounts[section]}
+                  accent={section === "overdue"}
+                  first={index === 0}
+                />
+              )}
+              <TaskCard
+                item={item}
+                isExpanded={expandedIds.has(item.taskRuleId)}
+                isSharing={sharingTaskKey === item.taskKey}
+                shareDisabled={sharingTaskKey !== null}
+                today={today}
+                onToggle={() => handleToggle(item)}
+                onExpand={() => toggleExpanded(item.taskRuleId)}
+                onShare={() => handleSharePDF(item)}
+              />
+            </Fragment>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }

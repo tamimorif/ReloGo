@@ -4,8 +4,6 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
-
 export default function TabsLayout() {
   return (
     <Tabs
@@ -38,10 +36,11 @@ export default function TabsLayout() {
         name="checklist"
         options={{
           title: "Checklist",
-          headerTitle: "My Relocation Checklist",
+          // The checklist renders its own large-title header in-screen.
+          headerShown: false,
           tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Ionicons
-              name={"checkbox-outline" as IconName}
+              name="checkbox-outline"
               size={size}
               color={color}
             />
@@ -55,11 +54,20 @@ export default function TabsLayout() {
           headerTitle: "My Profile",
           tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Ionicons
-              name={"person-circle-outline" as IconName}
+              name="person-circle-outline"
               size={size}
               color={color}
             />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="contact"
+        options={{
+          // Hidden from the tab bar — reached from Profile → Contact us.
+          // The screen draws its own header (with a back control).
+          href: null,
+          headerShown: false,
         }}
       />
     </Tabs>

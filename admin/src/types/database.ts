@@ -33,6 +33,14 @@ export type TaskStatus = "LOCKED" | "AVAILABLE" | "COMPLETED";
 
 export type AlertStatus = "PENDING" | "APPROVED" | "DISMISSED";
 
+export type SupportThreadStatus =
+  | "AI"
+  | "AWAITING_HUMAN"
+  | "HUMAN"
+  | "RESOLVED";
+
+export type SupportMessageSender = "user" | "ai" | "admin";
+
 // ──────────────────────────────────────────────
 // Province labels
 // ──────────────────────────────────────────────
@@ -276,6 +284,50 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["admin_users"]["Insert"]>;
         Relationships: [];
       };
+      support_threads: {
+        Row: {
+          id: string;
+          user_id: string;
+          subject: string | null;
+          status: "AI" | "AWAITING_HUMAN" | "HUMAN" | "RESOLVED";
+          created_at: string;
+          updated_at: string;
+          last_message_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          subject?: string | null;
+          status?: "AI" | "AWAITING_HUMAN" | "HUMAN" | "RESOLVED";
+          created_at?: string;
+          updated_at?: string;
+          last_message_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["support_threads"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      support_messages: {
+        Row: {
+          id: string;
+          thread_id: string;
+          sender: "user" | "ai" | "admin";
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          thread_id: string;
+          sender: "user" | "ai" | "admin";
+          body: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["support_messages"]["Insert"]
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -328,6 +380,14 @@ export type OfficialSource =
   Database["public"]["Tables"]["official_sources"]["Row"];
 export type RuleChangeAlert =
   Database["public"]["Tables"]["rule_change_alerts"]["Row"];
+export type SupportThread =
+  Database["public"]["Tables"]["support_threads"]["Row"];
+export type SupportThreadInsert =
+  Database["public"]["Tables"]["support_threads"]["Insert"];
+export type SupportMessage =
+  Database["public"]["Tables"]["support_messages"]["Row"];
+export type SupportMessageInsert =
+  Database["public"]["Tables"]["support_messages"]["Insert"];
 
 /**
  * An alert row joined with its related official source.

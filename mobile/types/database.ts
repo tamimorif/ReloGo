@@ -244,6 +244,50 @@ export interface Database {
         >;
         Relationships: [];
       };
+      support_threads: {
+        Row: {
+          id: string;
+          user_id: string;
+          subject: string | null;
+          status: "AI" | "AWAITING_HUMAN" | "HUMAN" | "RESOLVED";
+          created_at: string;
+          updated_at: string;
+          last_message_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          subject?: string | null;
+          status?: "AI" | "AWAITING_HUMAN" | "HUMAN" | "RESOLVED";
+          created_at?: string;
+          updated_at?: string;
+          last_message_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["support_threads"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      support_messages: {
+        Row: {
+          id: string;
+          thread_id: string;
+          sender: "user" | "ai" | "admin";
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          thread_id: string;
+          sender: "user" | "ai" | "admin";
+          body: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["support_messages"]["Insert"]
+        >;
+        Relationships: [];
+      };
       user_task_progress: {
         Row: {
           user_id: string;
@@ -352,6 +396,22 @@ export type UserTaskProgress =
   Database["public"]["Tables"]["user_task_progress"]["Row"];
 export type UserTaskProgressInsert =
   Database["public"]["Tables"]["user_task_progress"]["Insert"];
+export type SupportThread =
+  Database["public"]["Tables"]["support_threads"]["Row"];
+export type SupportThreadInsert =
+  Database["public"]["Tables"]["support_threads"]["Insert"];
+export type SupportMessage =
+  Database["public"]["Tables"]["support_messages"]["Row"];
+export type SupportMessageInsert =
+  Database["public"]["Tables"]["support_messages"]["Insert"];
+/** Thread lifecycle: AI answering → escalated → human handling → closed. */
+export type SupportThreadStatus =
+  | "AI"
+  | "AWAITING_HUMAN"
+  | "HUMAN"
+  | "RESOLVED";
+/** Who authored a chat message. */
+export type SupportMessageSender = "user" | "ai" | "admin";
 
 // ──────────────────────────────────────────────
 // Computed / Joined Types (for UI)
