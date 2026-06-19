@@ -42,6 +42,21 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "d0916701-38d5-48e9-a446-b01eb3cba1cc"
+      }
+    },
+    "owner": "tamimorif",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d0916701-38d5-48e9-a446-b01eb3cba1cc"
     }
   }
 }

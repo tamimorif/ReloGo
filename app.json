@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "d0916701-38d5-48e9-a446-b01eb3cba1cc"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.tamimorif.relogo",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
