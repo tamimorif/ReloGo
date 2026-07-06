@@ -1,0 +1,4 @@
+# Test-only dependencies for the worker (not needed at runtime).
+# The pure-logic tests import only worker/changedetect.py (stdlib), so they do
+# NOT need playwright/supabase from requirements.txt.
+pytest==8.2.2

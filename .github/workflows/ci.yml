@@ -24,6 +24,24 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+  mobile-test:
+    name: Mobile tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test
+
   admin-build:
     name: Admin build
     runs-on: ubuntu-latest
@@ -80,3 +98,19 @@ jobs:
           python-version: "3.11"
       - name: Compile worker
         run: python -m py_compile worker/main.py
+
+  worker-test:
+    name: Worker tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Test
+        run: pytest

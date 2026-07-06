@@ -10,7 +10,6 @@ Usage:
 """
 
 import asyncio
-import hashlib
 import logging
 import os
 import sys
@@ -25,6 +24,8 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
+
+from changedetect import BASELINE, CHANGED, UNCHANGED, classify_change, sha256
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -52,11 +53,6 @@ logger = logging.getLogger("relogo.worker")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def sha256(text: str) -> str:
-    """Return the hex SHA-256 digest of *text*."""
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def init_supabase() -> Client:
@@ -184,15 +180,16 @@ async def run() -> None:
 
             stats["scraped"] += 1
             new_hash = sha256(body_text)
+            classification = classify_change(last_hash, new_hash)
 
-            if last_hash is None:
+            if classification == BASELINE:
                 # First scrape of this source — record the baseline, no alert.
                 logger.info("  — Baseline recorded (hash=%s…)", new_hash[:12])
                 stats["unchanged"] += 1
-            elif last_hash == new_hash:
+            elif classification == UNCHANGED:
                 logger.info("  — No change detected (hash=%s…)", new_hash[:12])
                 stats["unchanged"] += 1
-            else:
+            else:  # CHANGED
                 logger.info(
                     "  ⚡ Change detected! old=%s… → new=%s…",
                     last_hash[:12],

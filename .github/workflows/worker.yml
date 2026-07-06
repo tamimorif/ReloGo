@@ -1,0 +1,43 @@
+name: Worker — rule monitor
+
+# Daily scheduled run of the Playwright scraper (worker/main.py). It fingerprints
+# each official government page (SHA-256) and files a PENDING rule-change alert
+# when the content changes — humans then approve via the admin dashboard. The
+# worker never edits live rules.
+#
+# Free: runs on GitHub-hosted runners; no always-on host or paid plan needed.
+#
+# REQUIRED repo secrets (Settings → Secrets and variables → Actions → New secret):
+#   SUPABASE_URL               — https://<project-ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY  — the service_role key (bypasses RLS; worker-only,
+#                                never ship it in any client app)
+# The worker exits 1 with a clear log line if either is missing.
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC daily (off-peak)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  monitor:
+    name: Run rule-monitor worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: pip install -r worker/requirements.txt
+
+      - name: Install Chromium + OS dependencies
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python worker/main.py

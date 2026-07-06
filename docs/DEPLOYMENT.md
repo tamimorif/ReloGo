@@ -5,11 +5,33 @@ admin dashboard, Expo SDK 51 / EAS for the mobile app, Supabase (Postgres +
 Auth + RLS) for the backend, and a Python 3.11 Playwright worker for rule
 monitoring.
 
+## 0. Order of operations
+
+Follow these top-to-bottom for a first deploy. Steps 1–4 make the app work and go
+live; step 5 (worker) is optional and not launch-blocking.
+
+| # | Step | Section |
+| --- | --- | --- |
+| 1 | Push migrations 001–005, enable anonymous sign-ins, grant admin | [§1](#1-supabase-database) |
+| 2 | Fill each app's `.env` from `.env.example` | per app below |
+| 3 | Deploy landing + admin to Vercel | [§2](#2-landing-page-nextjs-14-static-export-vercel), [§3](#3-admin-dashboard-vite-5-spa-vercel) |
+| 4 | Deploy the `support-ai` function + set `GEMINI_API_KEY`; build mobile via EAS | [§4](#4-mobile-app-expo-sdk-51-eas) |
+| 5 | *(optional)* Schedule the worker | [§5](#5-rule-monitor-worker-python-311--playwright) |
+
+**Already set up:** a Supabase project (**"ReloGo"**) is created and linked, an EAS
+project is registered (`app.json`), and Vercel config exists for both web apps
+(`landing/vercel.json`, `admin/vercel.json`). The worker's daily cron is committed
+(`.github/workflows/worker.yml`); it just needs two repo secrets to activate (§5).
+
 ## 1. Supabase (database)
 
 Migrations live in `supabase/migrations/` and are the single source of truth
 for the schema (`001_init.sql`, `002_hardening_and_user_deletion.sql`,
-`003_admin_user_views.sql`, `004_support_messages.sql`).
+`003_admin_user_views.sql`, `004_support_messages.sql`,
+`005_seed_all_corridors.sql`). `005` seeds checklist content for **all 13
+provinces & territories** (core destination tasks + a federal CRA task, with
+deadlines + official URLs), so a fresh `db push` yields a working checklist for
+every corridor out of the box.
 
 The support-chat feature requires `004_support_messages.sql`, which creates
 the `support_threads` and `support_messages` chat tables (+ RLS) and enables
@@ -25,6 +47,10 @@ supabase link --project-ref <your-project-ref>
 # Apply all pending migrations to the linked project
 supabase db push
 ```
+
+> **Note:** the **"ReloGo"** project is already linked in this repo
+> (`supabase/.temp/`), so `supabase link` may report it's already linked — that's
+> expected. On a new machine you still need `supabase login` first.
 
 To verify what would run without applying it:
 
@@ -129,6 +155,12 @@ For local development copy `mobile/.env.example` to `mobile/.env`.
 
 ## 5. Rule-monitor worker (Python 3.11 + Playwright)
 
+> **Optional / not launch-blocking.** The worker only keeps official-source
+> content fresh over time by filing admin alerts; the app works fully without it.
+> A free daily GitHub Actions cron is already committed at
+> `.github/workflows/worker.yml` — it just needs two repo secrets (see
+> [Scheduling](#scheduling-free) below).
+
 The worker is containerized (`worker/Dockerfile`, `python:3.11-slim` with
 Chromium for Playwright).
 
@@ -144,9 +176,17 @@ docker run --rm \
 Optional tuning: `PAGE_TIMEOUT_MS` (default 30000), `NAV_TIMEOUT_MS`
 (default 60000).
 
-Run it on a schedule (e.g. a daily cron on Fly.io, Railway, Cloud Run jobs,
-or a GitHub Actions scheduled workflow). The service role key bypasses RLS:
-it belongs only in the worker environment, never in any client app.
+### Scheduling (free)
+
+A daily GitHub Actions cron is committed at `.github/workflows/worker.yml`
+(`0 2 * * *` UTC, plus a manual **Run workflow** button). It checks out, installs
+deps, runs `playwright install --with-deps chromium`, and executes
+`python worker/main.py`. To activate it, add two **repo secrets** (Settings →
+Secrets and variables → Actions → New repository secret):
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Until they exist, the scheduled
+run exits 1 by design. No always-on host or paid plan needed. Managed-runner
+alternatives if you prefer: Fly.io, Railway, or Cloud Run jobs. The service role
+key bypasses RLS — it belongs only in the worker environment, never in any client app.
 
 Local run without Docker:
 
@@ -238,9 +278,11 @@ the AI is instructed to refuse personal IDs.
 `.github/workflows/ci.yml` runs on every push to `main` and on pull requests:
 
 - `mobile-typecheck`: `npm ci && npx tsc --noEmit` in `mobile/`
+- `mobile-test`: `npm ci && npm test` in `mobile/` (jest — 20 deadline/date tests)
 - `admin-build`: `npm ci && npm run build` in `admin/`
 - `landing-build`: `npm ci && npm run build` in `landing/`
 - `worker-compile`: `python -m py_compile worker/main.py`
+- `worker-test`: `pip install -r requirements-dev.txt && pytest` in `worker/` (14 tests)
 
 The web builds use placeholder Supabase env values in CI; real values are
 injected by Vercel at deploy time.

@@ -1,21 +1,24 @@
 # ReloGo — Project Status
 
-_Last updated: 2026-06-12_
+_Last updated: 2026-07-06_
 
-This is a snapshot of what is built, verified, and outstanding. For the
-architecture and phase narrative see [`../ReloGo Master Plan.md`](../ReloGo%20Master%20Plan.md);
-for deployment steps see [`DEPLOYMENT.md`](DEPLOYMENT.md).
+This is a snapshot of what is built, verified, and outstanding. For deployment
+steps see [`DEPLOYMENT.md`](DEPLOYMENT.md); for the file map + agent guide see
+[`ai/`](ai/).
 
 ## Summary
 
 All seven planned phases are **code-complete and build-verified**, plus an
-added admin **Users** page. This is a complete **MVP codebase** — but "100%"
-for a *launched, compliant, scalable* product is a larger surface than the MVP.
+added admin **Users** page and an in-app **support chat + AI** feature. This is a
+complete **MVP codebase** — but "100%" for a *launched, compliant, scalable*
+product is a larger surface than the MVP.
 
 Roughly: the **build** is ~95% done; the **product** (deployed, content-filled,
-monitored, compliant, in stores) is ~40% done. The gap is deployment, real
-content, hardening, and compliance — laid out in
-[Remaining to reach 100%](#remaining-to-reach-100) and the
+monitored, compliant, in stores) is ~50% done — further along now that all 13
+provinces/territories are seeded (migration 005) and the Supabase project is
+provisioned. The remaining gap is deployment, content *verification*, hardening,
+and compliance — laid out in the [Implementation Map](#implementation-map),
+[Remaining to reach 100%](#remaining-to-reach-100), and the
 [Roadmap](#roadmap-senior-architecture-view) below.
 
 | Phase | Area | Status |
@@ -26,8 +29,9 @@ content, hardening, and compliance — laid out in
 | 4 | On-device PDF generation | ✅ Done (sample template; real gov PDFs pending) |
 | 5 | Automated scraper worker | ✅ Done (pending live run) |
 | 6 | Web platforms (landing + admin) | ✅ Done |
-| 7 | Deployment & hardening configs | 🟡 Configs done · not yet deployed |
+| 7 | Deployment & hardening configs | 🟡 Configs done · Supabase project created & linked · not yet fully deployed |
 | + | Admin "Users" page | ✅ Done |
+| + | Support chat + AI (in-app chat, admin Messages tab, Gemini Edge Function) | ✅ Done |
 
 ## What was built
 
@@ -45,6 +49,15 @@ content, hardening, and compliance — laid out in
 - **003_admin_user_views.sql** — admin-read RLS on `user_profiles` /
   `user_task_progress`; `admin_list_users()` and `admin_get_user_detail()`
   SECURITY DEFINER RPCs (the only bridge to `auth.users` metadata).
+- **004_support_messages.sql** — `support_threads` + `support_messages` chat
+  tables (+ RLS), with Supabase **Realtime** enabled on both so the app and admin
+  see new messages live. Backs the in-app support chat and the admin Messages tab.
+- **005_seed_all_corridors.sql** — expands checklist coverage from the single
+  ON→AB seed to **all 13 provinces & territories**: core destination tasks
+  (driver's licence, vehicle registration, health card, school enrollment) for
+  every destination plus a federal CRA address-change task, with deadlines +
+  official-source URLs researched June 2026. Its header flags the data as a
+  *starting point to verify* before relying on it.
 
 ### Mobile (`mobile/`)
 - Typed Supabase client with AES-encrypted session storage (LargeSecureStore),
@@ -55,7 +68,8 @@ content, hardening, and compliance — laid out in
   never lets a PII-laden PDF outlive its use.
 - Screens: onboarding, **checklist** (corridor/wildcard matching, vehicle/kids
   filtering, deadline computation, optimistic completion toggles via TanStack
-  Query), **profile** (move details, on-device PII vault, Delete My Data).
+  Query), **profile** (move details, on-device PII vault, Delete My Data), and
+  **contact** (in-app support chat — see Support chat + AI below).
 - Static assets (placeholder icons/splash) + a sample AcroForm PDF template.
 
 ### Landing (`landing/`)
@@ -69,11 +83,21 @@ content, hardening, and compliance — laid out in
 - **Users** tab — user list (corridor, move date, flags, progress, joined /
   last sign-in) + detail modal (account meta, move details, per-task checklist).
   Read-only; displays no PII by construction.
+- **Messages** tab — support-chat inbox: review threads, take over from the AI
+  (`AWAITING_HUMAN` / `HUMAN`), reply, and resolve. Live via Supabase Realtime.
 
 ### Worker (`worker/`)
 - Playwright scraper aligned to the real schema; uses
   `official_sources.last_content_hash` as the baseline (first scrape records
   silently); tenacity retries (3×, exponential backoff).
+
+### Support chat + AI (`supabase/functions/support-ai/`)
+- In-app chat threads answered by a Supabase **Edge Function** (Deno) calling
+  **Gemini** — but only while a thread's `status = 'AI'`. Once escalated or a
+  human takes over, the function returns without ever sending the conversation to
+  Gemini. No email collected; PII is refused by the AI and never leaves the
+  device. Data model + deploy steps in
+  [DEPLOYMENT.md](DEPLOYMENT.md#support-chat-threads--messages).
 
 ### Tooling / repo hygiene
 - `.env.example` in all four apps (documented, with where-to-find guidance).
@@ -81,6 +105,15 @@ content, hardening, and compliance — laid out in
   removed a committed `.DS_Store`.
 - `.github/workflows/ci.yml`, `mobile/eas.json`, `landing/vercel.json`,
   `admin/vercel.json`, `docs/DEPLOYMENT.md`.
+- iOS store screenshots captured (`store-screenshots/`, iphone + ipad).
+- **2026-07-05:** removed an unused `react-native-picker-select` (defused a
+  missing native peer-dependency landmine) and a redundant `@types/react-native`
+  from `mobile/`; lockfile regenerated, typecheck still clean.
+- `docs/ai/` — AI-agent handoff folder (`AGENTS.md`, `PROJECT_MAP.md`, `HANDOFF.md`).
+- **2026-07-06:** first automated tests — `mobile/lib/dateHelpers.ts` extracted +
+  jest/ts-jest with 20 deadline/timezone tests (`mobile-test` job); `worker/changedetect.py`
+  extracted + 14 pytest cases (`worker-test` job); plus a free daily worker cron
+  (`.github/workflows/worker.yml`; needs repo secrets).
 
 ## How it was verified
 
@@ -101,16 +134,43 @@ content, hardening, and compliance — laid out in
   end-to-end in a browser (corridor select → waitlist reveal). The waitlist
   *submission* itself needs a live Supabase project.
 
+## Implementation Map
+
+The ordered path from "MVP codebase" to "live product." Do these top-to-bottom;
+each step links to the how-to in [DEPLOYMENT.md](DEPLOYMENT.md). Steps 0–1 are
+mechanical (hours); the real work is steps 2–5.
+
+0. **Turn it on** — `supabase db push` (migrations 001–005), enable anonymous
+   sign-ins, seed `admin_users`, and fill each app's `.env` from `.env.example`.
+   → [DEPLOYMENT §1](DEPLOYMENT.md#1-supabase-database)
+1. **Deploy the surfaces** — Vercel (landing + admin), deploy the `support-ai`
+   function + set `GEMINI_API_KEY`, EAS build the mobile app (or Expo Go to test).
+   → [DEPLOYMENT §2–4](DEPLOYMENT.md#2-landing-page-nextjs-14-static-export-vercel)
+2. **Legal & consent** — publish Privacy Policy, ToS, PIPEDA statement; add an
+   onboarding consent step. *A privacy-first product cannot launch without these.*
+3. **Content pass** — verify each seeded deadline/URL against its official source;
+   add real government PDF forms for the highest-value tasks.
+4. **Hardening** — automated tests, monitoring (Sentry), backups, account recovery
+   (email/OTP), and schedule the worker on **GitHub Actions (free)**.
+5. **Engagement** — push / deadline reminders, bilingual FR, analytics, accessibility.
+
+The detailed breakdown of each gate is below; the longer-range view is in the
+[Roadmap](#roadmap-senior-architecture-view).
+
 ## Remaining to reach 100%
 
 What "done MVP code" does **not** yet cover. Grouped by gate, hardest-first.
 Items map to the [Roadmap](#roadmap-senior-architecture-view) phases.
 
 ### A. Launch-blocking — needed before the first real user
-- **Provision infrastructure** — Supabase project (prod **and** staging),
-  `supabase db push` (001–003), enable **anonymous sign-ins**, seed
-  `admin_users`. Vercel (landing + admin), Railway/Fly/Render (worker), EAS
-  (mobile). Secrets in each platform's env store (never committed).
+- **Finish provisioning** — a Supabase project (**"ReloGo"**) already exists and is
+  linked, an EAS project is registered, and Vercel is configured. Remaining:
+  `supabase db push` (migrations **001–005**), enable **anonymous sign-ins**, seed
+  `admin_users`, deploy the `support-ai` function + set `GEMINI_API_KEY`, then
+  deploy Vercel (landing + admin) and an EAS build (mobile). Optionally a separate
+  **staging** project. The worker host is optional (see D) — **GitHub Actions is
+  free**; Railway/Fly are not needed. Secrets live in each platform's env store,
+  never committed.
 - **Fill `.env` files** from each app's `.env.example`.
 - **Real branding** — production app icon/splash/favicon (current ones are flat
   placeholders) → required for store submission.
@@ -119,10 +179,12 @@ Items map to the [Roadmap](#roadmap-senior-architecture-view) phases.
   privacy-first product cannot launch without these published.
 
 ### B. Content & data — the actual product value
-- **Corridor coverage** — only the **ON→AB** corridor is seeded. A real product
-  needs the major corridors (then ideally all 156 province/territory pairs) with
-  *verified* tasks, deadlines, mandatory flags, and official URLs. This is the
-  single largest body of remaining work and is ongoing/operational, not code.
+- **Corridor content** — *breadth is done:* migration `005` seeds **all 13
+  provinces/territories** with core destination tasks + a federal CRA task,
+  deadlines, and official URLs. The remaining work is **depth + verification**:
+  independently confirm each seeded deadline/URL against its official source
+  (005's header explicitly marks the data a "starting point"), and add tasks
+  beyond the core set where a corridor needs them. Ongoing/operational, not code.
 - **Real government PDF templates** — only a sample AcroForm exists. Source the
   actual forms, map their field names into `FIELD_TO_PII`, and register them in
   `mobile/lib/pdfEngine.ts` keyed by `task_key`.
@@ -154,8 +216,8 @@ Items map to the [Roadmap](#roadmap-senior-architecture-view) phases.
   watches hundreds of sources.
 - **AI diff summaries** — populate `rule_change_alerts.diff_summary` with an LLM
   summary of what changed, and auto-classify cosmetic vs substantive changes to
-  cut admin review noise. (Column exists, unused. The only place AI clearly
-  earns its keep — see the worker discussion.)
+  cut admin review noise. (Column exists but unused; the `support-ai` Edge
+  Function already shows the AI plumbing — the worker just doesn't use it yet.)
 - **Analytics** — activation/completion funnels, corridor demand from the
   waitlist, to drive content priorities.
 - **Admin depth** — pagination, an audit log of admin actions, and full CRUD for
@@ -167,7 +229,7 @@ Items map to the [Roadmap](#roadmap-senior-architecture-view) phases.
 
 ## Roadmap (senior-architecture view)
 
-Continues the Master Plan's Phase 1–7. Each phase has a **goal**, **workstreams**,
+Continues from Phases 1–7 (all complete — see “What was built”). Each phase has a **goal**, **workstreams**,
 and **exit criteria** (the bar for calling it done). Phases are sequenced by
 dependency, not calendar — 8 gates the rest.
 

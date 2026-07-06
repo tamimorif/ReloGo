@@ -37,45 +37,16 @@ import {
   TaskStatus,
   UserTaskProgress,
 } from "@/types/database";
+import {
+  addDays,
+  formatDeadline,
+  parseISODate,
+  startOfToday,
+  toISODate,
+} from "@/lib/dateHelpers";
 
 /** corridor_task_rules row with its embedded global_tasks parent. */
 type RuleWithTask = CorridorTaskRule & { global_tasks: GlobalTask };
-
-// ──────────────────────────────────────────────
-// Date helpers (all local-time; move_date is a plain ISO date)
-// ──────────────────────────────────────────────
-
-function parseISODate(iso: string): Date {
-  // Anchor to local midnight so the calendar date never shifts with TZ.
-  return new Date(`${iso}T00:00:00`);
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-function toISODate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function startOfToday(): Date {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return now;
-}
-
-function formatDeadline(date: Date): string {
-  return date.toLocaleDateString("en-CA", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 // ──────────────────────────────────────────────
 // Platform styling primitives
