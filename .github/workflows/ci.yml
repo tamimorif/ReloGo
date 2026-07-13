@@ -127,7 +127,11 @@ jobs:
       - name: Start local Supabase (applies migrations)
         run: supabase start
       - name: Lint database schema
-        run: supabase db lint --local --level warning
+        # Lint project-owned SQL only. The bundled pgTAP extension currently
+        # emits false errors under plpgsql_check on Postgres 17.
+        run: >-
+          supabase db lint --local --schema public
+          --level warning --fail-on warning
       - name: Run pgTAP tests
         run: supabase test db --local supabase/tests/
 

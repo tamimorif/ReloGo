@@ -10,9 +10,10 @@ roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 
 ReloGo converts a Canadian interprovincial move into a personalized checklist
 of official tasks and deadlines. A substantial MVP is implemented and locally
-verified. It is not deployed or release-approved: environment provisioning,
-live end-to-end QA, government content/PDF validation, legal/store work, and
-production operations remain.
+verified. Its isolated Canadian cloud foundation is provisioned and the backend
+is deployed, but it is not release-approved: Gemini/admin setup, web/worker
+deployment, full live/device QA, government content/PDF validation, legal/store
+work, backup recovery, and production operations remain.
 
 The worker monitors official sources and may create PENDING alerts. It must
 never change live rules; only a human admin can approve a rule change.
@@ -27,10 +28,10 @@ never change live rules; only a human admin can approve a rule change.
 6. Update PLAN only for roadmap/status changes and this file only for current
    architecture, invariants, verification, or ordered engineering handoff.
 
-At this handoff the stabilization pass is committed locally on `tamim`, two
-commits ahead of `origin/tamim`. Re-check this state before acting. Do not reset,
-discard, or broadly reformat work you did not create. Never push or deploy
-without explicit authorization.
+The stabilization work is committed locally on `tamim`; Phase 1 handoff changes
+may be in the working tree or a later local commit. Re-check the exact
+ahead/dirty state before acting. Do not reset, discard, or broadly reformat work
+you did not create. Never push or deploy without explicit authorization.
 
 ## Non-negotiable rules
 
@@ -63,7 +64,9 @@ Deletion also removes the server account and local session.
 - Users access only their own profile, progress, and support rows.
 - Admin membership comes from `admin_users` and `is_admin()`, never a client
   email list.
-- Only public anon keys may ship in mobile, landing, and admin.
+- Only public Supabase publishable keys (or legacy anon keys) may ship in
+  mobile, landing, and admin. Compatibility variable names still use
+  `*_ANON_KEY`.
 - `service_role` is limited to server functions/worker operations.
 - Live-rule approval/dismissal and worker baseline persistence are RPC-only.
 - Keep SECURITY DEFINER `search_path`, role grants, row locks, and transition
@@ -71,7 +74,7 @@ Deletion also removes the server account and local session.
 
 ### Migrations and types
 
-- `supabase/migrations/001_*.sql` through `014_*.sql` are the ordered schema
+- `supabase/migrations/001_*.sql` through `016_*.sql` are the ordered schema
   source of truth. Add the next numbered migration; do not rewrite deployed
   behavior in an older migration.
 - The `Database` interface must remain byte-identical in
@@ -234,7 +237,7 @@ python3.11 -m pytest
 cd ..
 supabase start
 supabase db reset --local
-supabase db lint --local --level warning
+supabase db lint --local --schema public --level warning --fail-on warning
 supabase test db --local supabase/tests/
 
 # Deno helpers (CI also runs these)
@@ -254,26 +257,63 @@ deno test supabase/functions/support-ai/grounding_test.ts \
 - Worker Python 3.11 compile and 69/69 tests: pass.
 - Database types are byte-identical at 285 lines; the three support-question
   allowlists match.
-- Fresh migrations 001–014, schema lint, and all 139 pgTAP assertions: pass.
+- Fresh migrations 001–016, public-schema lint, and all 143 pgTAP assertions:
+  pass locally and against both hosted projects.
+- Preview's disposable hosted journey passed anonymous auth, profile upsert,
+  five matching checklist rules, support fallback persistence, and account
+  deletion.
+- `support-ai` is ACTIVE with JWT verification on both projects; unauthenticated
+  requests return 401. `GEMINI_API_KEY` is absent, so the tested behavior is
+  fallback-to-human, not a real Gemini response.
+- Hosted security/performance advisors have no errors. Remaining warnings are
+  reviewed intentional RPC/RLS policy shape and fresh-project unused indexes.
 - Workflow YAML and project/package JSON parsing: pass. Deno is not installed
   locally; the Deno helper suite is enforced by CI.
 
+## Hosted environment state
+
+- Supabase preview: `ReloGo Preview`, project ref
+  `uwfblgllkibbupqyofkl`, region `ca-central-1`.
+- Supabase production: `ReloGo Production`, project ref
+  `yskknolxbxfxakgvrcmg`, region `ca-central-1`.
+- Anonymous sign-ins are enabled on both with a 30/hour/IP limit. Migrations
+  001–016 and `support-ai` version 1 are deployed to both.
+- Machine-local Supabase link state is intentionally left on preview. Database
+  passwords are in macOS Keychain services `ReloGo Supabase Preview DB` and
+  `ReloGo Supabase Production DB`, account `tamimorif`; never print them.
+- Vercel `relogo` maps to `landing/`; `relo-go` maps to `admin/`.
+  Development/preview variables use preview Supabase and production variables
+  use production Supabase.
+- EAS project `@tamimorif/relogo` has the same mapping across its
+  development/preview/production environments. Ignored local env files point
+  all three apps at preview.
+- Do not run `supabase config push`: `supabase/config.toml` contains localhost
+  Auth URLs. Patch hosted Auth fields minimally or use the Dashboard.
+- Hosted `supabase test db --linked` uses a restricted temporary role without
+  pgTAP schema usage. Run hosted pgTAP through the password-authenticated linked
+  pooler URL; the suite is transactional and rolls back.
+- Supabase CLI 2.107.0 may emit a pg-delta temporary-CA catalog-cache warning
+  after a successful migration. Confirm remote history/post-push dry run, lint,
+  and pgTAP rather than relying on that optional cache.
+
 ## Known limits and next work
 
-1. Provision isolated preview/production Supabase projects and matching EAS/web
-   public variables. `mobile/eas.json` selects environments but stores no values.
-2. Enable anonymous auth, apply migrations, create admin membership, set Gemini
-   secret, deploy the Edge Function, and run platform advisors/backup drill.
-3. Deploy landing/admin and run a real worker baseline + webhook test.
-4. Build EAS preview binaries and perform full two-platform/live E2E QA.
-5. Verify government content and add/test a real fillable PDF.
-6. Add consent version/timestamp + re-consent, legal/store approval, monitoring,
+1. Obtain `GEMINI_API_KEY`, set it on preview, run a real authenticated support
+   flow, then set/test production.
+2. Select/create the first admin identity and add it to `admin_users` in both
+   environments; verify `is_admin()` and an admin-only RPC.
+3. Choose a backup/PITR-capable Supabase plan and complete a restore drill.
+4. Deploy landing/admin and run a real worker baseline + webhook test.
+5. Build EAS preview binaries and perform full two-platform/live E2E QA.
+6. Verify government content and add/test a real fillable PDF.
+7. Add consent version/timestamp + re-consent, legal/store approval, monitoring,
    incident response, and support ownership.
 
 Non-blocking engineering debt: a recoverable pre-generation AI lease (atomic
 finalization already prevents duplicate stored replies), server-side admin user
 pagination, explicit waitlist throttle feedback that preserves enumeration
-safety, and broader automated end-to-end coverage.
+safety, workload-specific credentials/narrow escalation RPCs instead of the
+shared aggregate `service_role`, and broader automated end-to-end coverage.
 
 ## Operational facts
 
@@ -283,10 +323,10 @@ safety, and broader automated end-to-end coverage.
 - Worker GitHub secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; optional
   `ALERT_WEBHOOK_URL`.
 - Edge secret: `GEMINI_API_KEY`; never expose it to clients.
-- Public anon keys are expected in client bundles; database security must never
-  depend on hiding them.
-- EAS `development`, `preview`, and `production` variables are independent; do
-  not point test builds at production by accident.
+- Public publishable/legacy-anon keys are expected in client bundles; database
+  security must never depend on hiding them.
+- EAS `development` and `preview` currently target preview Supabase;
+  `production` targets production. Preserve that separation during rotations.
 - `privacy@relogo.app` is a placeholder until a monitored public mailbox exists.
 
 ## Documentation rule

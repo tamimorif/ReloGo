@@ -66,6 +66,8 @@ order; do not edit the hosted schema by hand.
 | `012_support_thread_metadata_privacy.sql` | Blocks client-authored free-text support metadata |
 | `013_reject_obsolete_rule_approvals.sql` | Rejects approval after a source baseline advances |
 | `014_persistent_support_human_takeover.sql` | Permanently records human-involved support threads |
+| `015_hosted_support_ai_least_privilege.sql` | Makes hosted Edge grants match the tested least-privilege boundary |
+| `016_support_thread_user_inbox_index.sql` | Covers the user-specific support inbox lookup and ordering |
 
 ## Quick start
 
@@ -108,9 +110,10 @@ Enable anonymous sign-ins in Supabase before testing mobile onboarding. Never
 put a `service_role` key in a client application.
 
 Cloud mobile builds use the `development`, `preview`, and `production` EAS
-environments declared in `mobile/eas.json`. Provision
-`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` separately in
-each required EAS environment before building.
+environments declared in `mobile/eas.json`. The registered EAS project maps
+development/preview to the isolated preview Supabase project and production to
+the isolated production project. Keep those public values scoped separately
+when rotating them or creating another EAS project.
 
 ## Documentation
 
@@ -122,6 +125,6 @@ each required EAS environment before building.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
 The project is a locally verified MVP, not a launched product. The remaining
-work is primarily environment provisioning, live end-to-end QA, verified
-government content/PDF templates, legal/store review, and production
-operations. See the canonical plan for the ordered phases.
+work is primarily completing hosted credentials and ownership, live end-to-end
+QA, verified government content/PDF templates, legal/store review, and
+production operations. See the canonical plan for the ordered phases.

@@ -143,7 +143,9 @@ supabase/
 │   ├── 011_atomic_official_source_scrapes.sql ← row-locked worker persistence
 │   ├── 012_support_thread_metadata_privacy.sql ← no client-authored subject text
 │   ├── 013_reject_obsolete_rule_approvals.sql ← reject stale source revisions
-│   └── 014_persistent_support_human_takeover.sql ← durable human marker
+│   ├── 014_persistent_support_human_takeover.sql ← durable human marker
+│   ├── 015_hosted_support_ai_least_privilege.sql ← hosted Edge grant parity
+│   └── 016_support_thread_user_inbox_index.sql ← support inbox lookup index
 ├── functions/support-ai/       ← Deno/Gemini Edge Function and pure helpers
 │   ├── index.ts, grounding.ts, humanTakeover.ts, supportQuestions.ts, deno.lock
 ├── tests/rls_and_rpcs_test.sql ← adversarial pgTAP security/RPC suite

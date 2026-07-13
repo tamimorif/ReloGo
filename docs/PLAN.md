@@ -27,7 +27,7 @@ Supabase, sent to Gemini, logged, or exposed to the admin dashboard.
 | `landing/` | Marketing, legal, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
-| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Migrations 001–014, Deno Edge Function |
+| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Migrations 001–016, Deno Edge Function |
 
 There is no monorepo build layer. Each JavaScript app has an independent
 lockfile and environment. Supabase migrations are the schema source of truth;
@@ -96,7 +96,7 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ### Backend and CI
 
-- Ordered migrations 001–014 cover schema, seed data, RLS, deletion, admin
+- Ordered migrations 001–016 cover schema, seed data, RLS, deletion, admin
   authorization, support, waitlist, worker state, and atomic workflows.
 - Support timestamps are server-authored; AI persistence is atomic and
   service-only; human involvement is permanently marked; client write columns
@@ -108,9 +108,25 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   exports, landing lint/build, admin build, worker compile/tests, support helper
   tests/allowlist synchronization, database lint/pgTAP, and shared types.
 
+### Cloud foundation
+
+- Separate preview and production Supabase projects are active in Canada's
+  `ca-central-1` region. Development/preview clients target preview; production
+  clients target production in Vercel and EAS.
+- Hosted anonymous sign-ins are enabled with a 30-per-hour-per-IP limit.
+- Migrations 001–016 and `support-ai` are deployed to both projects. JWT
+  verification is enabled; without `GEMINI_API_KEY`, support safely persists a
+  fallback reply and escalates to a human.
+- Preview passed a self-cleaning anonymous onboarding → profile → checklist →
+  support fallback → account deletion smoke test.
+- Hosted public-schema lint and all 143 pgTAP checks pass in both environments.
+  Security/performance advisor results were reviewed; the remaining warnings
+  are intentional RPC/RLS policy shape or expected unused-index noise on fresh
+  databases.
+
 ## Verification snapshot
 
-Local checks established during the 2026-07-13 stabilization pass:
+Checks established during the 2026-07-13 stabilization and Phase 1 pass:
 
 | Check | Result |
 | --- | --- |
@@ -125,21 +141,24 @@ Local checks established during the 2026-07-13 stabilization pass:
 | Landing production dependency audit | 0 vulnerabilities |
 | Worker Python 3.11 compile/tests | 69/69 pass |
 | Database/support-question synchronization | Pass; database types byte-identical at 285 lines |
-| Fresh migrations, schema lint, pgTAP | Migrations 001–014 pass; no lint errors; 139/139 assertions pass |
-| Deployed end-to-end flow / EAS device builds | Not run; external environments are not provisioned |
+| Fresh migrations, public-schema lint, pgTAP | Migrations 001–016 pass; no project-schema lint errors; 143/143 assertions pass locally and hosted |
+| Hosted preview smoke | Anonymous onboarding, profile, checklist, support fallback, and account deletion pass |
+| Full deployed flow / EAS device builds | Not run; Gemini, first admin, web deploys, worker, and device builds remain |
 
-Passing local checks means the implementation is a strong MVP. It is not a
-production launch until the external phases below pass.
+Passing these checks means the implementation is a strong MVP. It is not a
+production launch until the remaining phases below pass.
 
 ## Remaining risks and deliberate limits
 
 ### Release blockers
 
-- Preview and production Supabase/EAS environments still need to be provisioned
-  and verified. `mobile/eas.json` selects separate EAS environments but does not
-  contain deploy-time values.
-- No complete live pass has exercised mobile, Edge Function, database, admin,
-  landing, and worker together against the intended hosted projects.
+- `GEMINI_API_KEY` is not configured, so both deployed Edge Functions are
+  deliberately fallback-to-human only.
+- No first admin identity has been selected or added to `admin_users`.
+- The current free Supabase plan does not provide the required managed
+  backup/PITR posture; a paid-backup decision and restore drill remain.
+- No complete live pass has exercised mobile, Gemini, database, admin, landing,
+  and worker together against the intended hosted projects.
 - No production government PDF template is registered.
 - Government rules/deadlines and promoted corridors need an independent final
   content review.
@@ -151,6 +170,9 @@ production launch until the external phases below pass.
 - Two concurrent support invocations can both spend Gemini quota; atomic final
   persistence ensures only one reply is stored. Add a recoverable lease if
   spend becomes material.
+- The worker and Edge Function share Supabase's aggregate `service_role`.
+  Migrations narrow that union, but workload-specific credentials or gateway
+  RPCs remain future defense-in-depth.
 - Admin user pagination is client-side after the RPC returns the full user set.
 - Waitlist throttling deliberately returns an indistinguishable success even
   when a sixth same-IP signup is dropped.
@@ -181,19 +203,22 @@ the stabilized tree is committed without losing prior user work.
 
 ### Phase 1 — provision isolated environments
 
-Status: **next.**
+Status: **in progress.**
 
-- Confirm/create separate preview and production Supabase projects.
-- Set client public variables in landing/admin hosts and in the matching EAS
-  `preview`/`production` environments.
-- Enable anonymous sign-ins and configure reasonable auth/rate limits.
-- Apply migrations 001–014, create the first admin membership, set
-  `GEMINI_API_KEY`, and deploy `support-ai`.
-- Run Supabase security/performance advisors.
-- Enable backups/PITR where available and complete a restore drill.
+- Completed: separate Canadian preview/production Supabase projects.
+- Completed: environment-scoped public variables in Vercel, EAS, and local
+  preview files; production values do not cross into preview/development.
+- Completed: anonymous auth/rate limit, migrations 001–016, active JWT-protected
+  `support-ai` deployments, hosted lint/pgTAP, advisors, and preview smoke test.
+- Remaining: select/create the first admin identity and add its membership.
+- Remaining: supply `GEMINI_API_KEY` securely to preview and run a real
+  authenticated Gemini support test, then promote and verify it in production.
+- Remaining: choose a backup/PITR-capable plan and complete a restore drill.
 
 Exit: preview/prod credentials cannot cross, a real anonymous user can onboard,
-an admin is server-authorized, and database/function security checks pass.
+an admin is server-authorized, a Gemini-backed preview flow is promoted and
+verified in production, database/function security checks pass, and the
+backup/restore gate is complete.
 
 ### Phase 2 — deploy web and monitoring worker
 

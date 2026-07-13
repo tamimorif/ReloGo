@@ -24,7 +24,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(139);
+SELECT plan(143);
 
 -- ============================================================================
 -- Platform-baseline grants (see header). RLS remains the actual gate.
@@ -1019,13 +1019,13 @@ SELECT is(
 );
 
 -- ============================================================================
--- J. support-ai service_role least privilege (migration 010)          (4 tests)
+-- J. shared service_role support-path ACLs (migrations 010, 015)       (7 tests)
 -- ============================================================================
 RESET ROLE;
 
 SELECT ok(
     has_schema_privilege('service_role', 'public', 'USAGE'),
-    'J: support-ai service_role can resolve objects in public'
+    'J: the shared service_role can resolve objects in public'
 );
 
 SELECT ok(
@@ -1059,17 +1059,18 @@ SELECT ok(
           ('public.global_tasks', 'requires_vehicle'),
           ('public.global_tasks', 'requires_dependents')
        ) AS required(table_name, column_name)),
-    'J: support-ai can read every required thread, transcript, and grounding column'
+    'J: the shared role can read every column required by the support path'
 );
 
 SELECT ok(
-    has_column_privilege(
-        'service_role', 'public.support_threads', 'status', 'UPDATE')
-    AND NOT has_column_privilege(
-        'service_role', 'public.support_threads', 'subject', 'UPDATE')
-    AND NOT has_column_privilege(
-        'service_role', 'public.support_threads', 'human_takeover_at', 'UPDATE'),
-    'J: support-ai may update only the support status field'
+    (SELECT bool_and(
+        has_column_privilege(
+            'service_role', 'public.support_threads', column_name, 'UPDATE')
+        = (column_name = 'status'))
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'support_threads'),
+    'J: the shared role may update only the support status field'
 );
 
 SELECT ok(
@@ -1077,13 +1078,83 @@ SELECT ok(
         'service_role',
         'public.persist_support_ai_reply(uuid,uuid,text,boolean)',
         'EXECUTE')
-    AND NOT has_table_privilege(
+    AND NOT has_any_column_privilege(
         'service_role', 'public.support_messages', 'INSERT'),
     'J: AI replies use the finalize RPC, not direct service-role inserts'
 );
 
+SELECT ok(
+    NOT has_any_column_privilege(
+        'service_role', 'public.support_threads', 'INSERT')
+    AND NOT has_table_privilege(
+        'service_role', 'public.support_threads', 'DELETE')
+    AND NOT has_any_column_privilege(
+        'service_role', 'public.support_messages', 'INSERT')
+    AND NOT has_any_column_privilege(
+        'service_role', 'public.support_messages', 'UPDATE')
+    AND NOT has_table_privilege(
+        'service_role', 'public.support_messages', 'DELETE'),
+    'J: the shared role cannot create/delete threads or write transcripts directly'
+);
+
+SELECT ok(
+    (SELECT bool_and(
+        NOT has_any_column_privilege(
+            'service_role', table_name, 'INSERT')
+        AND NOT has_any_column_privilege(
+            'service_role', table_name, 'UPDATE')
+        AND NOT has_table_privilege(
+            'service_role', table_name, 'DELETE'))
+     FROM (VALUES
+         ('public.user_profiles'),
+         ('public.corridor_task_rules'),
+         ('public.global_tasks')
+     ) AS tables(table_name)),
+    'J: support grounding tables are read-only for the shared role'
+);
+
+SELECT ok(
+    (SELECT bool_and(
+        has_column_privilege(
+            'service_role',
+            format('%I.%I', table_schema, table_name),
+            column_name,
+            'SELECT'
+        ) = CASE table_name
+            WHEN 'support_threads' THEN column_name = ANY (ARRAY[
+                'id', 'user_id', 'status', 'human_takeover_at'
+            ])
+            WHEN 'support_messages' THEN column_name = ANY (ARRAY[
+                'id', 'thread_id', 'sender', 'body', 'created_at'
+            ])
+            WHEN 'user_profiles' THEN column_name = ANY (ARRAY[
+                'id', 'origin_prov', 'dest_prov', 'move_date',
+                'has_vehicle', 'has_dependents'
+            ])
+            WHEN 'corridor_task_rules' THEN column_name = ANY (ARRAY[
+                'id', 'task_id', 'origin_province', 'dest_province',
+                'days_deadline', 'is_mandatory'
+            ])
+            WHEN 'global_tasks' THEN column_name = ANY (ARRAY[
+                'id', 'title_en', 'base_description_en',
+                'requires_vehicle', 'requires_dependents'
+            ])
+            ELSE FALSE
+        END)
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name IN (
+           'support_threads',
+           'support_messages',
+           'user_profiles',
+           'corridor_task_rules',
+           'global_tasks'
+       )),
+    'J: the shared role cannot read columns outside support-path needs'
+);
+
 -- ============================================================================
--- K. atomic official-source persistence + worker least privilege (011)
+-- K. shared service_role worker-path ACLs + atomic persistence (011)
 --                                                                    (28 tests)
 -- ============================================================================
 RESET ROLE;
@@ -1580,6 +1651,22 @@ SELECT ok(
        FROM public.support_threads
       WHERE id = '50000000-0000-0000-0000-000000000022'),
     'M: a future user-only resolve and reopen remains AI-eligible'
+);
+
+-- ============================================================================
+-- N. hosted performance parity (016)                                  (1 test)
+-- ============================================================================
+
+SELECT ok(
+    EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'support_threads'
+          AND indexname = 'idx_support_threads_user_last_message'
+          AND indexdef LIKE '%(user_id, last_message_at DESC)%'
+    ),
+    'N: user support inbox queries have a covering recency index'
 );
 
 SELECT * FROM finish();
