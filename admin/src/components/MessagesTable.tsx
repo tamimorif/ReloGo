@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import type { SupportThread, SupportThreadStatus } from "../types/database";
 import { ThreadModal } from "./ThreadModal";
+
+const PAGE_SIZE = 50;
 
 const STATUS_STYLES: Record<SupportThreadStatus, string> = {
   AI: "border-slate-500/30 bg-slate-500/10 text-slate-300",
@@ -30,30 +33,96 @@ function StatusBadge({ status }: { status: SupportThreadStatus }) {
 export function MessagesTable() {
   const [threads, setThreads] = useState<SupportThread[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
 
-  // ── Fetch all support threads, newest activity first ──────────────────
-  const fetchThreads = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Loaded-row count, readable from stable callbacks (realtime refetches
+  // must cover every page already on screen, not just the first).
+  const loadedCountRef = useRef(0);
+  useEffect(() => {
+    loadedCountRef.current = threads.length;
+  }, [threads]);
 
+  // ── Fetch support threads, newest activity first ──────────────────────
+  // `background` refetches (realtime) refresh the loaded rows in place
+  // without blanking the table behind the loading spinner.
+  const fetchThreads = useCallback(async (background = false) => {
+    if (!background) {
+      setLoading(true);
+      setError(null);
+    }
+
+    const limit = Math.max(loadedCountRef.current, PAGE_SIZE);
     const { data, error: fetchErr } = await supabase
       .from("support_threads")
       .select("*")
-      .order("last_message_at", { ascending: false });
+      .order("last_message_at", { ascending: false })
+      .range(0, limit - 1);
 
     if (fetchErr) {
-      setError(fetchErr.message);
+      if (!background) setError(fetchErr.message);
     } else {
-      setThreads(data ?? []);
+      const rows = data ?? [];
+      setThreads(rows);
+      setHasMore(rows.length === limit);
     }
-    setLoading(false);
+    if (!background) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchThreads();
   }, [fetchThreads]);
+
+  // ── Realtime: inbox reflects new threads / status changes live ────────
+  useEffect(() => {
+    const channel: RealtimeChannel = supabase
+      .channel("support_threads_inbox")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "support_threads",
+        },
+        () => {
+          // Refetch (rather than hand-merge) so ordering, the awaiting
+          // counter, and deletes all stay correct.
+          fetchThreads(true);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchThreads]);
+
+  // ── Load the next page, appended below the current rows ───────────────
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    setError(null);
+
+    const from = loadedCountRef.current;
+    const { data, error: fetchErr } = await supabase
+      .from("support_threads")
+      .select("*")
+      .order("last_message_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (fetchErr) {
+      setError(fetchErr.message);
+    } else {
+      const chunk = data ?? [];
+      setThreads((prev) => {
+        const seen = new Set(prev.map((t) => t.id));
+        return [...prev, ...chunk.filter((t) => !seen.has(t.id))];
+      });
+      setHasMore(chunk.length === PAGE_SIZE);
+    }
+    setLoadingMore(false);
+  }, []);
 
   // ── Aggregate stats ───────────────────────────────────────────────────
   const awaitingCount = useMemo(
@@ -86,7 +155,7 @@ export function MessagesTable() {
           </p>
         </div>
         <button
-          onClick={fetchThreads}
+          onClick={() => fetchThreads()}
           disabled={loading}
           className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
         >
@@ -194,6 +263,19 @@ export function MessagesTable() {
           </table>
         </div>
       ) : null}
+
+      {/* ── Load more ── */}
+      {!loading && hasMore && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
 
       {/* ── Thread Modal ── */}
       {selectedThreadId && (

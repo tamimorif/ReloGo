@@ -227,13 +227,13 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
     }
     setReply("");
 
-    // Bump thread activity, and — unless it's resolved — mark it HUMAN-handled
-    // now that a person has replied, so it leaves the "awaiting human" queue.
+    // The message trigger bumps thread activity with trusted server time. Unless
+    // it is resolved, mark it HUMAN-handled so it leaves the awaiting queue.
     const nextStatus: SupportThreadStatus =
       thread && thread.status === "RESOLVED" ? "RESOLVED" : "HUMAN";
     const { error: bumpErr } = await supabase
       .from("support_threads")
-      .update({ last_message_at: new Date().toISOString(), status: nextStatus })
+      .update({ status: nextStatus })
       .eq("id", threadId);
     if (bumpErr) {
       setError(bumpErr.message);

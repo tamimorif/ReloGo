@@ -9,7 +9,11 @@
  */
 import { Platform } from "react-native";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import * as FileSystem from "expo-file-system";
+// The classic FileSystem API moved to the /legacy entry point in newer SDKs.
+// This module's cache-hygiene guarantees were reviewed against the classic
+// semantics — prefer the explicit legacy import over a rewrite to the new
+// File/Paths API until that migration gets its own review.
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Asset } from "expo-asset";
 import { getPII } from "@/lib/secureStore";
@@ -33,19 +37,36 @@ const FIELD_TO_PII: Record<string, PIIKey> = {
  * Placeholder mapping — extend per-form as assets are added.
  */
 const TASK_PDF_ASSETS: Record<string, number> = {
-  UPDATE_HEALTH_CARD: require("../assets/pdfs/sample-form.pdf"),
+  // The sample form is a pdf-lib demo, NOT a real government form — dev-only
+  // so the engine stays testable. In production builds no template is
+  // registered until real provincial PDFs are onboarded, which hides the
+  // "Fill & Share PDF" button entirely (see hasPDFTemplate below).
+  ...(__DEV__
+    ? { UPDATE_HEALTH_CARD: require("../assets/pdfs/sample-form.pdf") }
+    : {}),
 };
 
 /**
+ * Whether a bundled PDF template is registered for a task. The checklist
+ * renders the "Fill & Share PDF" button only where tapping it can actually
+ * produce a form — templates are on-boarded incrementally per task_key.
+ */
+export function hasPDFTemplate(taskKey: string): boolean {
+  return taskKey in TASK_PDF_ASSETS;
+}
+
+/**
  * All filled PDFs are written to this dedicated cache subdirectory so they
- * can be wiped as a unit — after every share and during "Delete My Data".
+ * can be wiped as a unit. iOS cleans up after sharing; Android cleans up on
+ * the next fill/app start because receiving apps may read the attachment
+ * after the chooser closes. Account deletion always wipes the directory.
  */
 const FILLED_PDF_DIR = `${FileSystem.cacheDirectory}filled-pdfs/`;
 
 /**
- * Delete every filled PDF from the cache. Called after sharing and from
- * the PIPEDA deleteAccount() flow — filled forms contain the user's most
- * sensitive PII and must never outlive their immediate use.
+ * Delete every filled PDF from the cache. Called by the platform-safe cleanup
+ * points above and from the PIPEDA deleteAccount() flow — filled forms contain
+ * the user's most sensitive PII and must not persist longer than necessary.
  */
 export async function wipeFilledPDFs(): Promise<void> {
   await FileSystem.deleteAsync(FILLED_PDF_DIR, { idempotent: true });

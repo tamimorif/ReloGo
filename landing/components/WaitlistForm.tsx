@@ -23,6 +23,15 @@ const PROVINCES: { code: string; name: string }[] = [
 const selectClasses =
   "w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30";
 
+// Mirrors the DB waitlist_email_format_check (migration 002) so permanent
+// rejections are caught before the RPC and never blamed on the connection.
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+const EMAIL_FORMAT_MESSAGE =
+  "That email address doesn't look right. Please double-check it (e.g. you@example.com).";
+const CONNECTION_MESSAGE =
+  "Something went wrong joining the waitlist. Please check your connection and try again.";
+
 export default function WaitlistForm() {
   const [originProvince, setOriginProvince] = useState("");
   const [destProvince, setDestProvince] = useState("");
@@ -45,11 +54,17 @@ export default function WaitlistForm() {
     event.preventDefault();
     if (!corridorReady || submitting) return;
 
+    const trimmedEmail = email.trim();
+    if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      setError(EMAIL_FORMAT_MESSAGE);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
     const { error: rpcError } = await supabase.rpc("join_waitlist", {
-      p_email: email.trim(),
+      p_email: trimmedEmail,
       p_origin_province: originProvince,
       p_dest_province: destProvince,
     });
@@ -57,9 +72,16 @@ export default function WaitlistForm() {
     setSubmitting(false);
 
     if (rpcError) {
-      setError(
-        "Something went wrong joining the waitlist. Please check your connection and try again."
-      );
+      // Never log the full PostgREST error: constraint details can echo the
+      // submitted email address. The SQLSTATE/category is sufficient for
+      // diagnostics and contains no form data.
+      console.error("join_waitlist failed:", rpcError.code ?? "unknown");
+      // Permanent rejections: 23514 = CHECK violation (email format — the
+      // provinces come from a fixed list), 22001 = value too long for the
+      // VARCHAR(255) email column. Retrying these can never succeed.
+      const isEmailRejection =
+        rpcError.code === "23514" || rpcError.code === "22001";
+      setError(isEmailRejection ? EMAIL_FORMAT_MESSAGE : CONNECTION_MESSAGE);
       return;
     }
 
@@ -159,6 +181,7 @@ export default function WaitlistForm() {
                 disabled={!corridorReady}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                maxLength={255}
                 placeholder="you@example.com"
                 aria-label="Email address"
                 className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-base text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"

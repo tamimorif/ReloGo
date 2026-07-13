@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { safeHttpUrl } from "../lib/safeUrl";
 import type { AdminUserDetail, TaskStatus } from "../types/database";
 import { PROVINCE_LABELS } from "../types/database";
 
@@ -189,7 +190,11 @@ export function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
                   </p>
                 ) : (
                   <ul className="space-y-2">
-                    {detail.tasks.map((task) => (
+                    {detail.tasks.map((task) => {
+                      // Only http/https URLs become links; anything else
+                      // renders as plain text (defense against javascript:).
+                      const officialUrl = safeHttpUrl(task.official_url);
+                      return (
                       <li
                         key={task.task_rule_id}
                         className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5"
@@ -208,16 +213,20 @@ export function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
                                 ? ` · Updated ${fmtDateTime(task.status_updated_at)}`
                                 : ""}
                             </p>
-                            {task.official_url && (
+                            {officialUrl ? (
                               <a
-                                href={task.official_url}
+                                href={officialUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="mt-0.5 block truncate text-xs text-blue-400 underline decoration-slate-600 hover:text-blue-300"
                               >
-                                {task.official_url}
+                                {officialUrl}
                               </a>
-                            )}
+                            ) : task.official_url ? (
+                              <span className="mt-0.5 block truncate text-xs text-slate-500">
+                                {task.official_url}
+                              </span>
+                            ) : null}
                           </div>
                           <span
                             className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[task.status]}`}
@@ -226,7 +235,8 @@ export function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
                           </span>
                         </div>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
               </section>

@@ -111,6 +111,13 @@ export interface AdminUserDetail {
 
 // ──────────────────────────────────────────────
 // Supabase Database interface
+//
+// ⚠️ INVARIANT: the `export interface Database { ... }` block below must be
+// byte-identical between mobile/types/database.ts and
+// admin/src/types/database.ts (same tables, same order, same whitespace),
+// until types are centralized (#C3). Helper types outside the block may
+// differ per app. Check with: scripts/check-database-types-sync.sh
+// (enforced by the "types-sync" job in .github/workflows/ci.yml).
 // ──────────────────────────────────────────────
 
 export interface Database {
@@ -170,6 +177,7 @@ export interface Database {
           official_url: string;
           last_verified: string | null;
           last_content_hash: string | null;
+          last_content_text: string | null;
           created_at: string;
         };
         Insert: {
@@ -179,6 +187,7 @@ export interface Database {
           official_url: string;
           last_verified?: string | null;
           last_content_hash?: string | null;
+          last_content_text?: string | null;
           created_at?: string;
         };
         Update: Partial<
@@ -290,6 +299,7 @@ export interface Database {
           user_id: string;
           subject: string | null;
           status: "AI" | "AWAITING_HUMAN" | "HUMAN" | "RESOLVED";
+          human_takeover_at: string | null;
           created_at: string;
           updated_at: string;
           last_message_at: string;
@@ -299,6 +309,7 @@ export interface Database {
           user_id: string;
           subject?: string | null;
           status?: "AI" | "AWAITING_HUMAN" | "HUMAN" | "RESOLVED";
+          human_takeover_at?: string | null;
           created_at?: string;
           updated_at?: string;
           last_message_at?: string;
@@ -351,6 +362,10 @@ export interface Database {
         Args: Record<string, never>;
         Returns: undefined;
       };
+      dismiss_rule_change: {
+        Args: { p_alert_id: string };
+        Returns: undefined;
+      };
       is_admin: {
         Args: Record<string, never>;
         Returns: boolean;
@@ -362,6 +377,29 @@ export interface Database {
           p_dest_province?: string | null;
         };
         Returns: undefined;
+      };
+      persist_official_source_scrape: {
+        Args: {
+          p_official_source_id: string;
+          p_expected_hash: string | null;
+          p_new_hash: string;
+          p_content_text: string;
+          p_diff_summary?: string | null;
+        };
+        Returns: Array<{
+          classification: "BASELINE" | "UNCHANGED" | "CHANGED" | "STALE";
+          alert_id: string | null;
+          current_hash: string | null;
+        }>;
+      };
+      persist_support_ai_reply: {
+        Args: {
+          p_thread_id: string;
+          p_expected_user_message_id: string;
+          p_reply_body: string;
+          p_escalate: boolean;
+        };
+        Returns: boolean;
       };
     };
     Enums: Record<string, never>;

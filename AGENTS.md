@@ -1,9 +1,9 @@
 # AGENTS.md
 
-**AI agents & automated tools:** the full handoff lives in **[`docs/ai/`](docs/ai/)**.
+**AI agents and automated tools:** read
+**[docs/ai/AI_HANDOFF.md](docs/ai/AI_HANDOFF.md)** completely before changing
+the repository. It contains the current architecture, hard rules, verification
+commands, git state, known issues, and ordered next steps.
 
-1. **[docs/ai/AGENTS.md](docs/ai/AGENTS.md)** — conventions, build/verify commands, and hard rules (PII/PIPEDA, RLS, lockfile discipline). Read first.
-2. **[docs/ai/PROJECT_MAP.md](docs/ai/PROJECT_MAP.md)** — annotated file/folder tree.
-3. **[docs/ai/HANDOFF.md](docs/ai/HANDOFF.md)** — what the last agent did, current git state, and next steps.
-
-Humans: start at **[README.md](README.md)**.
+Humans should start with [README.md](README.md) and the canonical
+[docs/PLAN.md](docs/PLAN.md).

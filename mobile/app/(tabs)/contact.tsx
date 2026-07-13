@@ -15,9 +15,8 @@
  *
  * PIPEDA: this screen NEVER reads or sends any on-device PII (name, DOB,
  * street address, driver's licence, health card). It does not touch
- * expo-secure-store / getPII. Only the free-text question the user types and
- * their user_id leave the device. A visible note asks users not to paste
- * licence or health-card numbers here.
+ * expo-secure-store / getPII. Users choose from a fixed set of general
+ * questions, so there is no free-text path into the server transcript.
  *
  * This is a Tabs screen hidden from the tab bar (href: null) and drawing its
  * own header, so it provides its own back control via router.back().
@@ -26,11 +25,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -39,6 +35,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import {
+  SUPPORT_QUESTIONS,
+  SupportQuestion,
+} from "@/lib/supportQuestions";
 import {
   SupportMessage,
   SupportThread,
@@ -73,7 +73,6 @@ export default function HelpChatScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [thread, setThread] = useState<SupportThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -196,16 +195,15 @@ export default function HelpChatScreen() {
   }, [messages.length]);
 
   // ── Send a message ──
-  async function handleSend() {
-    const body = draft.trim();
-    if (!body || sending) return;
+  async function handleSend(question: SupportQuestion) {
+    if (sending) return;
     if (!userId) {
       Alert.alert("Not signed in", "Please restart the app and try again.");
       return;
     }
 
+    const body = question;
     setSending(true);
-    setDraft("");
     try {
       // 1. Ensure a thread exists (create one in 'AI' status if needed).
       let activeThread = thread;
@@ -260,17 +258,38 @@ export default function HelpChatScreen() {
           "support-ai",
           { body: { thread_id: activeThread.id } },
         );
-        // A failed AI call is non-fatal: the user's message is saved and the
-        // Edge Function inserts a graceful fallback on its own errors. Never
-        // surface raw error detail (it must never leak keys).
+        // A failed invoke means the function never ran, so its own graceful
+        // fallback can't help: the user's message is saved but no reply will
+        // ever arrive. Tell them with a LOCAL-ONLY bubble (never inserted via
+        // the client — RLS limits client inserts to sender 'user') and hand
+        // the thread to a human so it enters the admin queue instead of
+        // silently stalling in 'AI'. Never surface raw error detail (it must
+        // never leak keys).
         if (fnError) {
-          // Silent — the conversation still works; a human can pick it up.
+          const notice: ChatMessage = {
+            id: `local-ai-unavailable-${Date.now()}`,
+            thread_id: activeThread.id,
+            sender: "ai",
+            body: "Our assistant is unavailable right now — a member of the support team will follow up here.",
+            created_at: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, notice]);
+
+          // Best-effort escalation (same update handleTalkToHuman performs):
+          // if this also fails, the notice above still explains what happened
+          // and a later message re-invokes the AI with full context.
+          const { data: escalated } = await supabase
+            .from("support_threads")
+            .update({ status: "AWAITING_HUMAN" })
+            .eq("id", activeThread.id)
+            .select()
+            .single();
+          if (escalated) setThread(escalated);
         }
       }
     } catch {
-      // Roll back the optimistic bubble and restore the draft so nothing is lost.
+      // Roll back the optimistic bubble; the fixed question stays available.
       setMessages((prev) => prev.filter((m) => !m.pending));
-      setDraft(body);
       Alert.alert(
         "Couldn't send",
         "Something went wrong. Please check your connection and try again.",
@@ -416,16 +435,11 @@ export default function HelpChatScreen() {
         </View>
       )}
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      >
+      <View className="flex-1">
         <ScrollView
           ref={scrollRef}
           className="flex-1"
           contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
-          keyboardShouldPersistTaps="handled"
         >
           {/* Privacy note — always visible */}
           <View className="mb-4 flex-row items-start rounded-xl bg-green-50 px-3.5 py-3">
@@ -435,8 +449,8 @@ export default function HelpChatScreen() {
               color="#16a34a"
             />
             <Text className="ml-2 flex-1 text-xs leading-4 text-green-800">
-              Please don't share your licence or health card numbers here. Keep
-              personal ID numbers on your device only.
+              Questions are fixed and never include your personal details.
+              Licence and health card numbers stay on your device only.
             </Text>
           </View>
 
@@ -454,9 +468,8 @@ export default function HelpChatScreen() {
                 How can we help?
               </Text>
               <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500">
-                Ask a general question about your move — like how a task works or
-                what a deadline means. Our assistant answers right away, and you
-                can talk to a human any time.
+                Choose a general question below. Our assistant answers right
+                away, and you can talk to a human any time.
               </Text>
             </View>
           ) : (
@@ -535,39 +548,42 @@ export default function HelpChatScreen() {
           </View>
         )}
 
-        {/* Composer */}
+        {/* Fixed-question composer: no free-text input can leave the device. */}
         <View
-          className="flex-row items-end border-t border-slate-200 bg-white px-4 pt-3"
+          className="border-t border-slate-200 bg-white px-4 pt-3"
           style={{ paddingBottom: insets.bottom + 8 }}
         >
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Type your question…"
-            placeholderTextColor="#94a3b8"
-            multiline
-            className="mr-2 max-h-28 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-base text-slate-900"
-          />
-          <TouchableOpacity
-            onPress={handleSend}
-            disabled={sending || draft.trim().length === 0}
-            className={`h-11 w-11 items-center justify-center rounded-full ${
-              sending || draft.trim().length === 0
-                ? "bg-blue-300"
-                : "bg-blue-600"
-            }`}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Ionicons name={"send" as IconName} size={18} color="white" />
-            )}
-          </TouchableOpacity>
+          <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Choose a question
+          </Text>
+          <View className="flex-row flex-wrap justify-between">
+            {SUPPORT_QUESTIONS.map((question) => (
+              <TouchableOpacity
+                key={question}
+                onPress={() => handleSend(question)}
+                disabled={sending}
+                className={`mb-2 w-[49%] rounded-xl border px-3 py-2.5 ${
+                  sending
+                    ? "border-slate-100 bg-slate-100"
+                    : "border-blue-200 bg-blue-50"
+                }`}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`Ask: ${question}`}
+                accessibilityState={{ disabled: sending }}
+              >
+                <Text
+                  className={`text-sm font-semibold leading-5 ${
+                    sending ? "text-slate-400" : "text-blue-800"
+                  }`}
+                >
+                  {question}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }

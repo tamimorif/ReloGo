@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { safeHttpUrl } from "../lib/safeUrl";
 import type { AlertWithSource } from "../types/database";
 import { EditRuleModal } from "./EditRuleModal";
+
+const PAGE_SIZE = 50;
 
 export function AlertsTable() {
   const [alerts, setAlerts] = useState<AlertWithSource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingAlert, setEditingAlert] = useState<AlertWithSource | null>(null);
 
-  // ── Fetch pending alerts with joined source info ──────────────────────
+  // ── Fetch pending alerts with joined source info (first page) ─────────
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -20,15 +25,46 @@ export function AlertsTable() {
         "id, official_source_id, old_hash, new_hash, diff_summary, status, created_at, official_sources(agency_name, official_url, corridor_rule_id)",
       )
       .eq("status", "PENDING")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(0, PAGE_SIZE - 1);
 
     if (fetchErr) {
       setError(fetchErr.message);
     } else {
-      setAlerts((data as unknown as AlertWithSource[]) ?? []);
+      const rows = (data as unknown as AlertWithSource[]) ?? [];
+      setAlerts(rows);
+      setHasMore(rows.length === PAGE_SIZE);
     }
     setLoading(false);
   }, []);
+
+  // ── Load the next page, appended below the current rows ───────────────
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    setError(null);
+
+    const from = alerts.length;
+    const { data, error: fetchErr } = await supabase
+      .from("rule_change_alerts")
+      .select(
+        "id, official_source_id, old_hash, new_hash, diff_summary, status, created_at, official_sources(agency_name, official_url, corridor_rule_id)",
+      )
+      .eq("status", "PENDING")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (fetchErr) {
+      setError(fetchErr.message);
+    } else {
+      const chunk = (data as unknown as AlertWithSource[]) ?? [];
+      setAlerts((prev) => {
+        const seen = new Set(prev.map((a) => a.id));
+        return [...prev, ...chunk.filter((a) => !seen.has(a.id))];
+      });
+      setHasMore(chunk.length === PAGE_SIZE);
+    }
+    setLoadingMore(false);
+  }, [alerts.length]);
 
   useEffect(() => {
     fetchAlerts();
@@ -36,13 +72,12 @@ export function AlertsTable() {
 
   // ── Dismiss an alert ──────────────────────────────────────────────────
   const handleDismiss = async (alertId: string) => {
-    const { error: updateErr } = await supabase
-      .from("rule_change_alerts")
-      .update({ status: "DISMISSED" })
-      .eq("id", alertId);
+    const { error: dismissErr } = await supabase.rpc("dismiss_rule_change", {
+      p_alert_id: alertId,
+    });
 
-    if (updateErr) {
-      setError(updateErr.message);
+    if (dismissErr) {
+      setError(dismissErr.message);
       return;
     }
     // Remove from local state
@@ -120,7 +155,13 @@ export function AlertsTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/60">
-              {alerts.map((alert) => (
+              {alerts.map((alert) => {
+                // Only http/https URLs become links; anything else renders
+                // as plain text (defense-in-depth against javascript: URLs).
+                const sourceUrl = safeHttpUrl(
+                  alert.official_sources?.official_url,
+                );
+                return (
                 <tr
                   key={alert.id}
                   className="bg-slate-800/40 transition hover:bg-slate-800"
@@ -137,14 +178,18 @@ export function AlertsTable() {
                     )}
                   </td>
                   <td className="max-w-xs truncate px-4 py-3 text-slate-300">
-                    <a
-                      href={alert.official_sources?.official_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline decoration-slate-600 transition hover:text-blue-400"
-                    >
-                      {alert.official_sources?.official_url ?? "—"}
-                    </a>
+                    {sourceUrl ? (
+                      <a
+                        href={sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline decoration-slate-600 transition hover:text-blue-400"
+                      >
+                        {sourceUrl}
+                      </a>
+                    ) : (
+                      (alert.official_sources?.official_url ?? "—")
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-400">
                     {truncHash(alert.old_hash)}
@@ -172,9 +217,23 @@ export function AlertsTable() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Load more ── */}
+      {!loading && hasMore && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
         </div>
       )}
 

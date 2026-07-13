@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Smartphone, Server, Trash2 } from "lucide-react";
+import SiteFooter from "@/components/SiteFooter";
 
 // Update this to a monitored address before publishing the store listings.
 const CONTACT_EMAIL = "privacy@relogo.app";
-const LAST_UPDATED = "June 17, 2026";
+const LAST_UPDATED = "July 13, 2026";
 
 export const metadata: Metadata = {
   title: "Privacy Policy - ReloGo",
   description:
     "How ReloGo handles your data. Your sensitive personal information stays on your device and is never sent to our servers.",
+  alternates: {
+    canonical: "/privacy",
+  },
 };
 
 function Section({
@@ -67,9 +71,10 @@ export default function PrivacyPage() {
             </span>{" "}
             Your most sensitive details - your name, address, date of birth,
             driver&apos;s licence number, and health card number - are stored only
-            on your device. They are never transmitted to ReloGo, never stored on
-            our servers, and never shared with anyone. Privacy isn&apos;t a
-            feature of ReloGo; it&apos;s how the app is built.
+            on your device. They are never transmitted to ReloGo or stored on
+            our servers. A filled form leaves the app only when you explicitly
+            choose where to share or save it. Privacy isn&apos;t a feature of
+            ReloGo; it&apos;s how the app is built.
           </p>
         </div>
 
@@ -93,27 +98,35 @@ export default function PrivacyPage() {
               aria-hidden="true"
             />
             <p>
-              To pre-fill government forms for you, ReloGo lets you save certain
-              personal details on your phone. These can include your full name,
-              date of birth, street address, driver&apos;s licence number, and
-              provincial health card number.
+              ReloGo&apos;s on-device form feature can use personal details you
+              choose to save on your phone when a compatible PDF template is
+              available. These can include your full name, date of birth, street
+              address, driver&apos;s licence number, and provincial health card
+              number. The current preview does not include a production
+              government template.
             </p>
           </div>
           <p>
             This information is stored exclusively in your device&apos;s secure
-            storage (the operating system&apos;s encrypted keystore - Keychain on
-            iOS, Keystore on Android). It is used on your device only, at the
-            moment a form is filled, and it is{" "}
+            storage (the operating system&apos;s protected storage - Keychain on
+            iOS, Keystore on Android). It is read locally only when you use a
+            compatible form, and it is{" "}
             <span className="font-semibold text-slate-900">
-              never sent to ReloGo&apos;s servers, never logged, and never shared
-              with third parties.
+              never sent to ReloGo&apos;s servers or logs and never sent to a third
+              party automatically.
             </span>{" "}
             We have no server-side place to store it and therefore cannot access,
             view, or recover it.
           </p>
           <p>
-            Filled PDF forms are generated on your device and are removed from the
-            app&apos;s temporary storage after you share or close them.
+            When a compatible template is available, filled PDF forms are
+            generated on your device in a dedicated temporary cache. On iOS,
+            ReloGo removes its cached copy after the share action completes. On
+            Android, a receiving app may continue reading the attachment after
+            the chooser closes, so ReloGo removes cached copies at the next app
+            start or form fill, and always when you sign out or delete your
+            account. A copy you choose to save or send is controlled by the
+            destination you selected.
           </p>
         </Section>
 
@@ -124,8 +137,9 @@ export default function PrivacyPage() {
               aria-hidden="true"
             />
             <p>
-              So your checklist works across sessions, we store a small amount of
-              non-identifying information in our hosted database (Supabase):
+              So your checklist and support work across sessions, we store a
+              limited amount of account and move information in our hosted
+              database (Supabase):
             </p>
           </div>
           <ul className="ml-5 list-disc space-y-1">
@@ -137,19 +151,29 @@ export default function PrivacyPage() {
               children
             </li>
             <li>Which checklist tasks you&apos;ve marked complete</li>
+            <li>
+              Your selected fixed support questions, support replies, and
+              conversation status
+            </li>
           </ul>
           <p>
-            None of this identifies you personally. If you join our waitlist on
-            this website, we also store the email address and provinces you
-            provide, solely to notify you when ReloGo is available for your move.
+            This information distinguishes your anonymous account but does not
+            include your name, address, personal document numbers, or account
+            email. If you join our website waitlist, we separately store the
+            email address and provinces you provide. For abuse prevention, the
+            signup service also keeps an hourly counter keyed by a one-way hash
+            derived from the requesting IP address; it does not store the raw
+            address in the waitlist throttle table. Expired counters are pruned
+            during later signup activity.
           </p>
         </Section>
 
         <Section title="How we use information">
           <p>
             We use the limited server-side data above only to generate and track
-            your relocation checklist and, for waitlist sign-ups, to contact you
-            about availability. We do{" "}
+            your relocation checklist, answer the fixed support questions,
+            operate human support, prevent signup abuse, and, for waitlist
+            sign-ups, contact you about availability. We do{" "}
             <span className="font-semibold text-slate-900">not</span> sell your
             data, we do{" "}
             <span className="font-semibold text-slate-900">not</span> show
@@ -200,27 +224,28 @@ export default function PrivacyPage() {
         <Section title="Service providers">
           <p>
             We use Supabase to host our database and provide anonymous
-            authentication, and Expo and the Apple App Store and Google Play to
-            distribute the app. These providers process data on our behalf under
-            their own security and privacy commitments. Your on-device personal
-            details are never sent to them.
+            authentication, Google Gemini to answer selected fixed support
+            questions, and Expo, the Apple App Store, and Google Play to build or
+            distribute the app. These providers process the relevant service
+            data on our behalf under their own terms. Your on-device personal
+            details are never sent to them by ReloGo.
           </p>
         </Section>
 
         <Section title="In-app support chat and AI">
           <p>
-            ReloGo includes an in-app support chat to help you with general
-            how-to and process questions about your move. Replies are generated
-            by a third-party AI provider (Google Gemini), which processes the
-            text of your support messages to produce a response.
+            ReloGo includes in-app help for general how-to and process
+            questions. You choose from six pre-written questions; there is no
+            free-text support box. A third-party AI provider (Google Gemini)
+            processes the selected question together with non-identifying move
+            context, such as your province corridor and applicable task titles,
+            to produce a response.
           </p>
           <p>
-            Please do{" "}
-            <span className="font-semibold text-slate-900">not</span> share
-            sensitive personal information - such as your driver&apos;s licence
-            number or health card number - in the support chat. The AI is
-            instructed never to ask for these details, and your on-device
-            personal information is never automatically sent to it.
+            The fixed questions cannot include your name, address, date of
+            birth, driver&apos;s licence number, health card number, or other
+            personal text. Your on-device personal information is never read or
+            sent by the support feature.
           </p>
           <p>
             If your question needs a person, a human support agent can take over
@@ -234,11 +259,10 @@ export default function PrivacyPage() {
 
         <Section title="Security">
           <p>
-            Sensitive personal information is protected by your device&apos;s
-            hardware-backed encrypted storage. Data exchanged with our servers is
-            transmitted over encrypted connections (HTTPS) and access is
-            restricted by row-level security so that you can only read and write
-            your own records.
+            Sensitive personal information uses your operating system&apos;s
+            protected storage. Data exchanged with our servers is transmitted
+            over encrypted connections (HTTPS), and row-level security restricts
+            an app user to their own records.
           </p>
         </Section>
 
@@ -274,13 +298,7 @@ export default function PrivacyPage() {
         </Section>
       </article>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-8">
-        <p className="text-center text-sm text-slate-500">
-          &copy; {new Date().getFullYear()} ReloGo &middot; Made for movers across
-          Canada
-        </p>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

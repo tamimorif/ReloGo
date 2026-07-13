@@ -1,0 +1,282 @@
+# ReloGo — canonical project plan
+
+_Last updated: 2026-07-13_
+
+This is the single source of truth for the product concept, implemented state,
+remaining work, phased roadmap, and definition of done. Operational commands
+belong in [DEPLOYMENT.md](DEPLOYMENT.md). AI agents must also read
+[ai/AI_HANDOFF.md](ai/AI_HANDOFF.md).
+
+## Product concept
+
+ReloGo converts a Canadian interprovincial move into a personalized,
+deadline-aware checklist of government tasks. The checklist is selected from
+the user's origin, destination, move date, vehicle, and dependent flags. Users
+can track completion and verify each task against its official source.
+
+The defining product rule is privacy by construction. Full name, date of birth,
+street address, driver's licence number, and health-card number stay in the
+device secure store and ephemeral on-device PDF cache. They are never stored in
+Supabase, sent to Gemini, logged, or exposed to the admin dashboard.
+
+## Architecture
+
+| Area | Responsibility | Current stack |
+| --- | --- | --- |
+| `mobile/` | User product, local PII/PDFs, support | Expo SDK 55, React Native 0.83, React 19 |
+| `landing/` | Marketing, legal, waitlist | Next.js 16 static export, React 19 |
+| `admin/` | Human operations | Vite 5, React 18 |
+| `worker/` | Official-source monitoring | Python 3.11, Playwright |
+| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Migrations 001–014, Deno Edge Function |
+
+There is no monorepo build layer. Each JavaScript app has an independent
+lockfile and environment. Supabase migrations are the schema source of truth;
+RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
+
+### Main runtime flows
+
+1. Landing submits a corridor/email through the enumeration-safe
+   `join_waitlist()` RPC.
+2. Mobile creates an anonymous account and stores only non-sensitive move
+   metadata in `user_profiles`.
+3. Checklist rules match exact province codes plus `ANY` wildcards, filter for
+   vehicle/dependents, and calculate local-calendar deadlines.
+4. Sensitive form values stay in the device secure store. Filled PDFs are
+   generated locally and shared only after an explicit action.
+5. Support uses six fixed general questions. Database policy enforces the exact
+   allowlist; unsafe legacy history is re-escalated without reaching Gemini.
+6. The worker monitors official HTML/PDF sources with bounded concurrency and
+   atomically records each result. Changes create PENDING alerts.
+7. Admins review source diffs. Approval/dismissal is RPC-only, row-locked, and
+   never performed by the worker.
+
+## Implemented state
+
+### Mobile
+
+- Anonymous onboarding with required Privacy Policy and Terms consent.
+- Profile-aware auth routing with retry and stale-request protection.
+- Personalized, deadline-sorted checklist and optimistic progress updates.
+- Editable non-PII move profile and on-device encrypted PII vault.
+- Secure sign-out and account deletion wipe PII, cached PDFs, and local session.
+- On-device PDF fill/share engine; only a development sample is registered.
+- Realtime support transcript, fixed questions, AI replies, human takeover,
+  resolve/reopen behavior, and local fallback escalation.
+- Expo SDK 55 dependencies aligned; native iOS/Android Hermes exports pass.
+- Unused mobile-web configuration removed.
+
+### Landing
+
+- Responsive marketing/waitlist flow for all 13 provinces and territories.
+- Enumeration-safe signup RPC with database validation and per-IP throttling.
+- Privacy Policy, Terms, metadata, favicon/social image, robots, and sitemap.
+- Next.js 16/React 19 upgrade, production dependency audit, lint, static build,
+  fail-fast environment validation, and deployment security headers.
+
+### Admin
+
+- Server-authorized login through `is_admin()`.
+- Alerts, users, messages, and waitlist views with load-more pagination.
+- Safe external URLs, readable source diffs, Realtime support inbox, takeover,
+  reply, resolve, and protected deployment headers.
+- Live-rule edits and alert status changes are no longer direct table updates;
+  approval and dismissal use narrow atomic RPCs.
+
+### Worker
+
+- Bounded parallel scraping with an isolated page/download per source.
+- Retry and sanity gates for blank, blocked, error, oversized, or invalid data.
+- Inert, size-capped PDF fingerprinting for official PDF sources.
+- Stable source ordering and sequential database effects.
+- Row-locked compare-and-swap persistence prevents duplicate alerts, stale
+  diffs, and baseline regression during overlapping work.
+- Every source is attempted; any source failure is visible and exits non-zero.
+- Webhook and GitHub job summaries include alerts/failures without controlling
+  the run; live corridor rules remain human-controlled.
+
+### Backend and CI
+
+- Ordered migrations 001–014 cover schema, seed data, RLS, deletion, admin
+  authorization, support, waitlist, worker state, and atomic workflows.
+- Support timestamps are server-authored; AI persistence is atomic and
+  service-only; human involvement is permanently marked; client write columns
+  are narrow.
+- Support message bodies and thread metadata cannot carry client-authored free
+  text.
+- Mobile/admin database interfaces are CI-checked byte-for-byte.
+- CI covers clean installs, mobile types/tests/dependency alignment/native
+  exports, landing lint/build, admin build, worker compile/tests, support helper
+  tests/allowlist synchronization, database lint/pgTAP, and shared types.
+
+## Verification snapshot
+
+Local checks established during the 2026-07-13 stabilization pass:
+
+| Check | Result |
+| --- | --- |
+| Mobile clean install and dependency alignment | Pass |
+| Mobile TypeScript | Pass |
+| Mobile Jest | 40/40 pass |
+| Expo iOS Hermes export | Pass |
+| Expo Android Hermes export | Pass |
+| Mobile production dependency audit | 12 moderate, 0 high/critical (Expo build-tool transitives) |
+| Admin production build/audit | Pass; 0 vulnerabilities |
+| Landing Next.js 16 lint/static production build | Pass |
+| Landing production dependency audit | 0 vulnerabilities |
+| Worker Python 3.11 compile/tests | 69/69 pass |
+| Database/support-question synchronization | Pass; database types byte-identical at 285 lines |
+| Fresh migrations, schema lint, pgTAP | Migrations 001–014 pass; no lint errors; 139/139 assertions pass |
+| Deployed end-to-end flow / EAS device builds | Not run; external environments are not provisioned |
+
+Passing local checks means the implementation is a strong MVP. It is not a
+production launch until the external phases below pass.
+
+## Remaining risks and deliberate limits
+
+### Release blockers
+
+- Preview and production Supabase/EAS environments still need to be provisioned
+  and verified. `mobile/eas.json` selects separate EAS environments but does not
+  contain deploy-time values.
+- No complete live pass has exercised mobile, Edge Function, database, admin,
+  landing, and worker together against the intended hosted projects.
+- No production government PDF template is registered.
+- Government rules/deadlines and promoted corridors need an independent final
+  content review.
+- Legal text, store disclosures, backup/restore, monitoring, and incident/support
+  ownership are not production-approved.
+
+### Follow-ups that do not block local stabilization
+
+- Two concurrent support invocations can both spend Gemini quota; atomic final
+  persistence ensures only one reply is stored. Add a recoverable lease if
+  spend becomes material.
+- Admin user pagination is client-side after the RPC returns the full user set.
+- Waitlist throttling deliberately returns an indistinguishable success even
+  when a sixth same-IP signup is dropped.
+- New legal consent is UI-gated but acceptance timestamp/policy versions are not
+  yet stored, and there is no re-consent flow for future policy changes.
+- Fixed-question support protects privacy but cannot collect arbitrary bug
+  details; define a privacy-reviewed support channel before broad launch.
+- A full real 53-source worker run and real webhook delivery have not been
+  exercised with production credentials.
+- Mobile dependency audit findings are limited to moderate Expo toolchain
+  transitive advisories; avoid unsafe forced downgrades and recheck with future
+  supported SDK updates.
+
+## Phased roadmap
+
+### Phase 0 — repository consolidation and local stabilization
+
+Status: **complete locally.**
+
+- Consolidate planning into this file and agent context into AI_HANDOFF.
+- Remove tracked generated files and duplicate root Expo configuration.
+- Align SDK/framework dependencies and lockfiles.
+- Close account, support, admin, waitlist logging, and worker race/security bugs.
+- Make the complete local verification matrix a CI contract.
+
+Exit met: fresh migrations and every local check pass from clean installs, and
+the stabilized tree is committed without losing prior user work.
+
+### Phase 1 — provision isolated environments
+
+Status: **next.**
+
+- Confirm/create separate preview and production Supabase projects.
+- Set client public variables in landing/admin hosts and in the matching EAS
+  `preview`/`production` environments.
+- Enable anonymous sign-ins and configure reasonable auth/rate limits.
+- Apply migrations 001–014, create the first admin membership, set
+  `GEMINI_API_KEY`, and deploy `support-ai`.
+- Run Supabase security/performance advisors.
+- Enable backups/PITR where available and complete a restore drill.
+
+Exit: preview/prod credentials cannot cross, a real anonymous user can onboard,
+an admin is server-authorized, and database/function security checks pass.
+
+### Phase 2 — deploy web and monitoring worker
+
+Status: **blocked on Phase 1.**
+
+- Deploy landing and admin with the intended domains and public variables.
+- Configure the public privacy/support mailbox and verify every legal/metadata
+  route.
+- Merge the scheduled worker to the default branch; add service-role/webhook
+  GitHub secrets; run it manually to establish healthy baselines.
+- Verify waitlist signup → admin visibility and source change → PENDING alert →
+  human approval/dismissal.
+
+Exit: both web apps are live, one complete worker run is healthy, notifications
+work, and no worker path can modify live rules.
+
+### Phase 3 — mobile preview and full end-to-end QA
+
+Status: **blocked on Phases 1–2.**
+
+- Produce EAS preview builds for iOS and Android.
+- Test onboarding, checklist selection/deadlines, progress, profile edits,
+  local-only PII, sign-out, deletion, and PDF cache behavior on real devices.
+- Test each fixed support question, Gemini failure/rate limit, unsafe-history
+  fail-closed behavior, human takeover, resolve, and reopen.
+- Exercise the full browser → API → database → Realtime/device response path.
+- Resolve any release-only accessibility, crash, performance, or network issue.
+
+Exit: a non-developer can complete the real preview journey on both platforms,
+and privacy/deletion behavior is observed rather than inferred.
+
+### Phase 4 — content, PDF, legal, and store readiness
+
+Status: **not started.**
+
+- Independently verify every promoted deadline and official URL.
+- Prioritize initial corridors and deepen missing origin/destination rules.
+- Source at least one current fillable government PDF, map its real fields, and
+  test local filling/sharing/cache cleanup without server PII.
+- Obtain legal/privacy review; add consent version/timestamp and re-consent.
+- Complete Apple/Google accounts, descriptions, screenshots, privacy nutrition,
+  data-safety answers, and review notes.
+
+Exit: content is defensible, one production PDF works, legal/disclosures are
+approved, and store submissions are ready.
+
+### Phase 5 — observability and controlled launch
+
+Status: **not started.**
+
+- Add privacy-safe crash/error monitoring, uptime checks, Edge/worker alerts,
+  backup checks, and a tested incident runbook.
+- Define support ownership and response expectations.
+- Soft-launch to a small set of verified corridors.
+- Monitor onboarding, completion, escalations, worker noise, deletions, and
+  source accuracy before expanding.
+
+Exit: a controlled audience is live, observable, recoverable, and supportable.
+
+### Phase 6 — post-launch product growth
+
+Status: **deferred.**
+
+- Recoverable/linkable accounts and multi-device sync.
+- Push reminders, calendar export, and deadline notifications.
+- French content and UI localization.
+- Server-side admin pagination, audit log, and full content/source CRUD.
+- Broader corridor coverage, worker queues/per-source schedules, analytics,
+  partnerships, and monetization.
+
+## Definition of done
+
+MVP launch is complete only when:
+
+- the repository is clean, committed, reproducible, and CI-green;
+- isolated preview/production environments are configured;
+- hosted migrations, RLS/RPCs, Edge Function, web apps, and worker are live;
+- iOS and Android store-equivalent builds pass full end-to-end QA;
+- promoted rules and at least one production PDF workflow are verified;
+- legal/store disclosures are approved and published;
+- backup/restore, monitoring, alerts, incident response, and support ownership
+  are operational; and
+- deletion and on-device PII behavior are verified on real devices.
+
+Update this file when status or priority changes. Do not create another roadmap,
+project-status document, or competing action list.

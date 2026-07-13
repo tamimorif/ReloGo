@@ -20,8 +20,10 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Linking,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -57,6 +59,7 @@ export default function OnboardingScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [hasVehicle, setHasVehicle] = useState(false);
   const [hasDependents, setHasDependents] = useState(false);
+  const [hasConsented, setHasConsented] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Province picker state
@@ -86,6 +89,15 @@ export default function OnboardingScreen() {
       Alert.alert(
         "Same Province",
         "Origin and destination must be different provinces.",
+      );
+      return;
+    }
+    // PIPEDA: no account may be created (even anonymously) before the user
+    // has affirmatively agreed to the privacy policy and terms.
+    if (!hasConsented) {
+      Alert.alert(
+        "Consent Required",
+        "Please agree to the Privacy Policy and Terms of Service to continue.",
       );
       return;
     }
@@ -135,10 +147,14 @@ export default function OnboardingScreen() {
 
       setHasProfile(true);
       router.replace("/(tabs)/checklist");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Something went wrong";
-      Alert.alert("Error", message);
+    } catch {
+      // Keep provider/database internals out of the UI. The onboarding payload
+      // is non-PII, but raw backend errors can still expose implementation
+      // details and are not actionable for the user.
+      Alert.alert(
+        "Couldn't finish setup",
+        "Check your connection and try again. Your on-device personal info is unchanged.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -160,6 +176,10 @@ export default function OnboardingScreen() {
           onPress={onToggle}
           className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isOpen }}
+          accessibilityLabel={`${label}: ${selected ? PROVINCE_LABELS[selected] : "none selected"}`}
+          accessibilityHint="Opens the province list"
         >
           <Text
             className={`text-base ${selected ? "text-slate-900" : "text-slate-400"}`}
@@ -185,6 +205,9 @@ export default function OnboardingScreen() {
                   className={`rounded-lg px-3 py-2.5 ${
                     selected === prov ? "bg-blue-50" : ""
                   }`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: selected === prov }}
+                  accessibilityLabel={PROVINCE_LABELS[prov]}
                 >
                   <Text
                     className={`text-base ${
@@ -254,6 +277,12 @@ export default function OnboardingScreen() {
             onPress={() => setShowDatePicker(true)}
             className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Move date, ${moveDate.toLocaleDateString(
+              "en-CA",
+              { year: "numeric", month: "long", day: "numeric" },
+            )}`}
+            accessibilityHint="Opens the date picker"
           >
             <Text className="text-base text-slate-900">
               {moveDate.toLocaleDateString("en-CA", {
@@ -290,6 +319,7 @@ export default function OnboardingScreen() {
             onValueChange={setHasVehicle}
             trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
             thumbColor={hasVehicle ? "#2563eb" : "#f1f5f9"}
+            accessibilityLabel="Bringing a vehicle?"
           />
         </View>
 
@@ -308,7 +338,51 @@ export default function OnboardingScreen() {
             onValueChange={setHasDependents}
             trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
             thumbColor={hasDependents ? "#2563eb" : "#f1f5f9"}
+            accessibilityLabel="Moving with kids?"
           />
+        </View>
+
+        {/* Consent (required before any account is created) */}
+        <View className="mb-6 flex-row items-start rounded-xl border border-slate-200 bg-white px-4 py-3.5">
+          <TouchableOpacity
+            onPress={() => setHasConsented(!hasConsented)}
+            activeOpacity={0.7}
+            className="h-11 w-11 -m-2.5 mr-0 items-center justify-center"
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: hasConsented }}
+            accessibilityLabel="I agree to the Privacy Policy and Terms of Service"
+          >
+            <View
+              className={`h-6 w-6 items-center justify-center rounded-md border-2 ${
+                hasConsented
+                  ? "border-blue-600 bg-blue-600"
+                  : "border-slate-300 bg-white"
+              }`}
+            >
+              {hasConsented && (
+                <Ionicons name="checkmark" size={15} color="#ffffff" />
+              )}
+            </View>
+          </TouchableOpacity>
+          <Text className="ml-2 flex-1 text-sm leading-5 text-slate-600">
+            I agree to the{" "}
+            <Text
+              className="font-semibold text-blue-600"
+              onPress={() => Linking.openURL("https://relogo.app/privacy")}
+              accessibilityRole="link"
+            >
+              Privacy Policy
+            </Text>{" "}
+            and{" "}
+            <Text
+              className="font-semibold text-blue-600"
+              onPress={() => Linking.openURL("https://relogo.app/terms")}
+              accessibilityRole="link"
+            >
+              Terms of Service
+            </Text>
+            . Your personal details stay on this device.
+          </Text>
         </View>
 
         {/* Submit */}
@@ -316,7 +390,7 @@ export default function OnboardingScreen() {
           onPress={handleSubmit}
           disabled={isSubmitting}
           className={`items-center rounded-xl py-4 ${
-            isSubmitting ? "bg-blue-400" : "bg-blue-600"
+            isSubmitting ? "bg-blue-400" : hasConsented ? "bg-blue-600" : "bg-slate-300"
           }`}
           activeOpacity={0.8}
         >

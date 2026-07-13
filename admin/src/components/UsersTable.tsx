@@ -39,11 +39,16 @@ function fmtDateTime(iso: string | null): string {
   });
 }
 
+const PAGE_SIZE = 50;
+
 export function UsersTable() {
   const [users, setUsers] = useState<AdminUserListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  // The RPC returns every user in one payload; paginate the render
+  // client-side so the table stays manageable as the user base grows.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // ── Fetch all users via the admin RPC ─────────────────────────────────
   const fetchUsers = useCallback(async () => {
@@ -56,6 +61,7 @@ export function UsersTable() {
       setError(fetchErr.message);
     } else {
       setUsers(data ?? []);
+      setVisibleCount(PAGE_SIZE);
     }
     setLoading(false);
   }, []);
@@ -76,6 +82,11 @@ export function UsersTable() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
   }, [users]);
+
+  const visibleUsers = useMemo(
+    () => users.slice(0, visibleCount),
+    [users, visibleCount],
+  );
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
@@ -155,7 +166,7 @@ export function UsersTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/60">
-              {users.map((user) => (
+              {visibleUsers.map((user) => (
                 <tr
                   key={user.user_id}
                   onClick={() => setSelectedUserId(user.user_id)}
@@ -205,6 +216,18 @@ export function UsersTable() {
           </table>
         </div>
       ) : null}
+
+      {/* ── Load more ── */}
+      {!loading && visibleCount < users.length && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600"
+          >
+            Load more
+          </button>
+        </div>
+      )}
 
       {/* ── User Detail Modal ── */}
       {selectedUserId && (

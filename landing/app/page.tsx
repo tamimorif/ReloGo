@@ -6,25 +6,26 @@ import {
   Truck,
 } from "lucide-react";
 import WaitlistForm from "@/components/WaitlistForm";
+import SiteFooter from "@/components/SiteFooter";
 
 const steps = [
   {
     icon: MapPin,
-    title: "Tell us your corridor",
+    title: "Choose your move",
     description:
-      "Pick where you're moving from and where you're headed. Every province pair has its own rules - we know them all.",
+      "Tell ReloGo where you're moving from and to, plus the details that shape common government tasks.",
   },
   {
     icon: ClipboardCheck,
-    title: "Get your personalized checklist",
+    title: "See your checklist",
     description:
-      "Driver's licence, health card, vehicle registration, CRA address - every deadline laid out, ordered, and tracked for you.",
+      "Get relevant tasks, suggested timing, and official-source links organized around your move.",
   },
   {
     icon: FileText,
-    title: "Auto-fill the paperwork",
+    title: "Verify and track progress",
     description:
-      "ReloGo pre-fills the forms each agency needs so a 40-minute application becomes a 4-minute review.",
+      "Confirm current requirements with each official source, then mark tasks complete as your move progresses.",
   },
 ];
 
@@ -51,9 +52,9 @@ export default function HomePage() {
           <span className="text-brand-600">paperwork panic</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl animate-fade-in-up text-lg leading-relaxed text-slate-600 sm:text-xl">
-          ReloGo turns your interprovincial move into one clear checklist -
-          licences, health cards, registrations, and deadlines, all handled in
-          the right order so nothing falls through the cracks.
+          ReloGo organizes common interprovincial move tasks into one clear
+          checklist, with suggested timing and official-source links so you know
+          what to verify next.
         </p>
 
         <div className="mx-auto mt-12 max-w-xl animate-fade-in-up rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-xl shadow-brand-100/50 backdrop-blur sm:p-8">
@@ -68,8 +69,7 @@ export default function HomePage() {
             How it works
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-lg text-slate-600">
-            Three steps from &ldquo;we&apos;re moving&rdquo; to &ldquo;we&apos;re
-            done&rdquo;.
+            Three steps from &ldquo;we&apos;re moving&rdquo; to a clear plan.
           </p>
 
           <div className="mt-14 grid gap-10 sm:grid-cols-3">
@@ -115,13 +115,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-8">
-        <p className="text-center text-sm text-slate-500">
-          &copy; {new Date().getFullYear()} ReloGo &middot; Made for movers
-          across Canada
-        </p>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

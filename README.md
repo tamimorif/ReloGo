@@ -1,119 +1,127 @@
 # ReloGo
 
-**Your Canadian relocation autopilot.** ReloGo turns an interprovincial move
-(e.g. Ontario → Alberta) into a personalized, deadline-aware checklist of
-every government task you have to do — licences, health cards, vehicle
-registration, CRA address, school enrollment — backed by official sources,
-with a worker that watches those sources for rule changes and a human-reviewed
-approval flow before anything goes live.
+ReloGo turns a Canadian interprovincial move into a personalized,
+deadline-aware checklist of government tasks. It selects rules for the user's
+origin, destination, move date, vehicle, and dependents; tracks completion; and
+links every task to an official source.
 
-A core principle is **privacy by construction**: your most sensitive
-information never leaves your device (see [Privacy](#privacy-pipeda)).
+Privacy is an architectural rule: full name, date of birth, street address,
+driver's licence number, and health-card number stay on the device. They are
+never written to Supabase or sent to the support AI.
 
-## What's inside
+## Applications
 
-| App | What it does |
-| --- | --- |
-| **Mobile** | The product. Onboard with your corridor + move date + vehicle/kids flags → get a filtered, deadline-sorted checklist with optimistic completion toggles. Auto-fills government PDF forms on-device and shares them. Includes a profile screen with an on-device "personal info" vault and a PIPEDA "Delete My Data" flow. |
-| **Landing** | Marketing page with a "Moving from / Moving to" corridor picker that reveals a waitlist signup (enumeration-safe via an RPC). |
-| **Admin** | Two tabs: **Alerts** (review/approve government rule changes the worker detected) and **Users** (read-only list of users — corridor, move date, checklist progress — with a per-user detail modal). Access is gated server-side by an `is_admin()` check. |
-| **Worker** | A daily headless-browser scraper that fingerprints each official government page (SHA-256) and files a PENDING alert when the content changes. It never edits live rules — humans approve via the admin. |
-
-## Repository layout
-
-| Directory | What it is | Stack |
+| Area | Purpose | Stack |
 | --- | --- | --- |
-| `mobile/` | User-facing app | Expo SDK 51, expo-router, NativeWind, TanStack Query, Supabase |
-| `landing/` | Marketing page + waitlist | Next.js 14 (static export), Tailwind |
-| `admin/` | Rule-change + user dashboard | Vite 5, React 18, Tailwind |
-| `worker/` | Official-source change monitor | Python 3.11, Playwright, tenacity |
-| `supabase/migrations/` | Database schema (source of truth) | Postgres + RLS |
-| `docs/` | Deployment guide + project status | |
+| `mobile/` | Onboarding, checklist, local PII vault, on-device PDF filling, fixed-question support | Expo SDK 55, React Native 0.83, React 19, expo-router |
+| `landing/` | Marketing, legal pages, and waitlist | Next.js 16 static export, React 19, Tailwind |
+| `admin/` | Rule alerts, users, support, and waitlist operations | Vite 5, React 18, Tailwind |
+| `worker/` | Official-source change monitor | Python 3.11, Playwright, Supabase |
+| `supabase/` | Auth, Postgres, RLS, RPCs, Realtime, and support AI | Ordered SQL migrations and a Deno Edge Function |
 
-The four apps are independent folders (no monorepo tooling); each has its own
-`package.json` / `requirements.txt` and `.env.example`.
+The JavaScript applications are independent projects. Each owns its own
+`package.json`, lockfile, build, and environment file.
 
-## Architecture
+## How it works
 
-```
-        ┌─────────────────────────────┐
-        │      Mobile app (Expo)      │  ← users, on their phones
-        │  reads rules · writes own   │
-        │  progress · PII on-device   │
-        └──────────────┬──────────────┘
-                       ▼
-                ┌──────────────┐
-   Landing ───▶ │   Supabase   │ ◀─── Admin (alerts + users,
-  (waitlist)    │ Postgres +   │       is_admin() gated)
-                │ Auth + RLS   │
-                └──────▲───────┘
-                       │ service_role (bypasses RLS)
-                ┌──────┴───────┐
-                │    Worker    │  ← watches gov URLs, files alerts
-                └──────────────┘
+```text
+Landing ── waitlist RPC ───────────────┐
+                                      │
+Mobile ── auth/checklist/progress ── Supabase ── protected Admin dashboard
+  │                                   ▲
+  └─ sensitive PII + filled PDFs      │
+     remain on the device             ├─ support-ai Edge Function
+                                      └─ service-role monitoring RPC ── Worker
 ```
 
-Supabase is the single backend everyone talks to. Row Level Security is the
-authorization boundary: users see only their own rows, admins are gated on the
-`admin_users` table via `is_admin()`, and the worker is the only component that
-uses the secret `service_role` key.
+- Row-level security is the client authorization boundary.
+- Admin membership is checked server-side through `admin_users` and
+  `is_admin()`; there is no client email allowlist.
+- Mobile support accepts six fixed general questions. The database enforces the
+  same allowlist, and the Edge Function fails closed on legacy/unsafe history.
+- The worker scrapes official HTML/PDF sources concurrently, then records each
+  result through a row-locked compare-and-swap RPC. A changed source creates a
+  PENDING alert; only a human admin can approve a live rule change.
+- The PDF engine exists, but production currently registers no government PDF
+  templates. A development-only sample keeps the local engine testable.
 
 ## Database migrations
 
-Applied in order; `supabase/migrations/` is the schema source of truth.
+`supabase/migrations/` is the schema source of truth. Apply every migration in
+order; do not edit the hosted schema by hand.
 
-| Migration | Adds |
+| Migration | Purpose |
 | --- | --- |
-| `001_init.sql` | 7 core tables, RLS, ON→AB seed data |
-| `002_hardening_and_user_deletion.sql` | Bug fixes, constraints, indexes, `updated_at` triggers; `delete_current_user()` (PIPEDA); `admin_users` + `is_admin()` + admin RLS; atomic `approve_rule_change()`; enumeration-safe `join_waitlist()` |
-| `003_admin_user_views.sql` | Admin-read RLS on user tables; `admin_list_users()` / `admin_get_user_detail()` RPCs powering the admin Users page |
+| `001_init.sql` | Core tasks, rules, sources, alerts, profiles, progress, waitlist, and baseline RLS |
+| `002_hardening_and_user_deletion.sql` | Constraints, admin authorization, deletion, waitlist, and alert-approval RPCs |
+| `003_admin_user_views.sql` | Admin user-list/detail RPCs |
+| `004_support_messages.sql` | Support threads/messages, states, RLS, and Realtime |
+| `005_seed_all_corridors.sql` | Core data for all 13 provinces and territories |
+| `006_official_source_content_text.sql` | Worker text baselines and protected scraper columns |
+| `007_hardening_round_two.sql` | Support caps, RLS tightening, waitlist throttle, guarded approval |
+| `008_atomic_support_ai.sql` | Atomic AI finalization and trusted support timestamps |
+| `009_atomic_rule_review_permissions.sql` | RPC-only rule approval/dismissal |
+| `010_support_question_privacy_boundary.sql` | Fixed support-question allowlist and least-privilege Edge grants |
+| `011_atomic_official_source_scrapes.sql` | Atomic worker baseline/alert compare-and-swap |
+| `012_support_thread_metadata_privacy.sql` | Blocks client-authored free-text support metadata |
+| `013_reject_obsolete_rule_approvals.sql` | Rejects approval after a source baseline advances |
+| `014_persistent_support_human_takeover.sql` | Permanently records human-involved support threads |
 
 ## Quick start
 
-Each app reads Supabase credentials from environment variables. Copy the
-`.env.example` in each directory and fill in your project's URL and key
-(landing uses `.env.local`; the rest use `.env`).
+Prerequisites: Node.js 20, Python 3.11, Docker Desktop, the Supabase CLI, and
+Chromium for Playwright.
 
 ```bash
-# 1. Database (Supabase CLI)
-supabase link --project-ref <your-project-ref>
-supabase db push                      # applies 001 → 002 → 003
-# Then in the Supabase dashboard: Authentication → enable "Allow anonymous sign-ins"
-# (the mobile onboarding uses signInAnonymously)
+# Local backend: starts services and applies migrations
+supabase start
+supabase db reset --local
+supabase test db --local supabase/tests/
 
-# 2. Mobile (Expo SDK 51)
-cd mobile && cp .env.example .env && npm ci && npx expo start
+# Mobile
+cd mobile
+cp .env.example .env
+npm ci
+npm start
 
-# 3. Landing (Next.js 14 static export)
-cd landing && cp .env.example .env.local && npm ci && npm run dev
+# Landing
+cd ../landing
+cp .env.example .env.local
+npm ci
+npm run dev
 
-# 4. Admin (Vite 5)
-cd admin && cp .env.example .env && npm ci && npm run dev
-# Grant yourself admin (Supabase SQL editor, service_role):
-#   INSERT INTO admin_users (user_id) SELECT id FROM auth.users WHERE email = 'you@example.com';
+# Admin
+cd ../admin
+cp .env.example .env
+npm ci
+npm run dev
 
-# 5. Worker (Python 3.11)
-cd worker && cp .env.example .env && pip install -r requirements.txt && playwright install chromium
-python main.py
+# Worker (use Python 3.11)
+cd ../worker
+cp .env.example .env
+python3.11 -m pip install -r requirements.txt
+python3.11 -m playwright install chromium
+python3.11 main.py
 ```
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production builds (EAS,
-Vercel, Railway) and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the
-current build status and what's left.
+Enable anonymous sign-ins in Supabase before testing mobile onboarding. Never
+put a `service_role` key in a client application.
 
-## Privacy (PIPEDA)
+Cloud mobile builds use the `development`, `preview`, and `production` EAS
+environments declared in `mobile/eas.json`. Provision
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` separately in
+each required EAS environment before building.
 
-Personal information — health card number, driver's licence number, street
-address, full name, date of birth — is stored only on-device via
-`expo-secure-store` (`mobile/lib/secureStore.ts`). It never appears in Supabase
-queries, logs, or error messages, and there is no server-side column that holds
-it. The backend stores only non-identifying move metadata (provinces, move
-date, vehicle/dependent flags). The admin dashboard, by construction, cannot
-display PII. "Delete My Data" removes the server record (cascade) and wipes the
-on-device vault and any cached filled PDFs.
+## Documentation
 
-## CI
+- [Canonical plan](docs/PLAN.md) — concept, current state, phased roadmap,
+  risks, and definition of done.
+- [Deployment guide](docs/DEPLOYMENT.md) — platform setup and release commands.
+- [AI handoff](docs/ai/AI_HANDOFF.md) — required architecture, safety rules,
+  verification matrix, and next engineering steps for agents.
+- [Documentation index](docs/README.md) — the small set of maintained docs.
 
-`.github/workflows/ci.yml` typechecks the mobile app, builds the admin and
-landing apps, and syntax-checks the worker on every push to `main` and on
-pull requests.
+The project is a locally verified MVP, not a launched product. The remaining
+work is primarily environment provisioning, live end-to-end QA, verified
+government content/PDF templates, legal/store review, and production
+operations. See the canonical plan for the ordered phases.

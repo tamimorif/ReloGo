@@ -1,0 +1,18 @@
+# The Dockerfile does `COPY . .` — everything not listed here ends up in
+# image layers. Above all: never let a local .env (service-role key, which
+# bypasses RLS) ship inside the image; it is injected at runtime instead.
+.env
+.env.*
+!.env.example
+
+# Local tooling / caches — dead weight in the image
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+conftest.py
+requirements-dev.txt
+.dockerignore
+Dockerfile

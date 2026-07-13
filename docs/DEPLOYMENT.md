@@ -1,37 +1,38 @@
 # ReloGo Deployment Guide
 
-Pinned stack: Next.js 14 (static export) for the landing page, Vite 5 for the
-admin dashboard, Expo SDK 51 / EAS for the mobile app, Supabase (Postgres +
-Auth + RLS) for the backend, and a Python 3.11 Playwright worker for rule
-monitoring.
+Pinned stack: Next.js 16 (static export) for the landing page, Vite 5 for the
+admin dashboard, Expo SDK 55 / React Native 0.83 / EAS for mobile, Supabase
+(Postgres + Auth + RLS) for the backend, and a Python 3.11 Playwright worker for
+rule monitoring.
 
 ## 0. Order of operations
 
-Follow these top-to-bottom for a first deploy. Steps 1–4 make the app work and go
-live; step 5 (worker) is optional and not launch-blocking.
+Follow these top-to-bottom for a first deploy. Use isolated preview and
+production environments; do not point preview builds at production data.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Push migrations 001–005, enable anonymous sign-ins, grant admin | [§1](#1-supabase-database) |
+| 1 | Push migrations 001–014, enable anonymous sign-ins, grant admin | [§1](#1-supabase-database) |
 | 2 | Fill each app's `.env` from `.env.example` | per app below |
-| 3 | Deploy landing + admin to Vercel | [§2](#2-landing-page-nextjs-14-static-export-vercel), [§3](#3-admin-dashboard-vite-5-spa-vercel) |
-| 4 | Deploy the `support-ai` function + set `GEMINI_API_KEY`; build mobile via EAS | [§4](#4-mobile-app-expo-sdk-51-eas) |
-| 5 | *(optional)* Schedule the worker | [§5](#5-rule-monitor-worker-python-311--playwright) |
+| 3 | Deploy landing + admin to Vercel | [§2](#2-landing-page-nextjs-16-static-export-vercel), [§3](#3-admin-dashboard-vite-5-spa-vercel) |
+| 4 | Deploy the `support-ai` function + set `GEMINI_API_KEY`; build mobile via EAS | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 5 | Configure, baseline, and schedule the worker | [§5](#5-rule-monitor-worker-python-311--playwright) |
 
-**Already set up:** a Supabase project (**"ReloGo"**) is created and linked, an EAS
-project is registered (`app.json`), and Vercel config exists for both web apps
+**Repository setup:** an EAS project is registered (`mobile/app.json`), and
+Vercel config exists for both web apps
 (`landing/vercel.json`, `admin/vercel.json`). The worker's daily cron is committed
 (`.github/workflows/worker.yml`); it just needs two repo secrets to activate (§5).
 
 ## 1. Supabase (database)
 
 Migrations live in `supabase/migrations/` and are the single source of truth
-for the schema (`001_init.sql`, `002_hardening_and_user_deletion.sql`,
-`003_admin_user_views.sql`, `004_support_messages.sql`,
-`005_seed_all_corridors.sql`). `005` seeds checklist content for **all 13
-provinces & territories** (core destination tasks + a federal CRA task, with
-deadlines + official URLs), so a fresh `db push` yields a working checklist for
-every corridor out of the box.
+for the schema (`001_init.sql` through
+`014_persistent_support_human_takeover.sql`). `005` seeds provisional core
+checklist content for **all 13 provinces and territories** (destination tasks
+plus a federal CRA task, with suggested deadlines and official URLs), so a
+fresh `db push` yields a testable checklist for every corridor. This seed is
+not a substitute for the independent government-content review required before
+launch.
 
 The support-chat feature requires `004_support_messages.sql`, which creates
 the `support_threads` and `support_messages` chat tables (+ RLS) and enables
@@ -48,9 +49,9 @@ supabase link --project-ref <your-project-ref>
 supabase db push
 ```
 
-> **Note:** the **"ReloGo"** project is already linked in this repo
-> (`supabase/.temp/`), so `supabase link` may report it's already linked — that's
-> expected. On a new machine you still need `supabase login` first.
+> **Note:** Supabase link state is machine-local and intentionally ignored by
+> git. On a new machine, run `supabase login` and `supabase link` even if another
+> contributor previously linked the project.
 
 To verify what would run without applying it:
 
@@ -63,16 +64,15 @@ supabase db push --dry-run
 Admin access is governed by the `admin_users` table plus RLS (see migration
 002). Granting it is two steps:
 
-1. Create an auth user for the admin email. Supabase Dashboard →
-   **Authentication → Users → Add user** → enter
-   `valley.yew666@eagereverest.com` and a password (this is the admin
-   dashboard login).
+1. Create an auth user for the intended internal admin email. Supabase
+   Dashboard → **Authentication → Users → Add user** → enter the monitored
+   address and a strong unique password.
 2. Add that user to `admin_users`. Run as `service_role` (SQL editor or
    `psql`):
 
 ```sql
 INSERT INTO admin_users (user_id)
-SELECT id FROM auth.users WHERE email = 'valley.yew666@eagereverest.com';
+SELECT id FROM auth.users WHERE email = 'admin@example.com';
 ```
 
 Admin access is enforced entirely server-side: the admin app calls the
@@ -88,7 +88,7 @@ Enable it or every new user's onboarding will fail at runtime:
 - Supabase Dashboard → **Authentication → Sign In / Providers** → enable
   **"Allow anonymous sign-ins"**.
 
-## 2. Landing page (Next.js 14 static export, Vercel)
+## 2. Landing page (Next.js 16 static export, Vercel)
 
 `landing/next.config.js` sets `output: 'export'`, so `next build` emits a
 fully static site into `landing/out/`. There is no Node server at runtime --
@@ -128,11 +128,14 @@ Vercel setup (`admin/vercel.json` already includes the SPA rewrite to
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
 
-## 4. Mobile app (Expo SDK 51, EAS)
+## 4. Mobile app (Expo SDK 55, EAS)
 
 Build profiles are defined in `mobile/eas.json` (`development`, `preview`,
 `production`; EAS CLI `>= 12.0.0`, remote app version source with
 auto-increment in production).
+
+Local iOS and Android Hermes exports pass. EAS preview builds and real-device QA
+are still required before release.
 
 ```bash
 cd mobile
@@ -145,24 +148,29 @@ eas build --profile preview --platform all      # internal distribution
 eas build --profile production --platform all   # store build
 eas submit --profile production --platform all  # store submission
 ```
-
-Before a production build, replace the placeholder values in the
-`build.production.env` block of `mobile/eas.json` with your real
-`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (or manage them
-as EAS environment variables instead of committing them).
+`mobile/eas.json` explicitly selects the EAS `development`, `preview`, and
+`production` environments and intentionally stores no project values. Create
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` in every EAS
+environment you build. Use separate preview/production Supabase projects and
+verify them with `eas env:list --environment <name>`. The anon key is public by
+design; RLS/RPCs are the security boundary.
 
 For local development copy `mobile/.env.example` to `mobile/.env`.
 
 ## 5. Rule-monitor worker (Python 3.11 + Playwright)
 
-> **Optional / not launch-blocking.** The worker only keeps official-source
-> content fresh over time by filing admin alerts; the app works fully without it.
-> A free daily GitHub Actions cron is already committed at
-> `.github/workflows/worker.yml` — it just needs two repo secrets (see
-> [Scheduling](#scheduling-free) below).
+The worker is part of launch operations: it keeps official-source content under
+review by filing admin alerts. A daily GitHub Actions cron is committed at
+`.github/workflows/worker.yml` — it just needs two repo secrets (see
+[Scheduling](#scheduling-free) below).
 
 The worker is containerized (`worker/Dockerfile`, `python:3.11-slim` with
 Chromium for Playwright).
+
+Migration 011 must be applied first. The service role can read the narrow source
+columns and execute `persist_official_source_scrape()` but cannot directly edit
+source baselines or alert rows. The RPC atomically files a PENDING alert and
+advances its baseline; stale compare-and-swap work is discarded and reported.
 
 ```bash
 cd worker
@@ -174,7 +182,9 @@ docker run --rm \
 ```
 
 Optional tuning: `PAGE_TIMEOUT_MS` (default 30000), `NAV_TIMEOUT_MS`
-(default 60000).
+(default 60000), `SCRAPE_CONCURRENCY` (default 8), `MAX_HTML_TEXT_CHARS`
+(default and hard ceiling 1000000 characters), and
+`MAX_PDF_BYTES` (default 25 MiB).
 
 ### Scheduling (free)
 
@@ -201,7 +211,8 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python main.py
 ## 6. Secrets and PIPEDA notes
 
 - Only the **anon** key ever ships in landing, admin, or mobile builds.
-- The **service role** key is used exclusively by the worker.
+- The **service role** key is used only by the worker and Supabase-managed
+  server functions. It never ships in a client.
 - Personal information (health card number, driver's licence number, street
   address, full name, date of birth) lives only in `expo-secure-store` on the
   device (`mobile/lib/secureStore.ts`). It must never appear in a Supabase
@@ -210,10 +221,11 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python main.py
 ### Support chat (threads + messages)
 
 Support is delivered entirely as in-app **chat threads** — there is no email
-collection and no email notification. A user opens a thread from the app's
-Contact screen and exchanges messages with the AI assistant; an admin can take
-over from the dashboard's **Messages** tab. The data model is two tables in
-`004_support_messages.sql`:
+collection or email notification. A user selects one of six fixed general
+questions; there is no free-text client field. An admin can take over from the
+dashboard's **Messages** tab. The data model begins in
+`004_support_messages.sql` and is privacy-hardened by migrations 010, 012, and
+014:
 
 - `support_threads` — one row per conversation, with a `status` of `AI`
   (AI answering), `AWAITING_HUMAN` (escalated, AI stopped, waiting for an
@@ -221,8 +233,12 @@ over from the dashboard's **Messages** tab. The data model is two tables in
 - `support_messages` — one row per message, with a `sender` of `user`, `ai`,
   or `admin`.
 
-Neither table stores any of the on-device personal information listed above.
-Thread bodies are general how-to / process questions only.
+Database policy accepts only the exact fixed user questions, and authenticated
+clients cannot author free-text thread subjects. Neither table can receive the
+on-device personal information listed above through the application/API grants.
+The database permanently records the first HUMAN transition or admin reply, so
+resolving and reopening a human-involved thread cannot make it AI-eligible
+again.
 
 Live updates flow over Supabase Realtime (enabled on both tables by the
 migration), so the user's app and the admin dashboard see new messages without
@@ -230,14 +246,12 @@ polling.
 
 ### AI support (Edge Function)
 
-General how-to / process questions are answered by a Supabase **Edge Function**
-at `supabase/functions/support-ai/`. The mobile client inserts the user's
-message, then calls `supabase.functions.invoke('support-ai', { body: { thread_id } })`;
-the function generates the AI reply and inserts it as a `sender = 'ai'` message
-(arriving in the app via Realtime). The function only generates a reply when the
-thread's `status = 'AI'` — once a thread is escalated or a human takes over, the
-function returns without ever calling Gemini, so that conversation is never sent
-to the AI.
+General questions are answered by the Supabase **Edge Function** at
+`supabase/functions/support-ai/`. The mobile client inserts the selected fixed
+question, then invokes the function with only `thread_id`. The function scans
+all user turns, fails closed on unknown/legacy text or human history, bounds
+usage/context, and atomically persists a reply only if the same user turn is
+still latest and the thread remains AI-owned.
 
 Deploy and configure it:
 
@@ -254,35 +268,36 @@ Only `GEMINI_API_KEY` must be set: `SUPABASE_URL` and
 so do not set them yourself. The key is **never** embedded in the mobile or
 admin app — it lives only as a Supabase secret read server-side by the function.
 
-The key comes from a **free** Google AI Studio account
-(https://aistudio.google.com). The model is `gemini-2.0-flash` (a `MODEL`
-constant in `supabase/functions/support-ai/index.ts`, easily editable). Note
-that on the free tier Google may use chat text to improve its products — which
-is exactly why the app shows an in-app "don't share sensitive info" notice and
-the AI is instructed to refuse personal IDs.
+Create the key in Google AI Studio. The function tries the stable models in the
+`MODELS` list in order and falls through to a human-handoff response on
+quota/availability errors. Re-verify current model IDs and provider terms before
+production deployment.
 
 ### Support / privacy guarantees
 
 - Personal IDs (full name, DOB, street address, driver's licence number, health
-  card number) never reach the server or the AI; they stay only in
-  `expo-secure-store` on the device. The AI is also instructed to refuse them.
+  card number) never reach the server or AI; fixed questions cannot contain
+  them and on-device PII is never read by support.
 - Once a human takes over a thread (`AWAITING_HUMAN` / `HUMAN`), the AI stops —
   the Edge Function will not send that conversation to Gemini.
-- The public-facing contact label shown to users in the app is
-  `privacy@relogo.app`. The private inbox `valley.yew666@eagereverest.com` is an
-  internal address only and must never be exposed to users anywhere in the app
-  or site.
+- The public-facing contact placeholder is `privacy@relogo.app`. Replace it
+  with a monitored public mailbox before launch; never document private/admin
+  inboxes in the repository.
 
 ## 7. CI
 
-`.github/workflows/ci.yml` runs on every push to `main` and on pull requests:
+`.github/workflows/ci.yml` runs on pushes to `main`/`tamim` and on pull requests:
 
-- `mobile-typecheck`: `npm ci && npx tsc --noEmit` in `mobile/`
-- `mobile-test`: `npm ci && npm test` in `mobile/` (jest — 20 deadline/date tests)
+- `mobile-typecheck`: clean install, Expo dependency alignment, TypeScript
+- `mobile-test`: Jest date/account/support tests
+- `mobile-native-export`: iOS and Android Hermes exports
 - `admin-build`: `npm ci && npm run build` in `admin/`
-- `landing-build`: `npm ci && npm run build` in `landing/`
-- `worker-compile`: `python -m py_compile worker/main.py`
-- `worker-test`: `pip install -r requirements-dev.txt && pytest` in `worker/` (14 tests)
+- `landing-build`: clean install, ESLint, and static production build
+- `db-tests`: pinned Supabase CLI, fresh local stack, schema lint, pgTAP
+- `support-ai-test`: allowlist sync plus Deno helper tests
+- `worker-compile`: compiles worker modules
+- `worker-test`: Python 3.11 pytest suite
+- `types-sync`: verifies the mobile/admin `Database` interfaces are byte-identical
 
 The web builds use placeholder Supabase env values in CI; real values are
 injected by Vercel at deploy time.

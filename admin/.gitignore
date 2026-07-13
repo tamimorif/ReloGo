@@ -1,0 +1,3 @@
+# Vite transient config bundles — written while loading vite.config.ts and
+# left behind when a dev-server process is killed. Never commit these.
+vite.config.ts.timestamp-*.mjs

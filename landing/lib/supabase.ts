@@ -1,10 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Placeholder fallbacks keep `next build` (static export) from crashing when
-// env vars are absent; real values are required at runtime for the RPC to work.
-const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
-const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
+      "Set both variables for the landing build.",
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

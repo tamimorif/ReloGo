@@ -12,6 +12,23 @@ name: Worker — rule monitor
 #   SUPABASE_SERVICE_ROLE_KEY  — the service_role key (bypasses RLS; worker-only,
 #                                never ship it in any client app)
 # The worker exits 1 with a clear log line if either is missing.
+#
+# OPTIONAL repo secrets:
+#   ALERT_WEBHOOK_URL          — Slack-compatible incoming-webhook URL; when set
+#                                the worker POSTs a short summary whenever new
+#                                PENDING alerts are filed, any source fails, or
+#                                a stale compare-and-swap outcome is observed.
+#                                Unset = no webhook.
+
+# Least-privilege GITHUB_TOKEN — the scraper only reads the repo.
+permissions:
+  contents: read
+
+# Queue overlapping schedule/manual runs instead of interrupting an in-flight
+# baseline transaction. The database CAS remains the final concurrency guard.
+concurrency:
+  group: relogo-rule-monitor
+  cancel-in-progress: false
 
 on:
   schedule:
@@ -22,7 +39,8 @@ jobs:
   monitor:
     name: Run rule-monitor worker
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Includes browser installation plus bounded retries across all sources.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -40,4 +58,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          SCRAPE_CONCURRENCY: "8"
+          MAX_HTML_TEXT_CHARS: "1000000"
         run: python worker/main.py

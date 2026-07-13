@@ -28,7 +28,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
-import { fillAndSharePDF } from "@/lib/pdfEngine";
+import { fillAndSharePDF, hasPDFTemplate } from "@/lib/pdfEngine";
 import {
   ChecklistTask,
   CorridorTaskRule,
@@ -409,7 +409,9 @@ function TaskCard({
         </Pressable>
       </View>
 
-      {/* Fill & Share PDF (all buttons disabled while any share runs) */}
+      {/* Fill & Share PDF — only for tasks with a registered template
+          (all buttons disabled while any share runs) */}
+      {hasPDFTemplate(item.taskKey) && (
       <Pressable
         onPress={onShare}
         disabled={shareDisabled}
@@ -448,6 +450,7 @@ function TaskCard({
           </>
         )}
       </Pressable>
+      )}
     </View>
   );
 }
@@ -674,7 +677,8 @@ export default function ChecklistScreen() {
     try {
       await fillAndSharePDF(item.taskKey);
     } catch (error) {
-      // Expected for most tasks — templates are on-boarded incrementally.
+      // The button only renders for registered templates, so this is a
+      // genuine failure (asset load, PDF parse, share sheet), not a miss.
       const message =
         error instanceof Error
           ? error.message

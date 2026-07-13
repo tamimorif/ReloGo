@@ -5,9 +5,10 @@ import { LoginForm } from "./components/LoginForm";
 import { AlertsTable } from "./components/AlertsTable";
 import { UsersTable } from "./components/UsersTable";
 import { MessagesTable } from "./components/MessagesTable";
+import { WaitlistTable } from "./components/WaitlistTable";
 import { NotAuthorized } from "./components/NotAuthorized";
 
-type AdminView = "alerts" | "users" | "messages";
+type AdminView = "alerts" | "users" | "messages" | "waitlist";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -93,6 +94,7 @@ export default function App() {
                       ["alerts", "Alerts"],
                       ["users", "Users"],
                       ["messages", "Messages"],
+                      ["waitlist", "Waitlist"],
                     ] as [AdminView, string][]
                   ).map(([key, label]) => (
                     <button
@@ -136,8 +138,10 @@ export default function App() {
             <AlertsTable />
           ) : view === "users" ? (
             <UsersTable />
-          ) : (
+          ) : view === "messages" ? (
             <MessagesTable />
+          ) : (
+            <WaitlistTable />
           )
         ) : (
           <NotAuthorized onSignOut={handleLogout} />

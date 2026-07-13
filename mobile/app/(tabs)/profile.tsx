@@ -31,7 +31,7 @@ import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
-import { deleteAccount } from "@/lib/account";
+import { deleteAccount, signOutAccount } from "@/lib/account";
 import { deletePII, getPII, savePII } from "@/lib/secureStore";
 import {
   PIIKey,
@@ -117,6 +117,7 @@ export default function ProfileScreen() {
   });
   const [piiLoaded, setPiiLoaded] = useState(false);
   const [savingPII, setSavingPII] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   // 1. Profile ────────────────────────────────
@@ -265,19 +266,34 @@ export default function ProfileScreen() {
   }
 
   function handleSignOut() {
-    Alert.alert("Sign out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          const { error } = await supabase.auth.signOut();
-          if (error) {
-            Alert.alert("Sign out failed", "Please try again.");
-          }
+    Alert.alert(
+      "Sign out",
+      "Signing out removes all personal info and filled PDFs stored on this device. Anonymous checklist progress may not be recoverable. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: async () => {
+            setSigningOut(true);
+            try {
+              await signOutAccount();
+              queryClient.clear();
+              setHasProfile(false);
+            } catch {
+              // Never include native storage/auth details; they may contain
+              // sensitive values or implementation-specific session data.
+              Alert.alert(
+                "Sign out failed",
+                "Couldn't finish signing out safely. Please try again.",
+              );
+            } finally {
+              setSigningOut(false);
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   function handleDeleteAccount() {
@@ -327,6 +343,10 @@ export default function ProfileScreen() {
           onPress={onToggle}
           className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isOpen }}
+          accessibilityLabel={`${label}: ${selected ? PROVINCE_LABELS[selected] : "none selected"}`}
+          accessibilityHint="Opens the province list"
         >
           <Text
             className={`text-base ${selected ? "text-slate-900" : "text-slate-400"}`}
@@ -352,6 +372,9 @@ export default function ProfileScreen() {
                   className={`rounded-lg px-3 py-2.5 ${
                     selected === prov ? "bg-blue-50" : ""
                   }`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: selected === prov }}
+                  accessibilityLabel={PROVINCE_LABELS[prov]}
                 >
                   <Text
                     className={`text-base ${
@@ -391,6 +414,8 @@ export default function ProfileScreen() {
           onPress={() => profileQuery.refetch()}
           className="mt-6 rounded-xl bg-blue-600 px-8 py-3.5"
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading your profile"
         >
           <Text className="text-base font-bold text-white">Retry</Text>
         </TouchableOpacity>
@@ -451,6 +476,17 @@ export default function ProfileScreen() {
             onPress={() => setShowDatePicker(true)}
             className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Move date, ${
+              moveDate
+                ? moveDate.toLocaleDateString("en-CA", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })
+                : "not set"
+            }`}
+            accessibilityHint="Opens the date picker"
           >
             <Text
               className={`text-base ${moveDate ? "text-slate-900" : "text-slate-400"}`}
@@ -490,6 +526,7 @@ export default function ProfileScreen() {
             onValueChange={setHasVehicle}
             trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
             thumbColor={hasVehicle ? "#2563eb" : "#f1f5f9"}
+            accessibilityLabel="Bringing a vehicle?"
           />
         </View>
 
@@ -508,6 +545,7 @@ export default function ProfileScreen() {
             onValueChange={setHasDependents}
             trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
             thumbColor={hasDependents ? "#2563eb" : "#f1f5f9"}
+            accessibilityLabel="Moving with kids?"
           />
         </View>
 
@@ -518,6 +556,11 @@ export default function ProfileScreen() {
             saveProfileMutation.isPending ? "bg-blue-400" : "bg-blue-600"
           }`}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityState={{
+            disabled: saveProfileMutation.isPending,
+            busy: saveProfileMutation.isPending,
+          }}
         >
           {saveProfileMutation.isPending ? (
             <ActivityIndicator color="white" />
@@ -557,6 +600,7 @@ export default function ProfileScreen() {
               }
               placeholder={field.placeholder}
               placeholderTextColor="#94a3b8"
+              accessibilityLabel={field.label}
               secureTextEntry={field.sensitive}
               autoCapitalize={field.key === "FULL_NAME" ? "words" : "none"}
               autoCorrect={false}
@@ -572,6 +616,8 @@ export default function ProfileScreen() {
             savingPII ? "bg-blue-400" : "bg-blue-600"
           }`}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: savingPII, busy: savingPII }}
         >
           {savingPII ? (
             <ActivityIndicator color="white" />
@@ -591,6 +637,7 @@ export default function ProfileScreen() {
           onPress={() => router.push("/(tabs)/contact")}
           className="mb-3 flex-row items-center justify-center rounded-xl border border-slate-200 bg-slate-50 py-3.5"
           activeOpacity={0.7}
+          accessibilityRole="button"
         >
           <Ionicons
             name={"chatbubbles-outline" as IconName}
@@ -604,28 +651,47 @@ export default function ProfileScreen() {
 
         <TouchableOpacity
           onPress={handleSignOut}
-          className="mb-3 flex-row items-center justify-center rounded-xl border border-slate-200 bg-slate-50 py-3.5"
+          disabled={signingOut || deletingAccount}
+          className={`mb-3 flex-row items-center justify-center rounded-xl border border-slate-200 py-3.5 ${
+            signingOut || deletingAccount ? "bg-slate-100" : "bg-slate-50"
+          }`}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{
+            disabled: signingOut || deletingAccount,
+            busy: signingOut,
+          }}
         >
-          <Ionicons
-            name={"log-out-outline" as IconName}
-            size={18}
-            color="#475569"
-          />
-          <Text className="ml-1.5 text-base font-semibold text-slate-700">
-            Sign Out
-          </Text>
+          {signingOut ? (
+            <ActivityIndicator size="small" color="#475569" />
+          ) : (
+            <>
+              <Ionicons
+                name={"log-out-outline" as IconName}
+                size={18}
+                color="#475569"
+              />
+              <Text className="ml-1.5 text-base font-semibold text-slate-700">
+                Sign Out
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handleDeleteAccount}
-          disabled={deletingAccount}
+          disabled={deletingAccount || signingOut}
           className={`flex-row items-center justify-center rounded-xl border py-3.5 ${
-            deletingAccount
+            deletingAccount || signingOut
               ? "border-slate-200 bg-slate-50"
               : "border-red-200 bg-red-50"
           }`}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{
+            disabled: deletingAccount || signingOut,
+            busy: deletingAccount,
+          }}
         >
           {deletingAccount ? (
             <ActivityIndicator size="small" color="#b91c1c" />
