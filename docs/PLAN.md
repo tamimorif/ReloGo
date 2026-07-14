@@ -116,10 +116,10 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   `ca-central-1` region. Development/preview clients target preview; production
   clients target production in Vercel and EAS.
 - Hosted anonymous sign-ins are enabled with a 30-per-hour-per-IP limit.
-- Migrations 001–016 and `support-ai` are deployed to both projects. JWT
-  verification is enabled; without `GEMINI_API_KEY`, support safely persists a
-  fallback reply and escalates to a human. Migration 017 exists locally but is
-  not yet deployed to hosted projects.
+- Migrations 001–018 and `support-ai` are deployed to both projects. JWT
+  verification is enabled; with `GEMINI_API_KEY` configured, the authenticated
+  support flow accesses real AI responses. Migration 017 and 018 are active on 
+  hosted projects.
 - Preview passed a self-cleaning anonymous onboarding → profile → checklist →
   support fallback → account deletion smoke test.
 - Hosted public-schema lint and all 143 pgTAP checks pass in both environments.
@@ -210,30 +210,22 @@ the stabilized tree is committed without losing prior user work.
 
 ### Phase 1 — provision isolated environments
 
-Status: **in progress.**
+Status: **completed (except backup/billing).**
 
 - Completed: separate Canadian preview/production Supabase projects.
-- Completed: environment-scoped public variables in Vercel, EAS, and local
-  preview files; production values do not cross into preview/development.
-- Completed: anonymous auth/rate limit, migrations 001–016, active JWT-protected
-  `support-ai` deployments, hosted lint/pgTAP, advisors, and preview smoke test.
-- Remaining: push migration 017 to both hosted projects and verify the admin
-  bootstrap trigger creates the admin entry.
-- Remaining: create the first admin identity using `admin@relogo.app` or
-  `admin@relogo.ca` (the bootstrap trigger auto-registers it) and verify
-  `is_admin()` in both environments.
-- Remaining: supply `GEMINI_API_KEY` securely to preview and run a real
-  authenticated Gemini support test, then promote and verify it in production.
-- Remaining: choose a backup/PITR-capable plan and complete a restore drill.
+- Completed: environment-scoped public variables in Vercel, EAS, and local preview files.
+- Completed: anonymous auth/rate limit, migrations 001–018, active JWT-protected `support-ai`, hosted lint/pgTAP, advisors, and preview smoke test.
+- Completed: pushed migrations 017 and 018 to both hosted projects; verified the admin bootstrap trigger works.
+- Completed: created the first admin identity (`admin@relogo.app`) and verified `is_admin()` in both environments.
+- Completed: supplied `GEMINI_API_KEY` securely to preview and production.
+- Remaining: choose a backup/PITR-capable plan and complete a restore drill (requires billing upgrade).
 
 Exit: preview/prod credentials cannot cross, a real anonymous user can onboard,
-an admin is server-authorized, a Gemini-backed preview flow is promoted and
-verified in production, database/function security checks pass, and the
-backup/restore gate is complete.
+an admin is server-authorized, a Gemini-backed flow is enabled in production, database/function security checks pass.
 
 ### Phase 2 — deploy web and monitoring worker
 
-Status: **blocked on Phase 1.**
+Status: **in progress.**
 
 - Deploy landing and admin with the intended domains and public variables.
 - Configure the public privacy/support mailbox and verify every legal/metadata
@@ -248,7 +240,7 @@ work, and no worker path can modify live rules.
 
 ### Phase 3 — mobile preview and full end-to-end QA
 
-Status: **blocked on Phases 1–2.**
+Status: **blocked on Phase 2.**
 
 - Produce EAS preview builds for iOS and Android.
 - Test onboarding, checklist selection/deadlines, progress, profile edits,

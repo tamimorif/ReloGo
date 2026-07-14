@@ -309,18 +309,13 @@ deno test supabase/functions/support-ai/grounding_test.ts \
   and pgTAP rather than relying on that optional cache.
 
 ## Known limits and next work
+(Phase 1 is now fundamentally complete; the below steps are for Phase 2 and beyond)
 
-1. Push migration 017 and 018 to preview and production; verify hosted pgTAP.
-2. Create the first admin identity using `admin@relogo.app` or
-   `admin@relogo.ca` (the bootstrap trigger auto-registers it) and verify
-   `is_admin()` and an admin-only RPC in both environments.
-3. Obtain `GEMINI_API_KEY`, set it on preview, run a real authenticated support
-   flow, then set/test production.
-4. Choose a backup/PITR-capable Supabase plan and complete a restore drill
+1. Choose a backup/PITR-capable Supabase plan and complete a restore drill
    (documentation is ready at `docs/BACKUP_RESTORE.md`).
-5. Deploy landing/admin to Vercel and run a real worker baseline + webhook test.
-6. Build EAS preview binaries and perform full two-platform/live E2E QA.
-7. Verify government content and add/test a real fillable PDF.
+2. Deploy landing/admin to Vercel and run a real worker baseline + webhook test.
+3. Build EAS preview binaries and perform full two-platform/live E2E QA.
+4. Verify government content and add/test a real fillable PDF.
 
 Non-blocking engineering debt: a recoverable pre-generation AI lease (atomic
 finalization already prevents duplicate stored replies), server-side admin user
