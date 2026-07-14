@@ -14,9 +14,9 @@ verified. Its isolated Canadian cloud foundation is provisioned and the backend
 is deployed. An admin bootstrap trigger (migration 017) auto-registers approved
 admin emails, consent tracking (migration 018) is fully implemented, backup/restore 
 and incident runbooks are documented, and an E2E test suite (71 Python tests) passes 
-100%. Still not release-approved: Gemini key setup, first admin identity creation, 
-web/worker deployment, full live/device QA, government content/PDF validation, 
-and production operations remain.
+100%. Still not release-approved: full live/device QA, government content/PDF 
+validation, worker baseline establishment, backup billing upgrade, and production 
+operations remain.
 
 The worker monitors official sources and may create PENDING alerts. It must
 never change live rules; only a human admin can approve a rule change.
@@ -309,11 +309,11 @@ deno test supabase/functions/support-ai/grounding_test.ts \
   and pgTAP rather than relying on that optional cache.
 
 ## Known limits and next work
-(Phase 1 is now fundamentally complete; the below steps are for Phase 2 and beyond)
+(Phases 1 and 2 are fundamentally complete; the below steps are for Phase 3 and beyond)
 
 1. Choose a backup/PITR-capable Supabase plan and complete a restore drill
    (documentation is ready at `docs/BACKUP_RESTORE.md`).
-2. Deploy landing/admin to Vercel and run a real worker baseline + webhook test.
+2. Run a real worker baseline + webhook test via GitHub Actions.
 3. Build EAS preview binaries and perform full two-platform/live E2E QA.
 4. Verify government content and add/test a real fillable PDF.
 

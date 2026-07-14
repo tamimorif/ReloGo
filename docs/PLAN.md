@@ -227,13 +227,11 @@ an admin is server-authorized, a Gemini-backed flow is enabled in production, da
 
 Status: **in progress.**
 
-- Deploy landing and admin with the intended domains and public variables.
-- Configure the public privacy/support mailbox and verify every legal/metadata
-  route.
-- Merge the scheduled worker to the default branch; add service-role/webhook
-  GitHub secrets; run it manually to establish healthy baselines.
-- Verify waitlist signup → admin visibility and source change → PENDING alert →
-  human approval/dismissal.
+- Completed: Deployed landing and admin to Vercel with intended public variables.
+- Completed: Added `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` GitHub secrets for the worker.
+- Remaining: Configure the public privacy/support mailbox and verify every legal/metadata route.
+- Remaining: Merge the scheduled worker to the default branch; run it manually to establish healthy baselines.
+- Remaining: Verify waitlist signup → admin visibility and source change → PENDING alert → human approval/dismissal.
 
 Exit: both web apps are live, one complete worker run is healthy, notifications
 work, and no worker path can modify live rules.
