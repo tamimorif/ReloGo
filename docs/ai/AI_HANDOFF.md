@@ -413,18 +413,27 @@ Resolved engineering debt: server-side admin pagination (migration 021),
 enumeration-safe waitlist signup feedback (migration 022), and broader
 consent/RLS end-to-end coverage (E2E 82→85, pgTAP 160→164).
 
-Remaining non-blocking engineering debt, both deferred because they cannot be
-completed and verified in the local tree:
+Remaining non-blocking engineering debt. Neither blocks the MVP launch, and a
+reviewed decision (2026-07-14) is to defer both — do not re-open them without new
+evidence. Both rank below the real launch path (deploy 019–022 + web, EAS device
+QA, legal/store, backup + admin-credential rotation, a healthy worker baseline).
 
 - A recoverable pre-generation AI lease so two concurrent support invocations do
-  not both spend Gemini quota (atomic finalization already prevents a duplicate
-  stored reply). Deferred: it must change the `support-ai` Deno Edge critical
-  path, which has no local test harness (Deno is CI-only here), so it cannot be
-  exercised before shipping. Only worth doing if spend becomes material.
+  not both spend Gemini quota. **Decision: do not build now.** The correctness
+  guardrail (no duplicate reply is ever *stored*) already exists via atomic
+  finalization, so the only downside is a rare, negligible bit of wasted quota
+  at controlled-launch scale. It would also change the `support-ai` Deno Edge
+  critical path, which has no local test harness (Deno is CI-only here).
+  **Revisit trigger:** telemetry shows material duplicate-invocation spend. If
+  built later, follow the repo's helper+Deno-test pattern (CI-verified).
 - Workload-specific credentials / narrow escalation RPCs instead of the shared
-  aggregate `service_role` for the worker and Edge Function. Deferred: this needs
-  new hosted database roles, minted JWTs, and deployment-secret changes, so it
-  cannot be built or verified locally — it is hosted-infra work.
+  aggregate `service_role` for the worker and Edge Function. **Decision: defer
+  to a dedicated post-launch hardening PR with hosted testing.** The current
+  posture (`service_role` held server-side only, never in a client bundle) is a
+  standard, acceptable Supabase pattern and not a launch blocker; the migrations
+  already narrow the union. Needs new hosted DB roles, minted JWTs, and
+  deployment-secret changes, so it cannot be built or verified locally. If both
+  items are ever done, do this one first (security > quota cost).
 
 ## Operational facts
 

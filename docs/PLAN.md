@@ -218,11 +218,16 @@ production launch until the remaining phases below pass.
 ### Follow-ups that do not block local stabilization
 
 - Two concurrent support invocations can both spend Gemini quota; atomic final
-  persistence ensures only one reply is stored. Add a recoverable lease if
-  spend becomes material.
+  persistence ensures only one reply is stored. Decision (2026-07-14): do not
+  build a recoverable lease now — the wasted quota is negligible at
+  controlled-launch scale and the only real risk (a duplicate stored reply) is
+  already prevented. Revisit only if telemetry shows material duplicate spend.
 - The worker and Edge Function share Supabase's aggregate `service_role`.
-  Migrations narrow that union, but workload-specific credentials or gateway
-  RPCs remain future defense-in-depth.
+  Migrations narrow that union; workload-specific credentials or gateway RPCs
+  remain future defense-in-depth. Decision (2026-07-14): defer to a dedicated
+  post-launch hardening PR (needs hosted roles/JWTs/secrets and hosted testing);
+  the current server-side-only `service_role` posture is standard and not a
+  launch blocker.
 - Admin user pagination is now server-side (migration 021: LIMIT/OFFSET +
   windowed total). Note offset paging can transiently duplicate a row if a
   signup arrives mid-page; acceptable for this low-traffic admin view.
