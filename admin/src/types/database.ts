@@ -227,6 +227,8 @@ export interface Database {
           dest_prov: Province | null;
           has_vehicle: boolean;
           has_dependents: boolean;
+          consent_version: string;
+          consent_timestamp: string;
           created_at: string;
           updated_at: string;
         };
@@ -237,6 +239,8 @@ export interface Database {
           dest_prov?: Province | null;
           has_vehicle?: boolean;
           has_dependents?: boolean;
+          consent_version?: string;
+          consent_timestamp?: string;
           created_at?: string;
           updated_at?: string;
         };

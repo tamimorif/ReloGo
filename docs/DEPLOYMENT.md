@@ -390,3 +390,36 @@ production deployment.
 
 The web builds use placeholder Supabase env values in CI; real values are
 injected by Vercel at deploy time.
+
+## 8. Incident Runbook and Monitoring
+
+### Support Ownership and Monitoring Setup
+- **Support Inbox:** All customer support requests are routed to `privacy@relogo.app`. This inbox must be monitored daily by the operations team.
+- **Edge Function (AI Support):** Supabase provides built-in logs for Edge Functions. Monitor the `support-ai` function logs in the Supabase Dashboard (Edge Functions -> support-ai -> Logs) for exceptions, Gemini API rate-limit errors, or fallback triggers.
+- **Worker Execution:** The daily worker runs via GitHub Actions (`.github/workflows/worker.yml`). GitHub will automatically email the repository owner if the action fails. 
+- **Database Uptime:** Vercel and Supabase managed services handle infrastructure uptime. Monitor the [Supabase Status](https://status.supabase.com/) and [Vercel Status](https://www.vercel-status.com/) pages.
+
+### Incident Runbook
+
+#### 1. Worker Failure (GitHub Actions Alert)
+**Symptom:** You receive a "Run failed" email from GitHub Actions for the `worker.yml` workflow.
+**Action:**
+1. Open the GitHub Actions tab and inspect the failed worker logs.
+2. If it's a transient network issue with a government site, the worker will automatically retry on the next scheduled run. No action required.
+3. If it's an unhandled schema change on a government site, developers must update the Playwright extraction logic in `worker/main.py`.
+4. If it's a Supabase connection error, verify that the `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` repository secrets are correct and that the Supabase project is active.
+
+#### 2. AI Support Fallback Surge
+**Symptom:** An unusual spike in `AWAITING_HUMAN` support threads in the admin dashboard.
+**Action:**
+1. Check the `support-ai` Edge Function logs in the Supabase dashboard.
+2. Look for `429 Too Many Requests` (Gemini API quota exceeded) or `500 Internal Server Error`.
+3. If quota is exceeded, consider upgrading the Google AI Studio tier or increasing the rate limits.
+4. While AI is degraded, all user queries safely fallback to `AWAITING_HUMAN`. Operations must manually resolve them from the Admin dashboard.
+
+#### 3. Database Outage or Data Corruption
+**Symptom:** Apps fail to load data, or admin dashboard reports a database connection error.
+**Action:**
+1. Check [Supabase Status](https://status.supabase.com/) for ongoing platform incidents.
+2. If a bad migration or manual query corrupted data, follow the `docs/BACKUP_RESTORE.md` guide to perform a Point-in-Time Recovery (PITR).
+3. Notify users via the status page or support email if the downtime is expected to exceed 1 hour.

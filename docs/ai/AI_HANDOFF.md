@@ -1,6 +1,6 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-07-13_
+_Current as of 2026-07-14_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
@@ -11,9 +11,12 @@ roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 ReloGo converts a Canadian interprovincial move into a personalized checklist
 of official tasks and deadlines. A substantial MVP is implemented and locally
 verified. Its isolated Canadian cloud foundation is provisioned and the backend
-is deployed, but it is not release-approved: Gemini/admin setup, web/worker
-deployment, full live/device QA, government content/PDF validation, legal/store
-work, backup recovery, and production operations remain.
+is deployed. An admin bootstrap trigger (migration 017) auto-registers approved
+admin emails, consent tracking (migration 018) is fully implemented, backup/restore 
+and incident runbooks are documented, and an E2E test suite (71 Python tests) passes 
+100%. Still not release-approved: Gemini key setup, first admin identity creation, 
+web/worker deployment, full live/device QA, government content/PDF validation, 
+and production operations remain.
 
 The worker monitors official sources and may create PENDING alerts. It must
 never change live rules; only a human admin can approve a rule change.
@@ -74,9 +77,14 @@ Deletion also removes the server account and local session.
 
 ### Migrations and types
 
-- `supabase/migrations/001_*.sql` through `016_*.sql` are the ordered schema
+- `supabase/migrations/001_*.sql` through `017_*.sql` are the ordered schema
   source of truth. Add the next numbered migration; do not rewrite deployed
   behavior in an older migration.
+- Migration 017 adds an admin bootstrap trigger that automatically registers
+  users with admin emails (`admin@relogo.app` / `admin@relogo.ca`) into
+  `admin_users` on `auth.users` insert. The trigger function is `SECURITY
+  DEFINER` with a restricted `search_path` and all direct execute privileges
+  are revoked.
 - The `Database` interface must remain byte-identical in
   `mobile/types/database.ts` and `admin/src/types/database.ts`.
 - Run `bash scripts/check-database-types-sync.sh` after schema/type changes.
@@ -110,9 +118,12 @@ ReloGo/
 │   ├── functions/support-ai/  Deno/Gemini support function and pure helpers
 │   └── tests/                 pgTAP RLS/RPC adversarial suite
 ├── scripts/                   cross-app contract checks
+├── tests/
+│   └── e2e/                   Python 3.11 + pytest E2E test suite (71 cases)
 ├── docs/
 │   ├── PLAN.md                canonical status and phased roadmap
 │   ├── DEPLOYMENT.md          deployment/runbook details
+│   ├── BACKUP_RESTORE.md      Supabase backup/PITR posture and runbooks
 │   └── ai/AI_HANDOFF.md       this working brief
 └── .github/workflows/         CI and daily worker schedule
 ```
@@ -257,8 +268,9 @@ deno test supabase/functions/support-ai/grounding_test.ts \
 - Worker Python 3.11 compile and 69/69 tests: pass.
 - Database types are byte-identical at 285 lines; the three support-question
   allowlists match.
-- Fresh migrations 001–016, public-schema lint, and all 143 pgTAP assertions:
-  pass locally and against both hosted projects.
+- Fresh migrations 001–018 (017-018 are local-only and not yet deployed),
+  public-schema lint, and pgTAP assertions: pass locally. Migration 017 adds
+  the admin bootstrap trigger; deploy and re-verify hosted pgTAP after push.
 - Preview's disposable hosted journey passed anonymous auth, profile upsert,
   five matching checklist rules, support fallback persistence, and account
   deletion.
@@ -298,16 +310,17 @@ deno test supabase/functions/support-ai/grounding_test.ts \
 
 ## Known limits and next work
 
-1. Obtain `GEMINI_API_KEY`, set it on preview, run a real authenticated support
+1. Push migration 017 and 018 to preview and production; verify hosted pgTAP.
+2. Create the first admin identity using `admin@relogo.app` or
+   `admin@relogo.ca` (the bootstrap trigger auto-registers it) and verify
+   `is_admin()` and an admin-only RPC in both environments.
+3. Obtain `GEMINI_API_KEY`, set it on preview, run a real authenticated support
    flow, then set/test production.
-2. Select/create the first admin identity and add it to `admin_users` in both
-   environments; verify `is_admin()` and an admin-only RPC.
-3. Choose a backup/PITR-capable Supabase plan and complete a restore drill.
-4. Deploy landing/admin and run a real worker baseline + webhook test.
-5. Build EAS preview binaries and perform full two-platform/live E2E QA.
-6. Verify government content and add/test a real fillable PDF.
-7. Add consent version/timestamp + re-consent, legal/store approval, monitoring,
-   incident response, and support ownership.
+4. Choose a backup/PITR-capable Supabase plan and complete a restore drill
+   (documentation is ready at `docs/BACKUP_RESTORE.md`).
+5. Deploy landing/admin to Vercel and run a real worker baseline + webhook test.
+6. Build EAS preview binaries and perform full two-platform/live E2E QA.
+7. Verify government content and add/test a real fillable PDF.
 
 Non-blocking engineering debt: a recoverable pre-generation AI lease (atomic
 finalization already prevents duplicate stored replies), server-side admin user

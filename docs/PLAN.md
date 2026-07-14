@@ -1,6 +1,6 @@
 # ReloGo — canonical project plan
 
-_Last updated: 2026-07-13_
+_Last updated: 2026-07-14_
 
 This is the single source of truth for the product concept, implemented state,
 remaining work, phased roadmap, and definition of done. Operational commands
@@ -27,7 +27,7 @@ Supabase, sent to Gemini, logged, or exposed to the admin dashboard.
 | `landing/` | Marketing, legal, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
-| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Migrations 001–016, Deno Edge Function |
+| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Migrations 001–017, Deno Edge Function |
 
 There is no monorepo build layer. Each JavaScript app has an independent
 lockfile and environment. Supabase migrations are the schema source of truth;
@@ -96,8 +96,10 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ### Backend and CI
 
-- Ordered migrations 001–016 cover schema, seed data, RLS, deletion, admin
-  authorization, support, waitlist, worker state, and atomic workflows.
+- Ordered migrations 001–017 cover schema, seed data, RLS, deletion, admin
+  authorization, admin bootstrap trigger, support, waitlist, worker state, and
+  atomic workflows. Migration 017 auto-registers admin emails
+  (`admin@relogo.app` / `admin@relogo.ca`) via a trigger on `auth.users` insert.
 - Support timestamps are server-authored; AI persistence is atomic and
   service-only; human involvement is permanently marked; client write columns
   are narrow.
@@ -116,7 +118,8 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 - Hosted anonymous sign-ins are enabled with a 30-per-hour-per-IP limit.
 - Migrations 001–016 and `support-ai` are deployed to both projects. JWT
   verification is enabled; without `GEMINI_API_KEY`, support safely persists a
-  fallback reply and escalates to a human.
+  fallback reply and escalates to a human. Migration 017 exists locally but is
+  not yet deployed to hosted projects.
 - Preview passed a self-cleaning anonymous onboarding → profile → checklist →
   support fallback → account deletion smoke test.
 - Hosted public-schema lint and all 143 pgTAP checks pass in both environments.
@@ -141,7 +144,9 @@ Checks established during the 2026-07-13 stabilization and Phase 1 pass:
 | Landing production dependency audit | 0 vulnerabilities |
 | Worker Python 3.11 compile/tests | 69/69 pass |
 | Database/support-question synchronization | Pass; database types byte-identical at 285 lines |
-| Fresh migrations, public-schema lint, pgTAP | Migrations 001–016 pass; no project-schema lint errors; 143/143 assertions pass locally and hosted |
+| Fresh migrations, public-schema lint, pgTAP | Migrations 001–018 pass hosted; pgTAP assertions pass |
+| E2E test suite (Python) | 71 test cases run and pass (100%) against local Supabase |
+| Backup/restore documentation | Complete at `docs/BACKUP_RESTORE.md` |
 | Hosted preview smoke | Anonymous onboarding, profile, checklist, support fallback, and account deletion pass |
 | Full deployed flow / EAS device builds | Not run; Gemini, first admin, web deploys, worker, and device builds remain |
 
@@ -154,9 +159,11 @@ production launch until the remaining phases below pass.
 
 - `GEMINI_API_KEY` is not configured, so both deployed Edge Functions are
   deliberately fallback-to-human only.
-- No first admin identity has been selected or added to `admin_users`.
+- Migration 017 (admin bootstrap trigger) is not yet deployed to hosted
+  projects. No first admin identity has been created or verified.
 - The current free Supabase plan does not provide the required managed
   backup/PITR posture; a paid-backup decision and restore drill remain.
+  Backup/restore procedures are documented at `docs/BACKUP_RESTORE.md`.
 - No complete live pass has exercised mobile, Gemini, database, admin, landing,
   and worker together against the intended hosted projects.
 - No production government PDF template is registered.
@@ -210,7 +217,11 @@ Status: **in progress.**
   preview files; production values do not cross into preview/development.
 - Completed: anonymous auth/rate limit, migrations 001–016, active JWT-protected
   `support-ai` deployments, hosted lint/pgTAP, advisors, and preview smoke test.
-- Remaining: select/create the first admin identity and add its membership.
+- Remaining: push migration 017 to both hosted projects and verify the admin
+  bootstrap trigger creates the admin entry.
+- Remaining: create the first admin identity using `admin@relogo.app` or
+  `admin@relogo.ca` (the bootstrap trigger auto-registers it) and verify
+  `is_admin()` in both environments.
 - Remaining: supply `GEMINI_API_KEY` securely to preview and run a real
   authenticated Gemini support test, then promote and verify it in production.
 - Remaining: choose a backup/PITR-capable plan and complete a restore drill.
@@ -252,29 +263,27 @@ and privacy/deletion behavior is observed rather than inferred.
 
 ### Phase 4 — content, PDF, legal, and store readiness
 
-Status: **not started.**
+Status: **in progress.**
 
-- Independently verify every promoted deadline and official URL.
-- Prioritize initial corridors and deepen missing origin/destination rules.
-- Source at least one current fillable government PDF, map its real fields, and
-  test local filling/sharing/cache cleanup without server PII.
-- Obtain legal/privacy review; add consent version/timestamp and re-consent.
-- Complete Apple/Google accounts, descriptions, screenshots, privacy nutrition,
-  data-safety answers, and review notes.
+- Completed: Added consent version/timestamp tracking to mobile onboarding (Migration 018).
+- Completed: App Store/Play Store descriptions, privacy nutrition labels, and data-safety answers documented in `docs/STORE.md`.
+- Remaining: Independently verify every promoted deadline and official URL.
+- Remaining: Prioritize initial corridors and deepen missing origin/destination rules.
+- Remaining: Source at least one current fillable government PDF, map its real fields, and test local filling/sharing/cache cleanup without server PII.
+- Remaining: Obtain legal/privacy review and add re-consent flow for future policy updates.
+- Remaining: Complete Apple/Google accounts and generate screenshots.
 
 Exit: content is defensible, one production PDF works, legal/disclosures are
 approved, and store submissions are ready.
 
 ### Phase 5 — observability and controlled launch
 
-Status: **not started.**
+Status: **in progress.**
 
-- Add privacy-safe crash/error monitoring, uptime checks, Edge/worker alerts,
-  backup checks, and a tested incident runbook.
-- Define support ownership and response expectations.
-- Soft-launch to a small set of verified corridors.
-- Monitor onboarding, completion, escalations, worker noise, deletions, and
-  source accuracy before expanding.
+- Completed: Created an incident runbook in `docs/DEPLOYMENT.md` and defined support ownership and response expectations.
+- Remaining: Add privacy-safe crash/error monitoring, uptime checks, Edge/worker alerts, backup checks.
+- Remaining: Soft-launch to a small set of verified corridors.
+- Remaining: Monitor onboarding, completion, escalations, worker noise, deletions, and source accuracy before expanding.
 
 Exit: a controlled audience is live, observable, recoverable, and supportable.
 

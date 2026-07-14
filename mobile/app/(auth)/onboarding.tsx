@@ -131,6 +131,8 @@ export default function OnboardingScreen() {
         move_date: formatLocalDate(moveDate),
         has_vehicle: hasVehicle,
         has_dependents: hasDependents,
+        consent_version: "1.0",
+        consent_timestamp: new Date().toISOString(),
       };
 
       // Upsert (last-write-wins): if a profile row already exists — a prior
