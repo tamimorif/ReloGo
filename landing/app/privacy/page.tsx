@@ -2,17 +2,34 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Smartphone, Server, Trash2 } from "lucide-react";
 import SiteFooter from "@/components/SiteFooter";
+import { CURRENT_POLICY_VERSION } from "@/lib/legal";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
-// Update this to a monitored address before publishing the store listings.
-const CONTACT_EMAIL = "privacy@relogo.app";
-const LAST_UPDATED = "July 13, 2026";
+const LAST_UPDATED = "July 14, 2026";
+const PRIVACY_TITLE = "Privacy Policy - ReloGo";
+const PRIVACY_DESCRIPTION =
+  "How ReloGo handles your data. Your sensitive personal information stays on your device and is never sent to our servers.";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy - ReloGo",
-  description:
-    "How ReloGo handles your data. Your sensitive personal information stays on your device and is never sent to our servers.",
+  title: PRIVACY_TITLE,
+  description: PRIVACY_DESCRIPTION,
   alternates: {
     canonical: "/privacy",
+  },
+  openGraph: {
+    title: PRIVACY_TITLE,
+    description: PRIVACY_DESCRIPTION,
+    siteName: "ReloGo",
+    url: "/privacy",
+    type: "website",
+    locale: "en_CA",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: PRIVACY_TITLE,
+    description: PRIVACY_DESCRIPTION,
+    images: ["/og.png"],
   },
 };
 
@@ -57,7 +74,9 @@ export default function PrivacyPage() {
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
           Privacy Policy
         </h1>
-        <p className="mt-3 text-sm text-slate-500">Last updated: {LAST_UPDATED}</p>
+        <p className="mt-3 text-sm text-slate-500">
+          Version {CURRENT_POLICY_VERSION} · Last updated: {LAST_UPDATED}
+        </p>
 
         {/* Highlight */}
         <div className="mt-8 flex gap-4 rounded-2xl border border-brand-100 bg-brand-50/70 p-5">
@@ -82,12 +101,12 @@ export default function PrivacyPage() {
           <p>
             ReloGo (&ldquo;ReloGo,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or
             &ldquo;our&rdquo;) is a mobile application that helps people moving
-            between Canadian provinces build a personalized checklist of
-            government tasks - licence exchanges, health card updates, vehicle
-            registration, address changes, and more. This policy explains what
-            information ReloGo handles and how. It is written to align with
-            Canada&apos;s Personal Information Protection and Electronic Documents
-            Act (PIPEDA).
+            between Canadian provinces or territories build a personalized
+            checklist of government tasks - licence exchanges, health card
+            updates, vehicle registration, address changes, and more. This
+            policy explains what information ReloGo handles and how. It is
+            written to align with Canada&apos;s Personal Information Protection and
+            Electronic Documents Act (PIPEDA).
           </p>
         </Section>
 
@@ -102,8 +121,8 @@ export default function PrivacyPage() {
               choose to save on your phone when a compatible PDF template is
               available. These can include your full name, date of birth, street
               address, driver&apos;s licence number, and provincial health card
-              number. The current preview does not include a production
-              government template.
+              number. The initial compatible template is British Columbia&apos;s
+              official Application for Health and Drug Coverage.
             </p>
           </div>
           <p>
@@ -123,10 +142,30 @@ export default function PrivacyPage() {
             generated on your device in a dedicated temporary cache. On iOS,
             ReloGo removes its cached copy after the share action completes. On
             Android, a receiving app may continue reading the attachment after
-            the chooser closes, so ReloGo removes cached copies at the next app
-            start or form fill, and always when you sign out or delete your
-            account. A copy you choose to save or send is controlled by the
-            destination you selected.
+            the chooser closes, so ReloGo schedules removal of that temporary
+            file after a short grace period. On the next app start or form fill,
+            ReloGo deletes expired temporary files and reschedules any still in
+            that grace period. ReloGo always removes cached copies when you sign
+            out or delete your account. A copy you choose to save or send is
+            controlled by the destination you selected.
+          </p>
+        </Section>
+
+        <Section title="Official links and blank forms">
+          <p>
+            Checklist links open the relevant government website. When you
+            explicitly choose to prepare a compatible form, ReloGo downloads a
+            blank copy directly from the government&apos;s official website before
+            filling it locally. The app verifies that the file matches the
+            reviewed version before reading your stored details. The government
+            website may receive ordinary connection information such as your IP
+            address and browser or app request headers, under that website&apos;s
+            own privacy practices.
+          </p>
+          <p>
+            ReloGo does not add your stored name, address, birth date, licence
+            number, or health-card number to that download request. Those values
+            are applied only after the blank form reaches your device.
           </p>
         </Section>
 
@@ -144,7 +183,7 @@ export default function PrivacyPage() {
           </div>
           <ul className="ml-5 list-disc space-y-1">
             <li>An anonymous account identifier (not linked to your name or email)</li>
-            <li>Your origin and destination provinces</li>
+            <li>Your origin and destination province or territory</li>
             <li>Your planned move date</li>
             <li>
               Whether you indicated you&apos;re bringing a vehicle or moving with
@@ -160,11 +199,11 @@ export default function PrivacyPage() {
             This information distinguishes your anonymous account but does not
             include your name, address, personal document numbers, or account
             email. If you join our website waitlist, we separately store the
-            email address and provinces you provide. For abuse prevention, the
-            signup service also keeps an hourly counter keyed by a one-way hash
-            derived from the requesting IP address; it does not store the raw
-            address in the waitlist throttle table. Expired counters are pruned
-            during later signup activity.
+            email address and jurisdictions you provide. For abuse prevention,
+            the signup service also keeps an hourly counter keyed by a one-way
+            hash derived from the requesting IP address; it does not store the
+            raw address in the waitlist throttle table. Expired counters are
+            pruned during later signup activity.
           </p>
         </Section>
 
@@ -210,14 +249,31 @@ export default function PrivacyPage() {
             </p>
           </div>
           <p>
-            To be removed from the website waitlist, email us at{" "}
-            <a
-              href={`mailto:${CONTACT_EMAIL}`}
-              className="font-medium text-brand-600 hover:text-brand-700"
-            >
-              {CONTACT_EMAIL}
-            </a>{" "}
-            and we&apos;ll delete your entry.
+            {SUPPORT_EMAIL ? (
+              <>
+                To be removed from the website waitlist, email us at{" "}
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="font-medium text-brand-600 hover:text-brand-700"
+                >
+                  {SUPPORT_EMAIL}
+                </a>{" "}
+                from the address you used, and we&apos;ll delete your entry.
+              </>
+            ) : (
+              <>
+                The public waitlist-removal channel is not yet configured. The
+                waitlist remains a preview feature and must not launch until a
+                monitored channel is published on the{" "}
+                <Link
+                  href="/support"
+                  className="font-medium text-brand-600 hover:text-brand-700"
+                >
+                  Support page
+                </Link>
+                .
+              </>
+            )}
           </p>
         </Section>
 
@@ -238,7 +294,7 @@ export default function PrivacyPage() {
             questions. You choose from six pre-written questions; there is no
             free-text support box. A third-party AI provider (Google Gemini)
             processes the selected question together with non-identifying move
-            context, such as your province corridor and applicable task titles,
+            context, such as your move corridor and applicable task titles,
             to produce a response.
           </p>
           <p>
@@ -279,21 +335,39 @@ export default function PrivacyPage() {
         <Section title="Changes to this policy">
           <p>
             We may update this policy from time to time. When we do, we&apos;ll
-            revise the &ldquo;Last updated&rdquo; date above. Significant changes
-            will be communicated within the app or on this page.
+            revise the version and &ldquo;Last updated&rdquo; date above. When a
+            new version requires your agreement, the app will ask you to review
+            and affirmatively accept it before continuing.
           </p>
         </Section>
 
         <Section title="Contact us">
           <p>
-            Questions about this policy or your privacy? Email us at{" "}
-            <a
-              href={`mailto:${CONTACT_EMAIL}`}
-              className="font-medium text-brand-600 hover:text-brand-700"
-            >
-              {CONTACT_EMAIL}
-            </a>
-            .
+            {SUPPORT_EMAIL ? (
+              <>
+                Questions about this policy or your privacy? Email us at{" "}
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="font-medium text-brand-600 hover:text-brand-700"
+                >
+                  {SUPPORT_EMAIL}
+                </a>
+                .
+              </>
+            ) : (
+              <>
+                The monitored privacy contact is not yet configured for this
+                preview. Current contact options and launch status appear on
+                the{" "}
+                <Link
+                  href="/support"
+                  className="font-medium text-brand-600 hover:text-brand-700"
+                >
+                  Support page
+                </Link>
+                .
+              </>
+            )}
           </p>
         </Section>
       </article>

@@ -225,6 +225,7 @@ function ScreenHeader({
 
 type TaskCardProps = {
   item: ChecklistTask;
+  canFillPDF: boolean;
   isExpanded: boolean;
   isSharing: boolean;
   shareDisabled: boolean;
@@ -236,6 +237,7 @@ type TaskCardProps = {
 
 function TaskCard({
   item,
+  canFillPDF,
   isExpanded,
   isSharing,
   shareDisabled,
@@ -411,45 +413,45 @@ function TaskCard({
 
       {/* Fill & Share PDF — only for tasks with a registered template
           (all buttons disabled while any share runs) */}
-      {hasPDFTemplate(item.taskKey) && (
-      <Pressable
-        onPress={onShare}
-        disabled={shareDisabled}
-        className={`mt-3 h-11 flex-row items-center justify-center overflow-hidden rounded-xl border ${
-          shareDimmed
-            ? "border-slate-100 bg-slate-50"
-            : "border-brand-100 bg-brand-50"
-        }`}
-        android_ripple={brandRipple}
-        style={iosPressOpacity}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: shareDisabled, busy: isSharing }}
-        accessibilityLabel={`Fill and share PDF for ${item.title}`}
-      >
-        {isSharing ? (
-          <>
-            <ActivityIndicator size="small" color="#2563EB" />
-            <Text className="ml-2 text-sm font-semibold text-brand-700">
-              Preparing…
-            </Text>
-          </>
-        ) : (
-          <>
-            <Ionicons
-              name="document-text-outline"
-              size={16}
-              color={shareDimmed ? "#94a3b8" : "#2563eb"}
-            />
-            <Text
-              className={`ml-1.5 text-sm font-semibold ${
-                shareDimmed ? "text-slate-400" : "text-brand-700"
-              }`}
-            >
-              Fill & Share PDF
-            </Text>
-          </>
-        )}
-      </Pressable>
+      {canFillPDF && (
+        <Pressable
+          onPress={onShare}
+          disabled={shareDisabled}
+          className={`mt-3 h-11 flex-row items-center justify-center overflow-hidden rounded-xl border ${
+            shareDimmed
+              ? "border-slate-100 bg-slate-50"
+              : "border-brand-100 bg-brand-50"
+          }`}
+          android_ripple={brandRipple}
+          style={iosPressOpacity}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: shareDisabled, busy: isSharing }}
+          accessibilityLabel={`Fill and share PDF for ${item.title}`}
+        >
+          {isSharing ? (
+            <>
+              <ActivityIndicator size="small" color="#2563EB" />
+              <Text className="ml-2 text-sm font-semibold text-brand-700">
+                Preparing…
+              </Text>
+            </>
+          ) : (
+            <>
+              <Ionicons
+                name="document-text-outline"
+                size={16}
+                color={shareDimmed ? "#94a3b8" : "#2563eb"}
+              />
+              <Text
+                className={`ml-1.5 text-sm font-semibold ${
+                  shareDimmed ? "text-slate-400" : "text-brand-700"
+                }`}
+              >
+                Fill & Share PDF
+              </Text>
+            </>
+          )}
+        </Pressable>
       )}
     </View>
   );
@@ -669,24 +671,53 @@ export default function ChecklistScreen() {
     });
   }
 
-  async function handleSharePDF(item: ChecklistTask) {
+  async function prepareAndSharePDF(item: ChecklistTask) {
     // One share flow at a time: a second fillAndSharePDF would race the
     // first one's cache cleanup and iOS can't stack share sheets.
-    if (sharingTaskKey !== null) return;
+    if (
+      sharingTaskKey !== null ||
+      !dest ||
+      !hasPDFTemplate(item.taskKey, dest)
+    ) {
+      return;
+    }
     setSharingTaskKey(item.taskKey);
     try {
-      await fillAndSharePDF(item.taskKey);
-    } catch (error) {
+      await fillAndSharePDF(item.taskKey, dest);
+    } catch {
       // The button only renders for registered templates, so this is a
-      // genuine failure (asset load, PDF parse, share sheet), not a miss.
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Couldn't prepare this form. Please try again.";
-      Alert.alert("Form not available", message);
+      // genuine download, validation, fill, or share failure, not a miss.
+      Alert.alert(
+        "Form not available",
+        "Couldn't safely prepare the official form. Check your connection and try again.",
+      );
     } finally {
       setSharingTaskKey(null);
     }
+  }
+
+  function handleSharePDF(item: ChecklistTask) {
+    if (
+      sharingTaskKey !== null ||
+      !dest ||
+      !hasPDFTemplate(item.taskKey, dest)
+    ) {
+      return;
+    }
+
+    Alert.alert(
+      "Review before sharing",
+      "ReloGo fills only matching fields. Review every entry, especially names and addresses with non-Latin characters, and complete all remaining fields before choosing where to share or save the PDF.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Prepare Form",
+          onPress: () => {
+            void prepareAndSharePDF(item);
+          },
+        },
+      ],
+    );
   }
 
   const onRefresh = useCallback(async () => {
@@ -809,8 +840,8 @@ export default function ChecklistScreen() {
             Tell us about your move
           </Text>
           <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500">
-            Set your origin and destination provinces in your profile to build
-            your checklist.
+            Set your origin and destination province or territory in your
+            profile to build your checklist.
           </Text>
           <View
             className={`mt-6 flex-row items-center rounded-full border border-slate-200 bg-white px-4 py-2.5 ${cardShadowClass}`}
@@ -953,6 +984,7 @@ export default function ChecklistScreen() {
               )}
               <TaskCard
                 item={item}
+                canFillPDF={hasPDFTemplate(item.taskKey, dest)}
                 isExpanded={expandedIds.has(item.taskRuleId)}
                 isSharing={sharingTaskKey === item.taskKey}
                 shareDisabled={sharingTaskKey !== null}

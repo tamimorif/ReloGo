@@ -31,6 +31,10 @@ const EMAIL_FORMAT_MESSAGE =
   "That email address doesn't look right. Please double-check it (e.g. you@example.com).";
 const CONNECTION_MESSAGE =
   "Something went wrong joining the waitlist. Please check your connection and try again.";
+// Shown when the caller's network hits the hourly signup cap. This reflects the
+// IP rate limit only — it reveals nothing about whether an email is on the list.
+const THROTTLED_MESSAGE =
+  "We've had a lot of signups from your network. Please try again in a little while.";
 
 export default function WaitlistForm() {
   const [originProvince, setOriginProvince] = useState("");
@@ -63,7 +67,7 @@ export default function WaitlistForm() {
     setSubmitting(true);
     setError(null);
 
-    const { error: rpcError } = await supabase.rpc("join_waitlist", {
+    const { data, error: rpcError } = await supabase.rpc("join_waitlist", {
       p_email: trimmedEmail,
       p_origin_province: originProvince,
       p_dest_province: destProvince,
@@ -82,6 +86,13 @@ export default function WaitlistForm() {
       const isEmailRejection =
         rpcError.code === "23514" || rpcError.code === "22001";
       setError(isEmailRejection ? EMAIL_FORMAT_MESSAGE : CONNECTION_MESSAGE);
+      return;
+    }
+
+    // 'throttled' means the caller's IP hit the hourly cap. A duplicate email
+    // returns 'accepted' (enumeration-safe), so this never leaks membership.
+    if (data === "throttled") {
+      setError(THROTTLED_MESSAGE);
       return;
     }
 
@@ -123,7 +134,7 @@ export default function WaitlistForm() {
             aria-label="Moving from"
           >
             <option value="" disabled>
-              Select a province
+              Select a province or territory
             </option>
             {PROVINCES.map((p) => (
               <option key={p.code} value={p.code}>
@@ -144,7 +155,7 @@ export default function WaitlistForm() {
             aria-label="Moving to"
           >
             <option value="" disabled>
-              Select a province
+              Select a province or territory
             </option>
             {PROVINCES.map((p) => (
               <option key={p.code} value={p.code}>
@@ -157,7 +168,8 @@ export default function WaitlistForm() {
 
       {sameProvince && (
         <p className="mt-3 animate-fade-in text-sm text-slate-500">
-          Pick two different provinces to see your relocation checklist.
+          Pick two different provinces or territories to see your relocation
+          checklist.
         </p>
       )}
 

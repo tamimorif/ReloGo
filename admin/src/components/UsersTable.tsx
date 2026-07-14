@@ -46,25 +46,51 @@ export function UsersTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  // The RPC returns every user in one payload; paginate the render
-  // client-side so the table stays manageable as the user base grows.
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Server-side pagination: each page is one admin_list_users(limit, offset)
+  // call. total_count (returned on every row) gives the full size, so the RPC
+  // never has to ship the whole user base in one payload.
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // ── Fetch all users via the admin RPC ─────────────────────────────────
+  // ── Fetch the first page via the admin RPC ────────────────────────────
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    const { data, error: fetchErr } = await supabase.rpc("admin_list_users");
+    const { data, error: fetchErr } = await supabase.rpc("admin_list_users", {
+      p_limit: PAGE_SIZE,
+      p_offset: 0,
+    });
 
     if (fetchErr) {
       setError(fetchErr.message);
     } else {
-      setUsers(data ?? []);
-      setVisibleCount(PAGE_SIZE);
+      const page = data ?? [];
+      setUsers(page);
+      setTotalCount(page[0]?.total_count ?? 0);
     }
     setLoading(false);
   }, []);
+
+  // ── Fetch the next page and append it ─────────────────────────────────
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    const { data, error: fetchErr } = await supabase.rpc("admin_list_users", {
+      p_limit: PAGE_SIZE,
+      p_offset: users.length,
+    });
+    if (fetchErr) {
+      setError(fetchErr.message);
+    } else {
+      const page = data ?? [];
+      setUsers((prev) => [...prev, ...page]);
+      // total_count can move as new users sign up between pages; keep the
+      // newest estimate so the "Load more" cutoff stays accurate. An empty
+      // page means there is nothing left, so stop offering "Load more".
+      setTotalCount(page[0] ? page[0].total_count : users.length);
+    }
+    setLoadingMore(false);
+  }, [users.length]);
 
   useEffect(() => {
     fetchUsers();
@@ -82,11 +108,6 @@ export function UsersTable() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
   }, [users]);
-
-  const visibleUsers = useMemo(
-    () => users.slice(0, visibleCount),
-    [users, visibleCount],
-  );
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
@@ -122,7 +143,7 @@ export function UsersTable() {
               Total users
             </p>
             <p className="mt-1 text-2xl font-bold text-white">
-              {users.length}
+              {totalCount}
             </p>
           </div>
           {topCorridors.map(([label, count]) => (
@@ -166,7 +187,7 @@ export function UsersTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/60">
-              {visibleUsers.map((user) => (
+              {users.map((user) => (
                 <tr
                   key={user.user_id}
                   onClick={() => setSelectedUserId(user.user_id)}
@@ -217,15 +238,19 @@ export function UsersTable() {
         </div>
       ) : null}
 
-      {/* ── Load more ── */}
-      {!loading && visibleCount < users.length && (
-        <div className="mt-4 flex justify-center">
+      {/* ── Load more (fetches the next server-side page) ── */}
+      {!loading && users.length < totalCount && (
+        <div className="mt-4 flex flex-col items-center gap-1">
           <button
-            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
           >
-            Load more
+            {loadingMore ? "Loading…" : "Load more"}
           </button>
+          <p className="text-xs text-slate-500">
+            Showing {users.length} of {totalCount}
+          </p>
         </div>
       )}
 

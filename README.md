@@ -1,9 +1,10 @@
 # ReloGo
 
-ReloGo turns a Canadian interprovincial move into a personalized,
-deadline-aware checklist of government tasks. It selects rules for the user's
-origin, destination, move date, vehicle, and dependents; tracks completion; and
-links every task to an official source.
+ReloGo turns a move between Canadian provinces or territories into a
+personalized checklist of government tasks with suggested timing. Current core
+content is selected by destination and filtered by vehicle and dependent
+details; origin-specific rule depth remains planned. The app tracks completion
+and links every task to an official source.
 
 Privacy is an architectural rule: full name, date of birth, street address,
 driver's licence number, and health-card number stay on the device. They are
@@ -42,8 +43,12 @@ Mobile ── auth/checklist/progress ── Supabase ── protected Admin das
 - The worker scrapes official HTML/PDF sources concurrently, then records each
   result through a row-locked compare-and-swap RPC. A changed source creates a
   PENDING alert; only a human admin can approve a live rule change.
-- The PDF engine exists, but production currently registers no government PDF
-  templates. A development-only sample keeps the local engine testable.
+- The first production template is British Columbia's official Application for
+  Health and Drug Coverage. ReloGo downloads the blank form from the government
+  source only after an explicit tap, verifies its audited SHA-256 before reading
+  local PII, fills mapped fields on-device, and leaves it editable. Unit and
+  Unicode round-trip checks pass; real-device sharing still needs preview-build
+  QA.
 
 ## Database migrations
 
@@ -68,6 +73,10 @@ order; do not edit the hosted schema by hand.
 | `014_persistent_support_human_takeover.sql` | Permanently records human-involved support threads |
 | `015_hosted_support_ai_least_privilege.sql` | Makes hosted Edge grants match the tested least-privilege boundary |
 | `016_support_thread_user_inbox_index.sql` | Covers the user-specific support inbox lookup and ordering |
+| `017_admin_bootstrap_trigger.sql` | Registers reviewed bootstrap admin emails on auth-user creation |
+| `018_consent_versioning.sql` | Adds accepted policy version and timestamp fields |
+| `019_policy_reconsent.sql` | Makes consent server-authored, adds re-consent RPCs, and gates normal user data on the current version |
+| `020_content_audit_corrections.sql` | Applies conservative deadline corrections and distinguishes crawl timestamps from content approval |
 
 ## Quick start
 
@@ -125,6 +134,8 @@ when rotating them or creating another EAS project.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
 The project is a locally verified MVP, not a launched product. The remaining
-work is primarily completing hosted credentials and ownership, live end-to-end
-QA, verified government content/PDF templates, legal/store review, and
-production operations. See the canonical plan for the ordered phases.
+work is primarily deploying the pending schema/web/worker fixes, establishing
+a healthy worker baseline and webhook, funding and drilling backup/restore,
+running SDK 55 preview builds on real devices, configuring a monitored public
+mailbox/custom domain, deepening government content, and completing legal,
+store, and operational approval. See the canonical plan for the ordered phases.

@@ -31,6 +31,11 @@ import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
 import {
+  CURRENT_CONSENT_VERSION,
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+} from "@/lib/legalConsent";
+import {
   Province,
   PROVINCES,
   PROVINCE_LABELS,
@@ -50,7 +55,7 @@ function formatLocalDate(d: Date): string {
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { session, setHasProfile } = useAuth();
+  const { session, setHasProfile, setHasCurrentConsent } = useAuth();
 
   const [originProvince, setOriginProvince] = useState<Province | null>(null);
   const [destinationProvince, setDestinationProvince] =
@@ -78,17 +83,23 @@ export default function OnboardingScreen() {
 
   async function handleSubmit() {
     if (!originProvince) {
-      Alert.alert("Missing Info", "Please select your origin province.");
+      Alert.alert(
+        "Missing Info",
+        "Please select your origin province or territory.",
+      );
       return;
     }
     if (!destinationProvince) {
-      Alert.alert("Missing Info", "Please select your destination province.");
+      Alert.alert(
+        "Missing Info",
+        "Please select your destination province or territory.",
+      );
       return;
     }
     if (originProvince === destinationProvince) {
       Alert.alert(
-        "Same Province",
-        "Origin and destination must be different provinces.",
+        "Same jurisdiction",
+        "Origin and destination must be different provinces or territories.",
       );
       return;
     }
@@ -131,8 +142,7 @@ export default function OnboardingScreen() {
         move_date: formatLocalDate(moveDate),
         has_vehicle: hasVehicle,
         has_dependents: hasDependents,
-        consent_version: "1.0",
-        consent_timestamp: new Date().toISOString(),
+        consent_version: CURRENT_CONSENT_VERSION,
       };
 
       // Upsert (last-write-wins): if a profile row already exists — a prior
@@ -148,6 +158,7 @@ export default function OnboardingScreen() {
       }
 
       setHasProfile(true);
+      setHasCurrentConsent(true);
       router.replace("/(tabs)/checklist");
     } catch {
       // Keep provider/database internals out of the UI. The onboarding payload
@@ -181,12 +192,14 @@ export default function OnboardingScreen() {
           accessibilityRole="button"
           accessibilityState={{ expanded: isOpen }}
           accessibilityLabel={`${label}: ${selected ? PROVINCE_LABELS[selected] : "none selected"}`}
-          accessibilityHint="Opens the province list"
+          accessibilityHint="Opens the province and territory list"
         >
           <Text
             className={`text-base ${selected ? "text-slate-900" : "text-slate-400"}`}
           >
-            {selected ? PROVINCE_LABELS[selected] : "Select province…"}
+            {selected
+              ? PROVINCE_LABELS[selected]
+              : "Select province or territory…"}
           </Text>
         </TouchableOpacity>
 
@@ -239,8 +252,8 @@ export default function OnboardingScreen() {
       <View className="bg-blue-600 px-6 pb-8 pt-16">
         <Text className="text-3xl font-bold text-white">🇨🇦 ReloGo</Text>
         <Text className="mt-2 text-base text-blue-100">
-          Your Canadian relocation autopilot. Tell us about your move and we'll
-          build your personalised checklist.
+          Your Canadian move guide. Tell us about your move and we'll build your
+          personalised checklist.
         </Text>
       </View>
 
@@ -370,7 +383,7 @@ export default function OnboardingScreen() {
             I agree to the{" "}
             <Text
               className="font-semibold text-blue-600"
-              onPress={() => Linking.openURL("https://relogo.app/privacy")}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
               accessibilityRole="link"
             >
               Privacy Policy
@@ -378,7 +391,7 @@ export default function OnboardingScreen() {
             and{" "}
             <Text
               className="font-semibold text-blue-600"
-              onPress={() => Linking.openURL("https://relogo.app/terms")}
+              onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
               accessibilityRole="link"
             >
               Terms of Service

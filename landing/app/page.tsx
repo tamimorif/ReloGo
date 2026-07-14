@@ -48,13 +48,13 @@ export default function HomePage() {
       {/* Hero */}
       <section className="mx-auto max-w-3xl px-6 pb-20 pt-12 text-center sm:pt-20">
         <h1 className="animate-fade-in-up text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
-          Move provinces without the{" "}
+          Move across Canada without the{" "}
           <span className="text-brand-600">paperwork panic</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl animate-fade-in-up text-lg leading-relaxed text-slate-600 sm:text-xl">
-          ReloGo organizes common interprovincial move tasks into one clear
-          checklist, with suggested timing and official-source links so you know
-          what to verify next.
+          ReloGo organizes common moves between provinces and territories into
+          one clear checklist, with suggested timing and official-source links
+          so you know what to verify next.
         </p>
 
         <div className="mx-auto mt-12 max-w-xl animate-fade-in-up rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-xl shadow-brand-100/50 backdrop-blur sm:p-8">

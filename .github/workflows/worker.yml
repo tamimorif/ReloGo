@@ -38,7 +38,10 @@ on:
 jobs:
   monitor:
     name: Run rule-monitor worker
-    runs-on: ubuntu-latest
+    # Playwright 1.44's Linux dependency installer targets Ubuntu 22.04.
+    # ubuntu-latest now resolves to 24.04, where libasound2 was replaced by
+    # libasound2t64 and `playwright install --with-deps` fails before scraping.
+    runs-on: ubuntu-22.04
     # Includes browser installation plus bounded retries across all sources.
     timeout-minutes: 35
     steps:

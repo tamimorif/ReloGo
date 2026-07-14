@@ -1,0 +1,7 @@
+# Direct dependencies imported by the E2E suite, pinned to the verified
+# Python 3.11-compatible versions. Supabase also constrains postgrest to this
+# exact version, but it is listed explicitly because the tests import it.
+postgrest==2.31.0
+pytest==9.1.1
+requests==2.34.2
+supabase==2.31.0

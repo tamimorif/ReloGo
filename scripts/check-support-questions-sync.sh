@@ -6,7 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MOBILE="$ROOT/mobile/lib/supportQuestions.ts"
 EDGE="$ROOT/supabase/functions/support-ai/supportQuestions.ts"
-MIGRATION="$ROOT/supabase/migrations/010_support_question_privacy_boundary.sql"
+MIGRATIONS="$ROOT/supabase/migrations"
+MIGRATION="$(rg -l -- '-- SUPPORT_QUESTIONS_SQL_START' \
+  "$MIGRATIONS"/*.sql | sort | tail -n 1)"
 
 extract_allowlist() {
   awk '
@@ -19,7 +21,7 @@ extract_allowlist() {
 mobile_block="$(extract_allowlist "$MOBILE")"
 edge_block="$(extract_allowlist "$EDGE")"
 
-if [[ -z "$mobile_block" || -z "$edge_block" ]]; then
+if [[ -z "$mobile_block" || -z "$edge_block" || -z "$MIGRATION" ]]; then
   echo "ERROR: support question markers are missing." >&2
   exit 1
 fi
@@ -49,11 +51,11 @@ fi
 
 if diff -u \
   -L "mobile/Edge support questions" \
-  -L "migration 010 support questions" \
+  -L "latest database support questions" \
   <(printf '%s\n' "$ts_values") \
   <(printf '%s\n' "$sql_values"); then
   echo "OK: database support questions match mobile and Edge exactly."
 else
-  echo "ERROR: migration 010 support questions have drifted." >&2
+  echo "ERROR: the latest database support questions have drifted." >&2
   exit 1
 fi

@@ -15,7 +15,13 @@ import { View, ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import { Session } from "@supabase/supabase-js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { wipeFilledPDFs } from "@/lib/pdfEngine";
+import { sweepTemporaryPDFs } from "@/lib/pdfEngine";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { installGlobalErrorHandler } from "@/lib/errorReporting";
+
+// Route uncaught (async/global) errors through the privacy-safe sanitizer as
+// early as possible, before any screen renders.
+installGlobalErrorHandler();
 
 // Prevent auto-hide so we control when splash goes away
 SplashScreen.preventAutoHideAsync();
@@ -32,6 +38,8 @@ interface AuthContextType {
   isLoading: boolean;
   hasProfile: boolean;
   setHasProfile: (value: boolean) => void;
+  hasCurrentConsent: boolean;
+  setHasCurrentConsent: (value: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -39,6 +47,8 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   hasProfile: false,
   setHasProfile: () => {},
+  hasCurrentConsent: false,
+  setHasCurrentConsent: () => {},
 });
 
 export function useAuth(): AuthContextType {
@@ -49,10 +59,11 @@ export function useAuth(): AuthContextType {
 // Root Layout
 // ──────────────────────────────────────────────
 
-export default function RootLayout() {
+function RootLayoutInner() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
+  const [hasCurrentConsent, setHasCurrentConsent] = useState(false);
   const [authLoadFailed, setAuthLoadFailed] = useState(false);
   // "No profile" vs "couldn't check": a failed check must never be treated
   // as a missing profile, or a network blip routes an existing user back to
@@ -63,13 +74,26 @@ export default function RootLayout() {
   const segments = useSegments();
 
   // Monotonic sequence so a slow, stale profile check can never overwrite
-  // the result of a newer one (or of onboarding's setHasProfile(true)).
+  // the result of a newer check or a child screen's completed mutation.
   const profileCheckSeq = useRef(0);
 
-  // PIPEDA hygiene: clear any filled PDFs left from a previous session
-  // (Android defers cleanup until after the share target has read them).
+  function publishHasProfile(value: boolean) {
+    profileCheckSeq.current += 1;
+    setHasProfile(value);
+    if (!value) {
+      setHasCurrentConsent(false);
+    }
+  }
+
+  function publishHasCurrentConsent(value: boolean) {
+    profileCheckSeq.current += 1;
+    setHasCurrentConsent(value);
+  }
+
+  // PIPEDA hygiene: clear stale PDF files. Android preserves only attachments
+  // still inside their share-target grace and reschedules the remaining time.
   useEffect(() => {
-    wipeFilledPDFs().catch(() => {
+    sweepTemporaryPDFs().catch(() => {
       // Best-effort — the directory may simply not exist yet.
     });
   }, []);
@@ -96,9 +120,11 @@ export default function RootLayout() {
         setSession(initialSession);
         setAuthLoadFailed(false);
         if (initialSession) {
-          checkProfile(initialSession.user.id);
+          checkProfile();
         } else {
           profileCheckSeq.current += 1;
+          setHasProfile(false);
+          setHasCurrentConsent(false);
           setProfileCheckFailed(false);
           setIsLoading(false);
         }
@@ -118,12 +144,13 @@ export default function RootLayout() {
       setSession(newSession);
 
       if (newSession) {
-        checkProfile(newSession.user.id);
+        checkProfile();
       } else {
         // A signed-out session must invalidate every in-flight profile query;
         // otherwise a late response can restore stale profile/loading state.
         profileCheckSeq.current += 1;
         setHasProfile(false);
+        setHasCurrentConsent(false);
         setProfileCheckFailed(false);
         setIsLoading(false);
       }
@@ -135,14 +162,11 @@ export default function RootLayout() {
     };
   }, []);
 
-  async function checkProfile(userId: string) {
+  async function checkProfile() {
     const seq = ++profileCheckSeq.current;
     try {
       const { data, error } = await supabase
-        .from("user_profiles")
-        .select("id")
-        .eq("id", userId)
-        .maybeSingle();
+        .rpc("get_policy_consent_state");
 
       if (seq !== profileCheckSeq.current) {
         return; // a newer check superseded this one — discard stale result
@@ -155,9 +179,11 @@ export default function RootLayout() {
       }
 
       setProfileCheckFailed(false);
-      // Never downgrade: this SELECT can race onboarding's profile INSERT,
-      // and a stale "no row yet" must not bounce the user back to onboarding.
-      setHasProfile((prev) => prev || !!data);
+      // The RPC is authoritative, including false results after a policy bump
+      // or session change. Child mutations increment profileCheckSeq so an
+      // older in-flight result is discarded before reaching this point.
+      setHasProfile(data.has_profile);
+      setHasCurrentConsent(data.has_current_consent);
     } catch (err) {
       if (seq !== profileCheckSeq.current) {
         return; // a newer check superseded this one — discard stale failure
@@ -178,7 +204,7 @@ export default function RootLayout() {
     if (!session) return;
     setProfileCheckFailed(false);
     setIsLoading(true);
-    checkProfile(session.user.id);
+    checkProfile();
   }
 
   async function retryAuthLoad() {
@@ -191,10 +217,11 @@ export default function RootLayout() {
       const nextSession = data.session;
       setSession(nextSession);
       if (nextSession) {
-        checkProfile(nextSession.user.id);
+        checkProfile();
       } else {
         profileCheckSeq.current += 1;
         setHasProfile(false);
+        setHasCurrentConsent(false);
         setProfileCheckFailed(false);
         setIsLoading(false);
       }
@@ -208,23 +235,31 @@ export default function RootLayout() {
   useEffect(() => {
     if (isLoading || authLoadFailed) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
+    const routePath = segments.join("/");
+    const inOnboarding = routePath === "(auth)/onboarding";
+    const inReconsent = routePath === "(auth)/reconsent";
     const inTabsGroup = segments[0] === "(tabs)";
 
     if (!session) {
       // Not signed in — go to onboarding (which handles sign-up)
-      if (!inAuthGroup) {
+      if (!inOnboarding) {
         router.replace("/(auth)/onboarding");
       }
     } else if (!hasProfile) {
       // Signed in but no profile — only when the check definitively resolved
       // "no row". A FAILED check holds the route (the retry screen below
       // renders) instead of assuming "new user".
-      if (!profileCheckFailed && !inAuthGroup) {
+      if (!profileCheckFailed && !inOnboarding) {
         router.replace("/(auth)/onboarding");
       }
+    } else if (!hasCurrentConsent) {
+      // A stored profile is not enough: policy versions must match exactly.
+      // This also blocks direct navigation back into any tab route.
+      if (!inReconsent) {
+        router.replace("/(auth)/reconsent");
+      }
     } else {
-      // Signed in with profile — go to tabs
+      // Signed in with a profile and current legal consent — go to tabs.
       if (!inTabsGroup) {
         router.replace("/(tabs)/checklist");
       }
@@ -232,6 +267,7 @@ export default function RootLayout() {
   }, [
     session,
     hasProfile,
+    hasCurrentConsent,
     isLoading,
     authLoadFailed,
     profileCheckFailed,
@@ -277,7 +313,7 @@ export default function RootLayout() {
 
   // Profile check failed for a signed-in user: we can't tell "new user" from
   // "network blip", so offer a retry instead of guessing.
-  if (session && !hasProfile && profileCheckFailed) {
+  if (session && profileCheckFailed) {
     return (
       <View className="flex-1 items-center justify-center bg-slate-50 px-8">
         <Text className="text-lg font-semibold text-slate-900">
@@ -302,11 +338,28 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider
-        value={{ session, isLoading, hasProfile, setHasProfile }}
+        value={{
+          session,
+          isLoading,
+          hasProfile,
+          setHasProfile: publishHasProfile,
+          hasCurrentConsent,
+          setHasCurrentConsent: publishHasCurrentConsent,
+        }}
       >
         <StatusBar style="auto" />
         <Slot />
       </AuthContext.Provider>
     </QueryClientProvider>
+  );
+}
+
+// The crash boundary wraps the whole app — including the loading and retry
+// screens — so any render failure lands on the recovery UI, never a raw crash.
+export default function RootLayout() {
+  return (
+    <AppErrorBoundary>
+      <RootLayoutInner />
+    </AppErrorBoundary>
   );
 }

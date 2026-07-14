@@ -8,15 +8,17 @@ roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 
 ## Mission and stage
 
-ReloGo converts a Canadian interprovincial move into a personalized checklist
-of official tasks and deadlines. A substantial MVP is implemented and locally
-verified. Its isolated Canadian cloud foundation is provisioned and the backend
-is deployed. An admin bootstrap trigger (migration 017) auto-registers approved
-admin emails, consent tracking (migration 018) is fully implemented, backup/restore 
-and incident runbooks are documented, and an E2E test suite (71 Python tests) passes 
-100%. Still not release-approved: full live/device QA, government content/PDF 
-validation, worker baseline establishment, backup billing upgrade, and production 
-operations remain.
+ReloGo converts a move between Canadian provinces or territories into a
+personalized checklist of official tasks and suggested timing. A substantial
+MVP is implemented. The current shared tree has clean local verification for
+migrations 001–022, 85 API integration cases, and the checks recorded below,
+but the change set is dirty/uncommitted and migrations 019–022 plus the current
+app/web changes are not deployed. The isolated Canadian cloud foundation is
+provisioned at migrations 001–018 with `support-ai` version 2, configured Gemini
+and verified first-admin authorization. Still not release-approved: current
+schema/app promotion, full live/device QA, remaining government-content/legal
+review, a healthy worker baseline/webhook, backup billing/restore drill, admin
+credential rotation, and production operations remain.
 
 The worker monitors official sources and may create PENDING alerts. It must
 never change live rules; only a human admin can approve a rule change.
@@ -31,8 +33,8 @@ never change live rules; only a human admin can approve a rule change.
 6. Update PLAN only for roadmap/status changes and this file only for current
    architecture, invariants, verification, or ordered engineering handoff.
 
-The stabilization work is committed locally on `tamim`; Phase 1 handoff changes
-may be in the working tree or a later local commit. Re-check the exact
+The prior stabilization baseline is committed on `tamim`; the current
+release-readiness change set is dirty and uncommitted. Re-check the exact
 ahead/dirty state before acting. Do not reset, discard, or broadly reformat work
 you did not create. Never push or deploy without explicit authorization.
 
@@ -51,7 +53,13 @@ PDF memory/cache:
 
 Never put them in a Supabase row/query, support field, AI prompt, log, error,
 analytics event, environment variable, or admin view. Do not expose underlying
-native/database errors if they could echo input.
+native/database errors if they could echo input. Crash/error capture
+(`mobile/lib/errorReporting.ts`) enforces this by construction: it redacts
+numeric identifiers, emails, and opaque tokens, records only non-PII metadata
+(name/message/context/timestamp), and never transmits anything off-device. The
+top-level `AppErrorBoundary` shows a generic recovery screen with no error text.
+Wiring an external crash service is a deliberate, privacy-reviewed future
+decision — the sink in `reportFatalError` is the single seam for it.
 
 Support is deliberately not free text. Mobile, migration 010, and the Edge
 helper contain the same six-question allowlist; CI checks all three copies.
@@ -77,16 +85,34 @@ Deletion also removes the server account and local session.
 
 ### Migrations and types
 
-- `supabase/migrations/001_*.sql` through `017_*.sql` are the ordered schema
-  source of truth. Add the next numbered migration; do not rewrite deployed
+- `supabase/migrations/001_*.sql` through `022_*.sql` are the ordered local
+  schema source of truth. Migrations 001–018 are hosted; 019–022 are local and
+  uncommitted. Add the next numbered migration; do not rewrite deployed
   behavior in an older migration.
 - Migration 017 adds an admin bootstrap trigger that automatically registers
   users with admin emails (`admin@relogo.app` / `admin@relogo.ca`) into
   `admin_users` on `auth.users` insert. The trigger function is `SECURITY
   DEFINER` with a restricted `search_path` and all direct execute privileges
   are revoked.
-- The `Database` interface must remain byte-identical in
-  `mobile/types/database.ts` and `admin/src/types/database.ts`.
+- Migration 019 makes policy acceptance timestamps server-authored, exposes
+  narrow consent-state/acceptance RPCs, and gates normal user data on the
+  server-current policy version. Keep the database, mobile, and legal-page
+  policy version synchronized with `scripts/check-consent-version-sync.sh`.
+- Migration 020 is the conservative result of the source audit: a fresh reset
+  has 53 rules/sources and 12 numeric deadlines. Do not restore an exact day for
+  calendar-month, conditional, unsupported-scope, or stale-law wording without
+  new authoritative evidence and human review.
+- Migration 021 replaces `admin_list_users()` with `admin_list_users(p_limit,
+  p_offset)`: server-side LIMIT/OFFSET paging (clamped to [1,200] / offset ≥ 0)
+  plus a `total_count` column. Still `is_admin()`-gated, SECURITY DEFINER, and
+  PII-free. The zero-arg call site keeps working via defaults (50, 0).
+- Migration 022 makes `join_waitlist()` return `'accepted'`/`'throttled'`
+  instead of VOID. Enumeration safety is preserved: a duplicate email still
+  returns `'accepted'`; only the caller's own per-IP hourly cap yields
+  `'throttled'`. Re-grant to `anon, authenticated` after the DROP+CREATE.
+- The extracted `Database` interface must remain byte-identical in
+  `mobile/types/database.ts` and `admin/src/types/database.ts`; the complete
+  files intentionally contain different app-specific helper types.
 - Run `bash scripts/check-database-types-sync.sh` after schema/type changes.
 
 ### Dependency and git discipline
@@ -106,11 +132,13 @@ Deletion also removes the server account and local session.
 ```text
 ReloGo/
 ├── mobile/                    Expo user app
-│   ├── app/(auth)/            onboarding/legal consent
+│   ├── app/(auth)/            onboarding and fail-closed policy re-consent
 │   ├── app/(tabs)/            checklist, profile, fixed-question support
-│   ├── lib/                   auth storage, PII, PDF, account, dates, questions
+│   ├── components/            top-level PII-safe crash boundary
+│   ├── lib/                   auth, PII, PDF templates/engine, legal consent, dates, error reporting
+│   ├── eslint.config.js       Expo flat ESLint config (CI-gated)
 │   └── types/database.ts      synchronized database contract
-├── landing/                   Next.js static marketing/legal/waitlist
+├── landing/                   Next.js static marketing/legal/support/waitlist
 ├── admin/                     protected operations dashboard
 ├── worker/                    official HTML/PDF monitor and reporting
 ├── supabase/
@@ -119,13 +147,13 @@ ReloGo/
 │   └── tests/                 pgTAP RLS/RPC adversarial suite
 ├── scripts/                   cross-app contract checks
 ├── tests/
-│   └── e2e/                   Python 3.11 + pytest E2E test suite (71 cases)
+│   └── e2e/                   Python 3.11 + pytest API integration suite (85 cases)
 ├── docs/
 │   ├── PLAN.md                canonical status and phased roadmap
 │   ├── DEPLOYMENT.md          deployment/runbook details
 │   ├── BACKUP_RESTORE.md      Supabase backup/PITR posture and runbooks
 │   └── ai/AI_HANDOFF.md       this working brief
-└── .github/workflows/         CI and daily worker schedule
+└── .github/workflows/         CI, daily worker, and opt-in local uptime workflow
 ```
 
 See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths. Tracked generated
@@ -140,20 +168,38 @@ July stabilization pass.
    profile checks.
 2. Onboarding requires legal consent, signs in anonymously, and upserts only
    non-PII move metadata.
-3. Checklist queries the profile, corridor rules/global tasks, and progress.
-4. Exact/`ANY` corridor matching and vehicle/dependent flags select tasks.
-5. Deadlines use local calendar arithmetic; zero days means the move date.
-6. Progress toggles update optimistically and persist through an upsert.
+3. An authenticated profile whose policy version is stale is routed to the
+   re-consent screen. The server-current version and server-authored timestamp
+   are accepted only through the narrow migration 019 boundary; declining can
+   still delete the account.
+4. Checklist queries the profile, corridor rules/global tasks, and progress.
+5. Exact/`ANY` corridor matching and vehicle/dependent flags select tasks. The
+   seeded jurisdiction rules currently use `ANY` origins, so origin-specific
+   content is not yet implemented.
+6. Deadlines use local calendar arithmetic; zero days means the move date.
+7. Progress toggles update optimistically and persist through an upsert.
 
 ### Local PII and PDFs
 
 1. Profile PII uses `expo-secure-store`; it never enters Supabase.
-2. `pdfEngine.ts` fills registered field names entirely on-device.
-3. Production currently registers no government templates; only a development
-   sample exists.
-4. Filled PDFs use a dedicated cache. iOS deletes after sharing; Android waits
-   until the next fill/app start because share targets may read asynchronously.
-   Sign-out/account deletion always wipe the directory.
+2. `pdfTemplates.ts` selects a form by task plus destination;
+   `pdfEngine.ts` downloads the official blank only after an explicit tap,
+   requests a bounded byte range, cancels over-limit/backgrounded transfers,
+   verifies its audited SHA-256 before reading PII, validates mapped fields,
+   and fills them entirely on-device.
+3. The current local tree registers British Columbia's official Application
+   for Health and Drug Coverage for BC health tasks. Unit tests pass; it has not
+   been verified on a current SDK 55 EAS build or real device and is not in the
+   deployed app.
+   Non-WinAnsi field values remain Unicode PDF strings and request viewer-side
+   appearances rather than crashing; the pre-share acknowledgement requires
+   the user to review every field.
+4. Filled PDFs use a dedicated cache. iOS deletes after sharing. Android
+   schedules deletion of that exact temporary file after a ten-minute grace
+   period for asynchronous share targets. A non-PII expiry marker restores the
+   remaining timer after a restart, and transient deletion failures retain the
+   marker and retry. Next fill/app start deletes only expired files, while
+   sign-out/account deletion wipe the cache unconditionally.
 
 ### Support
 
@@ -202,6 +248,8 @@ Key RPCs:
 - `is_admin()`
 - `admin_list_users()` / `admin_get_user_detail()`
 - `delete_current_user()`
+- `current_policy_version()` / `get_policy_consent_state()`
+- `has_current_policy_consent()` / `accept_current_policies()`
 - `approve_rule_change()` / `dismiss_rule_change()`
 - `persist_support_ai_reply()`
 - `persist_official_source_scrape()`
@@ -214,12 +262,14 @@ Run from the repository root unless the command changes directory.
 # Cross-app contracts
 bash scripts/check-database-types-sync.sh
 bash scripts/check-support-questions-sync.sh
+bash scripts/check-consent-version-sync.sh
 git diff --check
 
 # Mobile
 cd mobile
 npm ci
 npx expo install --check
+npm run lint
 npm run typecheck
 npm test -- --runInBand
 npx expo export --platform ios --output-dir /tmp/relogo-ios-check --clear
@@ -251,6 +301,13 @@ supabase db reset --local
 supabase db lint --local --schema public --level warning --fail-on warning
 supabase test db --local supabase/tests/
 
+# Supabase API integration suite (resets/owns its local test data)
+python3.11 -m pip install -r tests/e2e/requirements.txt
+python3.11 -m pytest tests/e2e/ --strict-markers -ra
+
+# Public route markers (after serving/deploying the current landing/admin build)
+bash scripts/check-public-uptime.sh
+
 # Deno helpers (CI also runs these)
 deno test supabase/functions/support-ai/grounding_test.ts \
   supabase/functions/support-ai/humanTakeover_test.ts \
@@ -259,24 +316,37 @@ deno test supabase/functions/support-ai/grounding_test.ts \
 
 ### Latest established results
 
+These results apply to the current local, dirty/uncommitted shared tree. They do
+not mean migrations 019–022, the web changes, or a new mobile build are hosted.
+
 - Mobile clean install/dependency check/typecheck and iOS/Android Hermes
-  exports: pass; Jest 40/40.
+  exports: pass; Jest 85/85.
 - Mobile production audit: 12 moderate Expo build-tool transitives, 0
   high/critical; npm offers only a breaking forced downgrade.
+- Mobile ESLint is now a configured CI gate. `eslint@9` with the
+  `eslint-config-expo` flat config (`mobile/eslint.config.js`) runs via
+  `npm run lint` and the `mobile-lint` job; it passes with 0 errors (one
+  pre-existing `react-hooks/exhaustive-deps` warning on the stable expo-router
+  `router` is intentionally left). Current mobile gates are ESLint, dependency
+  alignment, TypeScript, Jest, and native exports. `react/no-unescaped-entities`
+  and `@typescript-eslint/array-type` are disabled by design (RN `<Text>`
+  renders entities literally; array-type is stylistic and would force the
+  CI-synced `types/database.ts` to diverge from admin's byte-identical copy).
 - Admin build: pass; production dependency audit: 0 vulnerabilities.
 - Landing Next.js 16 lint/build: pass; production audit: 0 vulnerabilities.
 - Worker Python 3.11 compile and 69/69 tests: pass.
-- Database types are byte-identical at 285 lines; the three support-question
-  allowlists match.
-- Fresh migrations 001–018 (017-018 are local-only and not yet deployed),
-  public-schema lint, and pgTAP assertions: pass locally. Migration 017 adds
-  the admin bootstrap trigger; deploy and re-verify hosted pgTAP after push.
+- The extracted mobile/admin `Database` interface is byte-identical at 305
+  lines; the three support-question allowlists and mobile/database/legal policy
+  version (`1.1`) match.
+- A clean local reset applies migrations 001–022; public-schema lint is clean;
+  pgTAP passes 164/164; the Python Supabase API integration suite passes 85/85.
 - Preview's disposable hosted journey passed anonymous auth, profile upsert,
   five matching checklist rules, support fallback persistence, and account
   deletion.
-- `support-ai` is ACTIVE with JWT verification on both projects; unauthenticated
-  requests return 401. `GEMINI_API_KEY` is absent, so the tested behavior is
-  fallback-to-human, not a real Gemini response.
+- `support-ai` version 2 is ACTIVE with JWT verification on both projects;
+  unauthenticated requests return 401. `GEMINI_API_KEY` is configured, but a
+  complete authenticated mobile-to-Gemini-to-Realtime/device journey is not yet
+  documented as passing.
 - Hosted security/performance advisors have no errors. Remaining warnings are
   reviewed intentional RPC/RLS policy shape and fresh-project unused indexes.
 - Workflow YAML and project/package JSON parsing: pass. Deno is not installed
@@ -289,16 +359,25 @@ deno test supabase/functions/support-ai/grounding_test.ts \
 - Supabase production: `ReloGo Production`, project ref
   `yskknolxbxfxakgvrcmg`, region `ca-central-1`.
 - Anonymous sign-ins are enabled on both with a 30/hour/IP limit. Migrations
-  001–016 and `support-ai` version 1 are deployed to both.
-- Machine-local Supabase link state is intentionally left on preview. Database
+  001–018 and `support-ai` version 2 are deployed to both; migrations 019–022
+  remain local/uncommitted.
+- Machine-local Supabase link state currently points to production, despite the
+  intended preview-first default. Relink preview after explicit hosted work and
+  always pass project refs for secrets/functions. Database
   passwords are in macOS Keychain services `ReloGo Supabase Preview DB` and
   `ReloGo Supabase Production DB`, account `tamimorif`; never print them.
 - Vercel `relogo` maps to `landing/`; `relo-go` maps to `admin/`.
   Development/preview variables use preview Supabase and production variables
-  use production Supabase.
+  use production Supabase. Existing public aliases are
+  `https://relogo-two.vercel.app` and `https://relo-go.vercel.app`; they serve
+  the earlier committed build. The current Support/legal changes are not
+  deployed, `relogo.app` is not attached/resolving, and the public mailbox is
+  not configured. The ignored local `admin/.vercel` link names project `admin`,
+  not the intended `relo-go`; relink or target explicitly before deployment.
 - EAS project `@tamimorif/relogo` has the same mapping across its
   development/preview/production environments. Ignored local env files point
-  all three apps at preview.
+  all three apps at preview. Existing cloud artifacts are three old SDK 51
+  production builds; no current SDK 55 preview/device build exists.
 - Do not run `supabase config push`: `supabase/config.toml` contains localhost
   Auth URLs. Patch hosted Auth fields minimally or use the Dashboard.
 - Hosted `supabase test db --linked` uses a restricted temporary role without
@@ -309,25 +388,50 @@ deno test supabase/functions/support-ai/grounding_test.ts \
   and pgTAP rather than relying on that optional cache.
 
 ## Known limits and next work
-(Phases 1 and 2 are fundamentally complete; the below steps are for Phase 3 and beyond)
+
+Phase 1 is complete except backup billing/restore and hosted admin credential
+rotation. Phase 2 remains open until the current web build is deployed, public
+support ownership exists, and the worker completes a healthy baseline plus
+webhook path.
 
 1. Choose a backup/PITR-capable Supabase plan and complete a restore drill
    (documentation is ready at `docs/BACKUP_RESTORE.md`).
-2. Run a real worker baseline + webhook test via GitHub Actions.
-3. Build EAS preview binaries and perform full two-platform/live E2E QA.
-4. Verify government content and add/test a real fillable PDF.
+2. Rotate/revoke the bootstrap admin credentials removed from tracked helper
+   files; the old value remains in Git history, so choose a reviewed history
+   remediation approach without rewriting shared history casually.
+3. Commit/push the Ubuntu 22.04 worker-runner fix, run a real 53-source baseline,
+   and test webhook delivery. The first manual run failed before scraper startup
+   on Ubuntu 24.04 Playwright dependencies.
+4. Preview-deploy and promote migrations 019–022 only after hosted checks; deploy
+   the current landing/mobile changes and verify policy re-consent.
+5. Build SDK 55 EAS preview binaries and perform full two-platform/live E2E QA,
+   including the BC PDF download/fill/review/share/cache lifecycle.
+6. Resolve the 15 source fetch failures from the independent audit, deepen
+   origin/destination content, and obtain human/legal/store approval.
 
-Non-blocking engineering debt: a recoverable pre-generation AI lease (atomic
-finalization already prevents duplicate stored replies), server-side admin user
-pagination, explicit waitlist throttle feedback that preserves enumeration
-safety, workload-specific credentials/narrow escalation RPCs instead of the
-shared aggregate `service_role`, and broader automated end-to-end coverage.
+Resolved engineering debt: server-side admin pagination (migration 021),
+enumeration-safe waitlist signup feedback (migration 022), and broader
+consent/RLS end-to-end coverage (E2E 82→85, pgTAP 160→164).
+
+Remaining non-blocking engineering debt, both deferred because they cannot be
+completed and verified in the local tree:
+
+- A recoverable pre-generation AI lease so two concurrent support invocations do
+  not both spend Gemini quota (atomic finalization already prevents a duplicate
+  stored reply). Deferred: it must change the `support-ai` Deno Edge critical
+  path, which has no local test harness (Deno is CI-only here), so it cannot be
+  exercised before shipping. Only worth doing if spend becomes material.
+- Workload-specific credentials / narrow escalation RPCs instead of the shared
+  aggregate `service_role` for the worker and Edge Function. Deferred: this needs
+  new hosted database roles, minted JWTs, and deployment-secret changes, so it
+  cannot be built or verified locally — it is hosted-infra work.
 
 ## Operational facts
 
 - Anonymous sign-ins must be enabled or onboarding fails.
-- Scheduled GitHub workflows run from the default branch; the worker cron is not
-  active until merged there.
+- The worker schedule is present on the default branch and its required secrets
+  exist. Its first manual run failed during runner dependency installation;
+  the local Ubuntu 22.04 fix is uncommitted and no healthy baseline exists.
 - Worker GitHub secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; optional
   `ALERT_WEBHOOK_URL`.
 - Edge secret: `GEMINI_API_KEY`; never expose it to clients.
@@ -335,7 +439,9 @@ shared aggregate `service_role`, and broader automated end-to-end coverage.
   security must never depend on hiding them.
 - EAS `development` and `preview` currently target preview Supabase;
   `production` targets production. Preserve that separation during rotations.
-- `privacy@relogo.app` is a placeholder until a monitored public mailbox exists.
+- No public mailbox is configured; do not publish `privacy@relogo.app` unless it
+  becomes monitored. The custom `relogo.app` domain is not currently attached
+  or resolving.
 
 ## Documentation rule
 

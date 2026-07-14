@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "ReloGo - Your Canadian Move Checklist",
   description:
-    "Moving between provinces? ReloGo organizes common government tasks, suggested timing, and official-source links into one personalized checklist.",
+    "Moving to another province or territory? ReloGo organizes common government tasks, suggested timing, and official-source links into one personalized checklist.",
   alternates: {
     // Pages with their own paths (/privacy, /terms) override this per-page.
     canonical: "/",

@@ -8,6 +8,7 @@ from supabase import create_client, Client
 SUPABASE_URL = "http://127.0.0.1:54321"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
 SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU"
+CURRENT_CONSENT_VERSION = "1.1"
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_e2e_db():
@@ -108,6 +109,18 @@ def new_user(service_client):
         service_client.auth.admin.delete_user(user_id)
     except Exception:
         pass
+
+@pytest.fixture
+def consented_user(new_user):
+    """Authenticated user with a profile accepting the server-current policies."""
+    new_user["client"].table("user_profiles").insert({
+        "id": new_user["id"],
+        "origin_prov": "ON",
+        "dest_prov": "AB",
+        "move_date": "2026-10-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
+    return new_user
 
 @pytest.fixture(scope="session")
 def valid_task_rule_id(service_client):

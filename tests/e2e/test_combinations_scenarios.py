@@ -2,7 +2,7 @@ import pytest
 import time
 from supabase import create_client
 from postgrest.exceptions import APIError
-from conftest import SUPABASE_URL, SUPABASE_ANON_KEY
+from conftest import CURRENT_CONSENT_VERSION, SUPABASE_URL, SUPABASE_ANON_KEY
 
 # Helper checklist engine
 def run_checklist_engine(profile, rules, tasks):
@@ -39,8 +39,9 @@ def test_comb_61_waitlist_to_onboarding(anon_client, service_client):
         "id": uid,
         "origin_prov": res.data[0]["origin_province"],
         "dest_prov": res.data[0]["dest_province"],
-        "move_date": "2026-11-01"
-    }).execute()
+        "move_date": "2026-11-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     prof = service_client.table("user_profiles").select("origin_prov").eq("id", uid).execute()
     assert len(prof.data) == 1
@@ -66,8 +67,9 @@ def test_comb_63_support_inquiry_after_progress_update(new_user, service_client,
     uid = new_user["id"]
     
     client.table("user_profiles").insert({
-        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01"
-    }).execute()
+        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     client.table("user_task_progress").insert({
         "user_id": uid,
@@ -92,8 +94,9 @@ def test_comb_64_account_deletion_cleans_all(new_user, service_client, valid_tas
     uid = new_user["id"]
     
     client.table("user_profiles").insert({
-        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01"
-    }).execute()
+        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     client.table("user_task_progress").insert({
         "user_id": uid, "task_rule_id": valid_task_rule_id, "status": "COMPLETED"
     }).execute()
@@ -150,8 +153,9 @@ def test_scenario_67_standard_relocation_lifecycle(anon_client, service_client, 
     
     user_client.table("user_profiles").insert({
         "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-15",
-        "has_vehicle": False, "has_dependents": False
-    }).execute()
+        "has_vehicle": False, "has_dependents": False,
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     tasks = anon_client.table("global_tasks").select("id, requires_vehicle, requires_dependents").execute().data
     rules = anon_client.table("corridor_task_rules").select("id, task_id, origin_province, dest_province").execute().data
@@ -176,8 +180,9 @@ def test_scenario_68_high_risk_relocation_lifecycle(anon_client, service_client)
     
     user_client.table("user_profiles").insert({
         "id": uid, "origin_prov": "BC", "dest_prov": "ON", "move_date": "2026-09-01",
-        "has_vehicle": True, "has_dependents": True
-    }).execute()
+        "has_vehicle": True, "has_dependents": True,
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     tasks = anon_client.table("global_tasks").select("id, task_key, requires_vehicle, requires_dependents").execute().data
     rules = anon_client.table("corridor_task_rules").select("id, task_id, origin_province, dest_province").execute().data
@@ -275,9 +280,9 @@ def test_scenario_69_rule_drift_and_admin_mitigation(service_client, valid_task_
         except Exception:
             pass
 
-def test_scenario_70_adversarial_data_privacy_audit(new_user, service_client):
-    client = new_user["client"]
-    uid = new_user["id"]
+def test_scenario_70_adversarial_data_privacy_audit(consented_user, service_client):
+    client = consented_user["client"]
+    uid = consented_user["id"]
     
     res = client.table("support_threads").insert({"user_id": uid, "status": "AI"}).execute()
     tid = res.data[0]["id"]
@@ -303,8 +308,9 @@ def test_scenario_71_concurrent_support_race_condition(new_user, service_client)
     uid = new_user["id"]
     
     client.table("user_profiles").insert({
-        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01"
-    }).execute()
+        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     thread_res = client.table("support_threads").insert({"user_id": uid, "status": "AI"}).execute()
     tid = thread_res.data[0]["id"]

@@ -1,7 +1,7 @@
 import pytest
 from supabase import create_client
 from postgrest.exceptions import APIError
-from conftest import SUPABASE_URL, SUPABASE_ANON_KEY
+from conftest import CURRENT_CONSENT_VERSION, SUPABASE_URL, SUPABASE_ANON_KEY
 
 # Helper function simulating the client-side checklist selection engine
 def run_checklist_engine(profile, rules, tasks):
@@ -132,6 +132,45 @@ def test_waitlist_10_rls_direct_insert(anon_client):
         }).execute()
     assert exc_info.value.code in ["42501"]
 
+def test_waitlist_11_returns_accepted_status(anon_client, service_client):
+    # Migration 022: join_waitlist() now reports an explicit status.
+    service_client.table("waitlist_signup_throttle").delete().neq("ip_hash", "").execute()
+    res = anon_client.rpc("join_waitlist", {
+        "p_email": "feedback_new@example.com",
+        "p_origin_province": "ON",
+        "p_dest_province": "AB",
+    }).execute()
+    assert res.data == "accepted"
+
+def test_waitlist_12_duplicate_still_reports_accepted(anon_client, service_client):
+    # Enumeration safety: a duplicate email must be indistinguishable from a new
+    # one, so both return 'accepted' — the status never reveals membership.
+    service_client.table("waitlist_signup_throttle").delete().neq("ip_hash", "").execute()
+    email = "feedback_dup@example.com"
+    first = anon_client.rpc("join_waitlist", {
+        "p_email": email, "p_origin_province": "ON", "p_dest_province": "AB",
+    }).execute()
+    second = anon_client.rpc("join_waitlist", {
+        "p_email": email, "p_origin_province": "BC", "p_dest_province": "QC",
+    }).execute()
+    assert first.data == "accepted"
+    assert second.data == "accepted"
+
+def test_waitlist_13_throttle_reports_throttled(anon_client, service_client):
+    # The 6th signup from one IP within the hour is reported as throttled
+    # (the cap concerns the caller's IP, not any email address).
+    service_client.table("waitlist_signup_throttle").delete().neq("ip_hash", "").execute()
+    statuses = []
+    for i in range(6):
+        r = anon_client.rpc("join_waitlist", {
+            "p_email": f"feedback_throttle_{i}@example.com",
+            "p_origin_province": "ON",
+            "p_dest_province": "AB",
+        }).execute()
+        statuses.append(r.data)
+    assert statuses[:5] == ["accepted"] * 5
+    assert statuses[5] == "throttled"
+
 # ============================================================================
 # FEATURE 2: AUTH / CONSENT (Tests 11-20)
 # ============================================================================
@@ -150,8 +189,9 @@ def test_auth_12_profile_creation_success(new_user, service_client):
         "dest_prov": "AB",
         "move_date": "2026-10-01",
         "has_vehicle": True,
-        "has_dependents": True
-    }).execute()
+        "has_dependents": True,
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     res = service_client.table("user_profiles").select("origin_prov, has_vehicle").eq("id", uid).execute()
     assert len(res.data) == 1
@@ -163,8 +203,9 @@ def test_auth_13_profile_read_own(new_user):
     uid = new_user["id"]
     
     client.table("user_profiles").insert({
-        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01"
-    }).execute()
+        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     res = client.table("user_profiles").select("*").execute()
     assert len(res.data) == 1
@@ -175,8 +216,9 @@ def test_auth_14_profile_update_own(new_user):
     uid = new_user["id"]
     
     client.table("user_profiles").insert({
-        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01"
-    }).execute()
+        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     client.table("user_profiles").update({"origin_prov": "BC"}).eq("id", uid).execute()
     
@@ -188,8 +230,9 @@ def test_auth_15_profile_delete_via_rpc(new_user, service_client):
     uid = new_user["id"]
     
     client.table("user_profiles").insert({
-        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01"
-    }).execute()
+        "id": uid, "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01",
+        "consent_version": CURRENT_CONSENT_VERSION,
+    }, returning="minimal").execute()
     
     client.rpc("delete_current_user", {}).execute()
     
@@ -202,8 +245,9 @@ def test_auth_16_profile_invalid_origin_prov(new_user):
     
     with pytest.raises(APIError) as exc_info:
         client.table("user_profiles").insert({
-            "id": uid, "origin_prov": "XX", "dest_prov": "AB", "move_date": "2026-10-01"
-        }).execute()
+            "id": uid, "origin_prov": "XX", "dest_prov": "AB", "move_date": "2026-10-01",
+            "consent_version": CURRENT_CONSENT_VERSION,
+        }, returning="minimal").execute()
     assert exc_info.value.code in ["23514", "42501"]
 
 def test_auth_17_profile_invalid_dest_prov(new_user):
@@ -212,37 +256,40 @@ def test_auth_17_profile_invalid_dest_prov(new_user):
     
     with pytest.raises(APIError) as exc_info:
         client.table("user_profiles").insert({
-            "id": uid, "origin_prov": "ON", "dest_prov": "YY", "move_date": "2026-10-01"
-        }).execute()
+            "id": uid, "origin_prov": "ON", "dest_prov": "YY", "move_date": "2026-10-01",
+            "consent_version": CURRENT_CONSENT_VERSION,
+        }, returning="minimal").execute()
     assert exc_info.value.code in ["23514", "42501"]
 
-def test_auth_18_profile_rls_isolate_other_user(new_user, service_client):
+def test_auth_18_profile_rls_isolate_other_user(consented_user, service_client):
     other_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     other_res = other_client.auth.sign_in_anonymously()
     other_uid = other_res.user.id
     
     try:
         service_client.table("user_profiles").insert({
-            "id": other_uid, "origin_prov": "BC", "dest_prov": "QC", "move_date": "2026-12-01"
-        }).execute()
+            "id": other_uid, "origin_prov": "BC", "dest_prov": "QC", "move_date": "2026-12-01",
+            "consent_version": CURRENT_CONSENT_VERSION,
+        }, returning="minimal").execute()
         
-        client = new_user["client"]
+        client = consented_user["client"]
         res = client.table("user_profiles").select("*").eq("id", other_uid).execute()
         assert len(res.data) == 0
     finally:
         service_client.auth.admin.delete_user(other_uid)
 
-def test_auth_19_profile_rls_update_other_user(new_user, service_client):
+def test_auth_19_profile_rls_update_other_user(consented_user, service_client):
     other_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     other_res = other_client.auth.sign_in_anonymously()
     other_uid = other_res.user.id
     
     try:
         service_client.table("user_profiles").insert({
-            "id": other_uid, "origin_prov": "BC", "dest_prov": "QC", "move_date": "2026-12-01"
-        }).execute()
+            "id": other_uid, "origin_prov": "BC", "dest_prov": "QC", "move_date": "2026-12-01",
+            "consent_version": CURRENT_CONSENT_VERSION,
+        }, returning="minimal").execute()
         
-        client = new_user["client"]
+        client = consented_user["client"]
         res = client.table("user_profiles").update({"origin_prov": "ON"}).eq("id", other_uid).execute()
         assert len(res.data) == 0
         
@@ -255,8 +302,9 @@ def test_auth_20_profile_unauthenticated_insert(anon_client):
     with pytest.raises(APIError) as exc_info:
         anon_client.table("user_profiles").insert({
             "id": "00000000-0000-0000-0000-000000000009",
-            "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01"
-        }).execute()
+            "origin_prov": "ON", "dest_prov": "AB", "move_date": "2026-10-01",
+            "consent_version": CURRENT_CONSENT_VERSION,
+        }, returning="minimal").execute()
     assert exc_info.value.code in ["42501"]
 
 # ============================================================================

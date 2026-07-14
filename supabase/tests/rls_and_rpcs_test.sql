@@ -24,7 +24,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(143);
+SELECT plan(164);
 
 -- ============================================================================
 -- Platform-baseline grants (see header). RLS remains the actual gate.
@@ -116,10 +116,18 @@ VALUES
     ('40000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'aaa', 'bbb', 'PENDING'),
     ('40000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 'bbb', 'ccc', 'PENDING');
 
-INSERT INTO public.user_profiles (id, origin_prov, dest_prov, move_date, has_vehicle, has_dependents)
+INSERT INTO public.user_profiles (
+    id,
+    origin_prov,
+    dest_prov,
+    move_date,
+    has_vehicle,
+    has_dependents,
+    consent_version
+)
 VALUES
-    ('00000000-0000-0000-0000-00000000000a', 'ON', 'AB', '2026-09-01', false, false),
-    ('00000000-0000-0000-0000-00000000000b', 'BC', 'ON', '2026-10-01', false, false);
+    ('00000000-0000-0000-0000-00000000000a', 'ON', 'AB', '2026-09-01', false, false, '1.1'),
+    ('00000000-0000-0000-0000-00000000000b', 'BC', 'ON', '2026-10-01', false, false, '1.1');
 
 INSERT INTO public.user_task_progress (user_id, task_rule_id, status)
 VALUES
@@ -153,8 +161,10 @@ SELECT is(
 );
 
 SELECT throws_ok(
-    $$INSERT INTO public.user_profiles (id, origin_prov, dest_prov)
-      VALUES ('00000000-0000-0000-0000-00000000000b', 'ON', 'AB')$$,
+    $$INSERT INTO public.user_profiles (
+          id, origin_prov, dest_prov, consent_version)
+      VALUES (
+          '00000000-0000-0000-0000-00000000000b', 'ON', 'AB', '1.1')$$,
     '42501', NULL,
     'A: inserting a profile under someone else''s id is rejected by WITH CHECK'
 );
@@ -516,7 +526,7 @@ SELECT ok(
 );
 
 -- ============================================================================
--- F. admin_list_users() / admin_get_user_detail()                     (6 tests)
+-- F. admin_list_users() / admin_get_user_detail()                    (10 tests)
 -- ============================================================================
 SELECT pg_temp.login_as('00000000-0000-0000-0000-00000000000a');
 
@@ -524,6 +534,12 @@ SELECT throws_ok(
     $$SELECT * FROM public.admin_list_users()$$,
     'P0001', NULL,
     'F: admin_list_users() refuses non-admins'
+);
+
+SELECT throws_ok(
+    $$SELECT * FROM public.admin_list_users(10, 0)$$,
+    'P0001', NULL,
+    'F: paginated admin_list_users(limit, offset) also refuses non-admins'
 );
 
 SELECT throws_ok(
@@ -560,6 +576,25 @@ SELECT throws_ok(
         '99999999-9999-9999-9999-999999999999')$$,
     'P0001', NULL,
     'F: admin_get_user_detail() raises for an unknown user'
+);
+
+-- Server-side pagination (migration 021): LIMIT/OFFSET + windowed total_count.
+SELECT is(
+    (SELECT total_count FROM public.admin_list_users(1, 0) LIMIT 1),
+    (SELECT count(*) FROM public.user_profiles),
+    'F: admin_list_users() total_count equals the full profile count'
+);
+
+SELECT is(
+    (SELECT count(*)::int FROM public.admin_list_users(200, 0)),
+    (SELECT count(*)::int FROM public.user_profiles),
+    'F: admin_list_users() with a large page returns every profile'
+);
+
+SELECT is(
+    (SELECT count(*)::int FROM public.admin_list_users(200, 1)),
+    greatest((SELECT count(*)::int FROM public.user_profiles) - 1, 0),
+    'F: admin_list_users() OFFSET skips exactly one profile'
 );
 
 -- ============================================================================
@@ -1667,6 +1702,165 @@ SELECT ok(
           AND indexdef LIKE '%(user_id, last_message_at DESC)%'
     ),
     'N: user support inbox queries have a covering recency index'
+);
+
+-- ============================================================================
+-- O. legal-policy re-consent integrity (019)                         (17 tests)
+-- ============================================================================
+
+SELECT ok(
+    has_function_privilege(
+        'authenticated', 'public.accept_current_policies()', 'EXECUTE')
+    AND has_function_privilege(
+        'authenticated', 'public.get_policy_consent_state()', 'EXECUTE')
+    AND has_function_privilege(
+        'authenticated', 'public.has_current_policy_consent()', 'EXECUTE')
+    AND NOT has_function_privilege(
+        'anon', 'public.accept_current_policies()', 'EXECUTE')
+    AND NOT has_function_privilege(
+        'authenticated',
+        'public.enforce_user_profile_consent_integrity()', 'EXECUTE'),
+    'O: re-consent is authenticated-only and the trigger helper is not callable'
+);
+
+SELECT pg_temp.login_anon();
+SELECT throws_ok(
+    $$SELECT public.accept_current_policies()$$,
+    '42501', NULL,
+    'O: an anonymous caller cannot record policy acceptance'
+);
+
+RESET ROLE;
+CREATE TEMP TABLE consent_timestamp_snapshot AS
+SELECT id, consent_timestamp
+FROM public.user_profiles
+WHERE id IN (
+    '00000000-0000-0000-0000-00000000000a',
+    '00000000-0000-0000-0000-00000000000b'
+);
+
+SELECT pg_temp.login_as('00000000-0000-0000-0000-00000000000a');
+SELECT throws_ok(
+    $$UPDATE public.user_profiles
+         SET consent_version = 'future-unpublished-version'
+       WHERE id = '00000000-0000-0000-0000-00000000000a'$$,
+    '23514', NULL,
+    'O: a user cannot attest to an unsupported policy version'
+);
+
+SELECT lives_ok(
+    $$UPDATE public.user_profiles
+         SET consent_timestamp = '2000-01-01T00:00:00Z'
+       WHERE id = '00000000-0000-0000-0000-00000000000a'$$,
+    'O: a timestamp spoof is replaced rather than persisted'
+);
+
+SELECT is(
+    public.accept_current_policies(),
+    '1.1',
+    'O: a user can accept exactly the server-current policy version'
+);
+
+RESET ROLE;
+SELECT isnt(
+    (SELECT consent_timestamp::text
+       FROM public.user_profiles
+      WHERE id = '00000000-0000-0000-0000-00000000000a'),
+    '2000-01-01 00:00:00+00',
+    'O: the client-chosen acceptance timestamp is not stored'
+);
+
+SELECT ok(
+    (SELECT p.consent_timestamp >= s.consent_timestamp
+       FROM public.user_profiles p
+       JOIN consent_timestamp_snapshot s USING (id)
+      WHERE p.id = '00000000-0000-0000-0000-00000000000a'),
+    'O: re-consent cannot backdate the server-authored acceptance timestamp'
+);
+
+SELECT is(
+    (SELECT p.consent_timestamp
+       FROM public.user_profiles p
+      WHERE p.id = '00000000-0000-0000-0000-00000000000b'),
+    (SELECT s.consent_timestamp
+       FROM consent_timestamp_snapshot s
+      WHERE s.id = '00000000-0000-0000-0000-00000000000b'),
+    'O: accepting policies cannot change another user''s consent record'
+);
+
+SELECT is(
+    public.current_policy_version(),
+    '1.1',
+    'O: the server exposes one current policy version to all consent gates'
+);
+
+-- Simulate a future policy release without changing any client code. Existing
+-- 1.1 profiles must lose normal app access, while the state/accept/delete RPCs
+-- remain available so an upgraded client can re-consent or erase the account.
+RESET ROLE;
+CREATE OR REPLACE FUNCTION public.current_policy_version()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SET search_path = ''
+AS $$
+    SELECT '2.0'::TEXT
+$$;
+
+SELECT pg_temp.login_as('00000000-0000-0000-0000-00000000000a');
+
+SELECT is(
+    public.get_policy_consent_state(),
+    jsonb_build_object(
+        'has_profile', true,
+        'accepted_version', '1.1',
+        'current_version', '2.0',
+        'has_current_consent', false
+    ),
+    'O: an upgraded client can detect a stale profile and the server-current version'
+);
+
+SELECT is(
+    (SELECT count(*)::int FROM public.user_profiles),
+    0,
+    'O: a stale client cannot read its profile through the normal table API'
+);
+
+SELECT is(
+    (SELECT count(*)::int FROM public.user_task_progress),
+    0,
+    'O: stale consent blocks checklist-progress access'
+);
+
+SELECT is(
+    (SELECT count(*)::int FROM public.support_threads),
+    0,
+    'O: stale consent blocks support-thread access'
+);
+
+SELECT throws_ok(
+    $$INSERT INTO public.support_threads (user_id, status)
+      VALUES ('00000000-0000-0000-0000-00000000000a', 'AI')$$,
+    '42501', NULL,
+    'O: a stale client cannot create a support thread'
+);
+
+SELECT is(
+    public.accept_current_policies(),
+    '2.0',
+    'O: re-consent records the server-current future version'
+);
+
+SELECT ok(
+    (SELECT count(*) = 1 AND bool_and(consent_version = '2.0')
+       FROM public.user_profiles),
+    'O: accepting the future version restores profile access'
+);
+
+SELECT pg_temp.login_as('00000000-0000-0000-0000-00000000000b');
+SELECT lives_ok(
+    $$SELECT public.delete_current_user()$$,
+    'O: a stale user can still permanently delete the account without accepting'
 );
 
 SELECT * FROM finish();

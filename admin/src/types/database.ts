@@ -33,6 +33,13 @@ export type TaskStatus = "LOCKED" | "AVAILABLE" | "COMPLETED";
 
 export type AlertStatus = "PENDING" | "APPROVED" | "DISMISSED";
 
+export interface PolicyConsentState {
+  has_profile: boolean;
+  accepted_version: string | null;
+  current_version: string;
+  has_current_consent: boolean;
+}
+
 export type SupportThreadStatus =
   | "AI"
   | "AWAITING_HUMAN"
@@ -91,6 +98,9 @@ export interface AdminUserListRow {
   profile_updated_at: string;
   tasks_completed: number;
   tasks_total: number;
+  // Full matching-row count (same on every row of a page); drives "X of N"
+  // and the "Load more" cutoff for server-side pagination.
+  total_count: number;
 }
 
 export interface AdminUserDetail {
@@ -239,7 +249,7 @@ export interface Database {
           dest_prov?: Province | null;
           has_vehicle?: boolean;
           has_dependents?: boolean;
-          consent_version?: string;
+          consent_version: string;
           consent_timestamp?: string;
           created_at?: string;
           updated_at?: string;
@@ -346,12 +356,28 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      accept_current_policies: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      current_policy_version: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      get_policy_consent_state: {
+        Args: Record<string, never>;
+        Returns: PolicyConsentState;
+      };
+      has_current_policy_consent: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
       admin_get_user_detail: {
         Args: { p_user_id: string };
         Returns: AdminUserDetail;
       };
       admin_list_users: {
-        Args: Record<string, never>;
+        Args: { p_limit?: number; p_offset?: number };
         Returns: AdminUserListRow[];
       };
       approve_rule_change: {
@@ -380,7 +406,7 @@ export interface Database {
           p_origin_province?: string | null;
           p_dest_province?: string | null;
         };
-        Returns: undefined;
+        Returns: string;
       };
       persist_official_source_scrape: {
         Args: {

@@ -1,19 +1,35 @@
-# Handoff Report
+# Handoff Report — ORCHESTRATION CLOSED / SUPERSEDED
 
-## Observation
-- Cron 1 (Progress Reporting) triggered (iteration 2).
-- Identified recently modified files, including `docs/BACKUP_RESTORE.md` which has been created.
-- Python test files in `tests/e2e/` continue to show activity.
-- Progress update sent to parent.
+> **Read this before trusting anything else under `.agents/`.**
+> The multi-agent run recorded in this directory is **stale telemetry**, not
+> live state. Its heartbeats froze at ~2026-07-14T00:13Z with the orchestrator
+> still at "iteration 1/32", every milestone unchecked, and the mandatory
+> Victory Audit **never triggered** (`BRIEFING.md` → `Triggered: no`). The
+> actual implementation continued well past those snapshots.
 
-## Logic Chain
-- Standard progress check execution. The team is making progress on documentation and testing.
+## Source of truth
 
-## Caveats
-- None.
+The reconciled, verified project state lives in the canonical docs, not here:
 
-## Conclusion
-- Systems are healthy and active.
+- `docs/PLAN.md` — status, roadmap, remaining work, definition of done.
+- `docs/ai/AI_HANDOFF.md` — current agent architecture, invariants, checks.
+- `docs/DEPLOYMENT.md` — operational commands and incident runbook.
 
-## Verification Method
-- Verify the progress report was successfully sent to the parent.
+If any file under `.agents/` disagrees with those, the canonical docs win.
+
+## What was verified true at closure (2026-07-14)
+
+- Phases 1–5 automated implementation is complete **locally**; migrations
+  001–022 apply cleanly. Local matrix: mobile Jest 85/85, ESLint 0 errors,
+  typecheck clean, iOS/Android exports pass; pgTAP 164/164; Python E2E 85/85.
+- The worker Ubuntu-22.04 runner fix is present in `.github/workflows/worker.yml`.
+- The whole release tranche is verified locally but **uncommitted**, and hosted
+  deploys, EAS device builds, backup billing, credential rotation, a real worker
+  baseline, and legal/store approvals remain — all owner actions, not agent work.
+
+## Why no Victory Audit verdict
+
+The orchestration never reached its audit gate before the heartbeats stopped, so
+there is no machine-produced completion verdict. Do not infer completion from
+this directory. This directory can be archived; it is retained only as a record
+of how the initial Phases 1–5 build was coordinated.

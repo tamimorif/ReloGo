@@ -225,14 +225,14 @@ export default function ProfileScreen() {
     if (!originProvince || !destProvince) {
       Alert.alert(
         "Missing Info",
-        "Please select both your origin and destination provinces.",
+        "Please select both your origin and destination province or territory.",
       );
       return;
     }
     if (originProvince === destProvince) {
       Alert.alert(
-        "Same Province",
-        "Origin and destination must be different provinces.",
+        "Same jurisdiction",
+        "Origin and destination must be different provinces or territories.",
       );
       return;
     }
@@ -346,12 +346,14 @@ export default function ProfileScreen() {
           accessibilityRole="button"
           accessibilityState={{ expanded: isOpen }}
           accessibilityLabel={`${label}: ${selected ? PROVINCE_LABELS[selected] : "none selected"}`}
-          accessibilityHint="Opens the province list"
+          accessibilityHint="Opens the province and territory list"
         >
           <Text
             className={`text-base ${selected ? "text-slate-900" : "text-slate-400"}`}
           >
-            {selected ? PROVINCE_LABELS[selected] : "Select province…"}
+            {selected
+              ? PROVINCE_LABELS[selected]
+              : "Select province or territory…"}
           </Text>
         </TouchableOpacity>
 

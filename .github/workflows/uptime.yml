@@ -1,0 +1,29 @@
+name: Public uptime
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-uptime
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Landing, legal, support, and admin
+    # Manual dispatch is always available. Scheduled probes stay quiet until
+    # the current /support build is live and an owner explicitly enables them.
+    if: github.event_name == 'workflow_dispatch' || vars.UPTIME_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      LANDING_BASE_URL: ${{ vars.LANDING_BASE_URL || 'https://relogo-two.vercel.app' }}
+      ADMIN_BASE_URL: ${{ vars.ADMIN_BASE_URL || 'https://relo-go.vercel.app' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public routes and page markers
+        run: bash scripts/check-public-uptime.sh

@@ -1,29 +1,53 @@
 # ReloGo App Store Metadata
 
-## App Name
-ReloGo — Canadian Relocation Autopilot
+## App Name (iOS and Android)
+ReloGo — Canadian Move Guide
 
-## Subtitle (iOS) / Short Description (Android)
-Your personalized checklist for moving between Canadian provinces.
+## Subtitle (iOS)
+Canadian move checklist
+
+## Short Description (Android)
+A personal checklist for moving across Canada.
 
 ## Description
-Moving across Canada? ReloGo acts as your personalized relocation autopilot, automatically compiling a deadline-driven checklist of the exact government tasks you need to complete when moving between any of Canada's 13 provinces and territories.
+Moving across Canada? ReloGo organizes common government updates into a
+personalized checklist for supported moves across Canada.
 
 **Features:**
-- **Personalized Checklist**: Get a custom task list based on your origin, destination, move date, vehicle, and dependents.
-- **Deadline Tracking**: Never miss a government deadline. ReloGo calculates strict timelines based on your exact moving date.
-- **Official Sources**: Every task links directly to the official provincial or federal government webpage for immediate verification.
-- **Local PDF Auto-fill**: ReloGo fills complex government forms using data securely stored on your device.
-- **Absolute Privacy**: Your name, date of birth, address, driver's licence, and health card numbers never leave your device. They are stored locally in the secure enclave and are completely inaccessible to our servers.
+- **Personalized Checklist**: Get a custom task list based on your destination, vehicle, and dependents.
+- **Suggested Timing**: See checklist timing calculated from your planned move date, then confirm current requirements with the linked authority.
+- **Official Sources**: Open the government source attached to each task for current details.
+- **Local PDF Assistance**: For compatible forms, including British Columbia's health-coverage application, ReloGo fills mapped fields on your device and leaves the form editable for your review.
+- **On-device Sensitive Details**: Your name, date of birth, address, driver's licence, and health-card numbers remain in operating-system protected storage and are not sent to ReloGo's servers.
 - **Anonymous Onboarding**: Start using the app immediately. No email required to build your personalized plan.
 
 ## Privacy Labels (Nutrition Labels)
 
-**Data Not Linked to You:**
-- **Usage Data**: App interactions (for crash reporting and anonymized analytics).
-- **Diagnostics**: Crash data and performance metrics.
+Use conservative disclosures: the anonymous Supabase identifier still links
+the following records to one app account, even though ReloGo does not know the
+person's name or email.
 
-**Data Not Collected (Stored strictly on-device):**
+**Data collected and linked to the anonymous app account:**
+- **User ID**: randomly generated anonymous account identifier.
+- **Other User Content / App Functionality**: origin and destination province or territory,
+  planned move date, vehicle/dependent flags, and checklist progress.
+- **Customer Support**: selected fixed support questions, replies, and thread
+  status. The selected question and non-identifying move/task context may be
+  processed by Google Gemini to generate a reply.
+
+Purposes: app functionality and customer support. Data is encrypted in transit,
+and the in-app **Delete My Data** action deletes the account and associated
+server records.
+
+**Not collected by the current app:**
+- Advertising data or advertising identifiers.
+- Product interaction analytics.
+- Crash logs, performance diagnostics, or a third-party monitoring identifier.
+
+Update this section before submission if a crash-monitoring or analytics SDK is
+added.
+
+**Processed only on the device, not collected by ReloGo:**
 - Name
 - Date of Birth
 - Physical Address
@@ -31,17 +55,22 @@ Moving across Canada? ReloGo acts as your personalized relocation autopilot, aut
 - Driver's Licence Number
 - Completed Government PDFs
 
-**Why we ask for this:**
-We ask for non-identifying metadata (move date, province codes, vehicle ownership, dependents) to accurately build your required task list. All highly-sensitive Personal Identifiable Information (PII) required to fill out government forms remains encrypted on your local device storage. 
+These values are used only for compatible local PDF filling. A blank form is
+downloaded from its official government source after an explicit tap; mapped
+personal values are added only after the file reaches the device.
 
 ## Keywords (iOS)
-Canada, moving, relocation, checklist, provinces, service ontario, ICBC, health card, driving, interprovincial
+canada,moving,relocation,checklist,provinces,territories,health card,driving
 
 ## Promotional Text
-Never miss a 30-day deadline to switch your health card or driver's licence again. ReloGo is your Canadian interprovincial relocation co-pilot.
+Keep common government updates, suggested timing, and official sources in one
+clear move checklist for provinces and territories.
+
+## Privacy Policy URL
+https://relogo-two.vercel.app/privacy
 
 ## Support URL
-https://relogo.app/support
+https://relogo-two.vercel.app/support
 
 ## Marketing URL
-https://relogo.app
+https://relogo-two.vercel.app

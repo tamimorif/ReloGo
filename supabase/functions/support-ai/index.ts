@@ -427,6 +427,21 @@ Deno.serve(async (req: Request) => {
   }
   const callerId = userData.user.id;
 
+  // Policy releases are enforced by the server, not only by whichever mobile
+  // binary happens to be installed. This RPC remains available to a stale
+  // user so the upgraded app can route to re-consent; support processing does
+  // not continue until that acceptance is current.
+  const { data: consentState, error: consentStateErr } = await authClient.rpc(
+    "get_policy_consent_state",
+  );
+  if (consentStateErr) {
+    console.error("support-ai: policy-consent check failed closed.");
+    return json({ error: "Unable to verify policy consent" }, 503);
+  }
+  if (consentState?.has_current_consent !== true) {
+    return json({ error: "Current policy consent is required" }, 428);
+  }
+
   // ---- Parse body. -------------------------------------------------------
   let threadId: string | undefined;
   try {

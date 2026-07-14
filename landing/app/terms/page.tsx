@@ -2,19 +2,36 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Scale } from "lucide-react";
 import SiteFooter from "@/components/SiteFooter";
+import { CURRENT_POLICY_VERSION } from "@/lib/legal";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 // NOTE: This text should be reviewed by a lawyer before launch — it is a
 // good-faith draft, not legal advice.
-// Update this to a monitored address before publishing the store listings.
-const CONTACT_EMAIL = "privacy@relogo.app";
-const LAST_UPDATED = "July 13, 2026";
+const LAST_UPDATED = "July 14, 2026";
+const TERMS_TITLE = "Terms of Service - ReloGo";
+const TERMS_DESCRIPTION =
+  "The terms that govern your use of the ReloGo app and website.";
 
 export const metadata: Metadata = {
-  title: "Terms of Service - ReloGo",
-  description:
-    "The terms that govern your use of the ReloGo app and website.",
+  title: TERMS_TITLE,
+  description: TERMS_DESCRIPTION,
   alternates: {
     canonical: "/terms",
+  },
+  openGraph: {
+    title: TERMS_TITLE,
+    description: TERMS_DESCRIPTION,
+    siteName: "ReloGo",
+    url: "/terms",
+    type: "website",
+    locale: "en_CA",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TERMS_TITLE,
+    description: TERMS_DESCRIPTION,
+    images: ["/og.png"],
   },
 };
 
@@ -59,7 +76,9 @@ export default function TermsPage() {
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
           Terms of Service
         </h1>
-        <p className="mt-3 text-sm text-slate-500">Last updated: {LAST_UPDATED}</p>
+        <p className="mt-3 text-sm text-slate-500">
+          Version {CURRENT_POLICY_VERSION} · Last updated: {LAST_UPDATED}
+        </p>
 
         {/* Highlight */}
         <div className="mt-8 flex gap-4 rounded-2xl border border-brand-100 bg-brand-50/70 p-5">
@@ -72,7 +91,7 @@ export default function TermsPage() {
               The short version:
             </span>{" "}
             ReloGo is a free planning tool that helps you organize the
-            government tasks involved in an interprovincial move. It is an
+            government tasks involved in a move between provinces or territories. It is an
             informational aid — not legal, financial, or immigration advice —
             and official government sources always take precedence over
             anything shown in the app.
@@ -82,7 +101,7 @@ export default function TermsPage() {
         <Section title="Agreeing to these terms">
           <p>
             These Terms of Service (&ldquo;Terms&rdquo;) govern your use of the
-            ReloGo mobile application and the relogo.app website (together, the
+            ReloGo mobile application and public website (together, the
             &ldquo;Service&rdquo;), operated by ReloGo (&ldquo;we,&rdquo;
             &ldquo;us,&rdquo; or &ldquo;our&rdquo;). By creating a checklist,
             joining the waitlist, or otherwise using the Service, you agree to
@@ -101,9 +120,9 @@ export default function TermsPage() {
           <p>
             ReloGo builds a personalized checklist of common government tasks —
             such as licence exchanges, health card registration, and vehicle
-            registration — based on the provinces you are moving between and
-            the details you provide, with suggested deadlines and links to
-            official government pages.
+            registration — based on your destination and the move details you
+            provide, with suggested timing and links to official government
+            pages.
           </p>
           <p>
             <span className="font-semibold text-slate-900">
@@ -213,10 +232,9 @@ export default function TermsPage() {
         <Section title="Changes to these terms">
           <p>
             We may update these Terms from time to time. When we do, we&apos;ll
-            revise the &ldquo;Last updated&rdquo; date above, and significant
-            changes will be communicated within the app or on this page.
-            Continuing to use the Service after changes take effect means you
-            accept the revised Terms.
+            revise the version and &ldquo;Last updated&rdquo; date above. When
+            a new version requires your agreement, the app will ask you to
+            review and affirmatively accept it before continuing.
           </p>
         </Section>
 
@@ -233,14 +251,30 @@ export default function TermsPage() {
 
         <Section title="Contact us">
           <p>
-            Questions about these Terms? Email us at{" "}
-            <a
-              href={`mailto:${CONTACT_EMAIL}`}
-              className="font-medium text-brand-600 hover:text-brand-700"
-            >
-              {CONTACT_EMAIL}
-            </a>
-            .
+            {SUPPORT_EMAIL ? (
+              <>
+                Questions about these Terms? Email us at{" "}
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="font-medium text-brand-600 hover:text-brand-700"
+                >
+                  {SUPPORT_EMAIL}
+                </a>
+                .
+              </>
+            ) : (
+              <>
+                A monitored public contact is still being configured for this
+                preview. See the{" "}
+                <Link
+                  href="/support"
+                  className="font-medium text-brand-600 hover:text-brand-700"
+                >
+                  Support page
+                </Link>{" "}
+                for current options and launch status.
+              </>
+            )}
           </p>
         </Section>
       </article>
