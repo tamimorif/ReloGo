@@ -413,27 +413,19 @@ Resolved engineering debt: server-side admin pagination (migration 021),
 enumeration-safe waitlist signup feedback (migration 022), and broader
 consent/RLS end-to-end coverage (E2E 82→85, pgTAP 160→164).
 
-Remaining non-blocking engineering debt. Neither blocks the MVP launch, and a
-reviewed decision (2026-07-14) is to defer both — do not re-open them without new
-evidence. Both rank below the real launch path (deploy 019–022 + web, EAS device
-QA, legal/store, backup + admin-credential rotation, a healthy worker baseline).
+Resolved engineering debt: server-side admin pagination (021), enumeration-safe
+waitlist signup feedback (022), broader consent/RLS E2E + pgTAP coverage, a
+PII-safe mobile crash boundary, and a real mobile ESLint CI gate.
 
-- A recoverable pre-generation AI lease so two concurrent support invocations do
-  not both spend Gemini quota. **Decision: do not build now.** The correctness
-  guardrail (no duplicate reply is ever *stored*) already exists via atomic
-  finalization, so the only downside is a rare, negligible bit of wasted quota
-  at controlled-launch scale. It would also change the `support-ai` Deno Edge
-  critical path, which has no local test harness (Deno is CI-only here).
-  **Revisit trigger:** telemetry shows material duplicate-invocation spend. If
-  built later, follow the repo's helper+Deno-test pattern (CI-verified).
-- Workload-specific credentials / narrow escalation RPCs instead of the shared
-  aggregate `service_role` for the worker and Edge Function. **Decision: defer
-  to a dedicated post-launch hardening PR with hosted testing.** The current
-  posture (`service_role` held server-side only, never in a client bundle) is a
-  standard, acceptable Supabase pattern and not a launch blocker; the migrations
-  already narrow the union. Needs new hosted DB roles, minted JWTs, and
-  deployment-secret changes, so it cannot be built or verified locally. If both
-  items are ever done, do this one first (security > quota cost).
+Out of MVP scope (reviewed 2026-07-14 — do not re-open without new evidence): a
+recoverable AI-quota lease (a duplicate *stored* reply is already prevented by
+atomic finalization, so the only downside is negligible wasted quota at launch
+scale; revisit only if telemetry shows material duplicate spend) and
+workload-specific credentials replacing the shared server-side `service_role`
+(post-launch hardening needing hosted roles/JWTs/secrets — the current
+server-only posture is a standard, acceptable pattern). Everything else genuinely
+remaining is launch/ops work, not agent-buildable engineering — see the launch
+path in [../PLAN.md](../PLAN.md).
 
 ## Operational facts
 
