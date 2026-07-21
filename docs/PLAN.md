@@ -1,6 +1,6 @@
 # ReloGo — canonical project plan
 
-_Last updated: 2026-07-14_
+_Last updated: 2026-07-18_
 
 This is the single source of truth for the product concept, implemented state,
 remaining work, phased roadmap, and definition of done. Operational commands
@@ -93,8 +93,9 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   rate-limited user gets real feedback; a duplicate email still returns
   `accepted`, so membership is never revealed.
 - Privacy Policy, Terms, a Support route, metadata, favicon/social image,
-  robots, and sitemap are implemented locally. The Support/legal changes are
-  uncommitted and are not present on the currently deployed landing build.
+  robots, and sitemap are implemented and committed on `tamim`. The Support/legal
+  changes are not yet present on the currently deployed landing build, which
+  still serves the earlier `main` build.
 - Next.js 16/React 19 upgrade, production dependency audit, lint, static build,
   fail-fast environment validation, and deployment security headers.
 
@@ -153,8 +154,8 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 - Hosted anonymous sign-ins are enabled with a 30-per-hour-per-IP limit.
 - Migrations 001–018 and `support-ai` version 2 are deployed to both projects.
   JWT verification is enabled, `GEMINI_API_KEY` is configured, and the first
-  admin identity is server-authorized in both environments. Local migrations
-  019–020 and the current app/web changes are not deployed.
+  admin identity is server-authorized in both environments. Committed migrations
+  019–022 and the current app/web changes are not deployed.
 - Preview passed a self-cleaning anonymous onboarding → profile → checklist →
   support fallback → account deletion smoke test.
 - Hosted public-schema lint and all 143 pgTAP checks pass in both environments.
@@ -164,8 +165,8 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ## Verification snapshot
 
-Current local checks for the uncommitted 2026-07-14 shared tree, plus the last
-separately identified hosted checks:
+Current local checks for the committed 2026-07-18 shared tree on `tamim`, plus
+the last separately identified hosted checks:
 
 | Check | Result |
 | --- | --- |
@@ -203,9 +204,9 @@ production launch until the remaining phases below pass.
   the working tree, but the value remains in Git history. Rotate/revoke the
   hosted admin credentials and decide the reviewed history-remediation approach
   before release.
-- The local migration 019 re-consent boundary, migration 020 content
-  corrections, Support/legal routes, BC PDF workflow, worker runner fix, and
-  uptime workflow are uncommitted and not deployed.
+- The migration 019 re-consent boundary, migration 020 content corrections,
+  Support/legal routes, BC PDF workflow, worker runner fix, and uptime workflow
+  are committed on `tamim` but not yet merged to `main`, deployed, or activated.
 - The BC government PDF workflow has not been exercised on current SDK 55 EAS
   builds or real devices.
 - The initial independent content audit covered all 53 source URLs and all 24
@@ -226,8 +227,9 @@ production launch until the remaining phases below pass.
 - Fixed-question support protects privacy but cannot collect arbitrary bug
   details; define a privacy-reviewed support channel before broad launch.
 - The first manual worker workflow attempt failed during Playwright dependency
-  installation on Ubuntu 24.04, before the scraper ran. The local Ubuntu 22.04
-  runner fix is uncommitted; a full real 53-source baseline and webhook delivery
+  installation on Ubuntu 24.04, before the scraper ran. The Ubuntu 22.04 runner
+  fix is committed on `tamim` but not yet merged to the default branch `main`
+  where the schedule runs; a full real 53-source baseline and webhook delivery
   still have not succeeded with production credentials.
 - Mobile dependency audit findings are limited to moderate Expo toolchain
   transitive advisories; avoid unsafe forced downgrades and recheck with future
@@ -242,9 +244,10 @@ production launch until the remaining phases below pass.
 
 ### Phase 0 — repository consolidation and local stabilization
 
-Status: **complete for the committed stabilization baseline.** The current
-release-readiness changes are locally verified but remain dirty/uncommitted and
-must return to a clean CI-green state before this exit is met again.
+Status: **complete.** The release-readiness change set (migrations 001–022 and
+the current app/web work) is committed on `tamim` and pushed, the working tree is
+clean, and the local CI matrix is green. It is not yet merged to `main` or
+deployed to hosted environments; that promotion is tracked under Phases 1–2.
 
 - Consolidate planning into this file and agent context into AI_HANDOFF.
 - Remove tracked generated files and duplicate root Expo configuration.
@@ -252,9 +255,8 @@ must return to a clean CI-green state before this exit is met again.
 - Close account, support, admin, waitlist logging, and worker race/security bugs.
 - Make the complete local verification matrix a CI contract.
 
-The prior stabilization exit was met with fresh migrations, clean installs, and
-a committed tree. The same clean/committed requirement applies to the current
-001–022 change set.
+The stabilization exit is met: fresh migrations apply cleanly, installs are
+clean, and the 001–022 change set is committed and pushed on `tamim`.
 
 ### Phase 1 — provision isolated environments
 
@@ -284,8 +286,9 @@ Status: **in progress.**
 - Remaining: Deploy the current Support/legal build, configure the public
   privacy/support mailbox, attach a reviewed public domain, and verify every
   legal/metadata route. The current live aliases still serve the earlier build.
-- Remaining: Commit/push the Ubuntu 22.04 worker fix, rerun manually to establish
-  healthy baselines, and configure/test webhook delivery.
+- Remaining: Merge the committed Ubuntu 22.04 worker fix from `tamim` into the
+  default branch `main` (the schedule runs from `main`), rerun manually to
+  establish healthy baselines, and configure/test webhook delivery.
 - Remaining: Verify waitlist signup → admin visibility and source change → PENDING alert → human approval/dismissal.
 
 Exit: both web apps are live, one complete worker run is healthy, notifications
@@ -335,7 +338,7 @@ Status: **in progress.**
   waitlist demand before final commercial ranking.
 - Remaining: Resolve inaccessible/blocked sources, deepen origin and
   destination rules, and obtain human/legal approval for conditional content.
-- Remaining: Deploy migrations 019–020 and current web/mobile changes, then test
+- Remaining: Deploy migrations 019–022 and current web/mobile changes, then test
   policy re-consent and the BC PDF on SDK 55 EAS builds and real devices.
 - Remaining: Complete Apple/Google accounts and replace the existing pre-final
   screenshots with store-ready captures from the release candidate.
@@ -347,10 +350,10 @@ approved, and store submissions are ready.
 
 Status: **in progress.**
 
-- Completed locally: Created an incident runbook and added a privacy-safe public
-  route check plus opt-in scheduled uptime workflow. The workflow is uncommitted
-  and remains inactive until `UPTIME_ENABLED=true`; operational ownership and
-  alert delivery are not established.
+- Completed: Created an incident runbook and added a privacy-safe public
+  route check plus opt-in scheduled uptime workflow. The workflow is committed on
+  `tamim` and remains inactive until `UPTIME_ENABLED=true`; operational ownership
+  and alert delivery are not established.
 - Completed locally: Added a PII-safe on-device crash/error boundary and global
   handler in mobile (redacts identifiers, transmits nothing off-device).
 - Remaining: Decide on and, if approved, wire a privacy-reviewed external

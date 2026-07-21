@@ -1,6 +1,6 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-07-14_
+_Current as of 2026-07-18_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
@@ -11,11 +11,12 @@ roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 ReloGo converts a move between Canadian provinces or territories into a
 personalized checklist of official tasks and suggested timing. A substantial
 MVP is implemented. The current shared tree has clean local verification for
-migrations 001–022, 85 API integration cases, and the checks recorded below,
-but the change set is dirty/uncommitted and migrations 019–022 plus the current
-app/web changes are not deployed. The isolated Canadian cloud foundation is
-provisioned at migrations 001–018 with `support-ai` version 2, configured Gemini
-and verified first-admin authorization. Still not release-approved: current
+migrations 001–022, 85 API integration cases, and the checks recorded below.
+The change set is committed on `tamim` (commit `7c6edfe`) and pushed, but it is
+not yet merged to the default branch `main`, and migrations 019–022 plus the
+current app/web changes are not deployed. The isolated Canadian cloud foundation
+is provisioned at migrations 001–018 with `support-ai` version 2, configured
+Gemini and verified first-admin authorization. Still not release-approved: current
 schema/app promotion, full live/device QA, remaining government-content/legal
 review, a healthy worker baseline/webhook, backup billing/restore drill, admin
 credential rotation, and production operations remain.
@@ -33,10 +34,11 @@ never change live rules; only a human admin can approve a rule change.
 6. Update PLAN only for roadmap/status changes and this file only for current
    architecture, invariants, verification, or ordered engineering handoff.
 
-The prior stabilization baseline is committed on `tamim`; the current
-release-readiness change set is dirty and uncommitted. Re-check the exact
-ahead/dirty state before acting. Do not reset, discard, or broadly reformat work
-you did not create. Never push or deploy without explicit authorization.
+The release-readiness change set is committed on `tamim` (through commit
+`7c6edfe`) and pushed; the working tree is clean and `tamim` is 3 commits ahead
+of `main`. Re-check the exact ahead/dirty state before acting. Do not reset,
+discard, or broadly reformat work you did not create. Never push, merge, or
+deploy without explicit authorization.
 
 ## Non-negotiable rules
 
@@ -86,9 +88,9 @@ Deletion also removes the server account and local session.
 ### Migrations and types
 
 - `supabase/migrations/001_*.sql` through `022_*.sql` are the ordered local
-  schema source of truth. Migrations 001–018 are hosted; 019–022 are local and
-  uncommitted. Add the next numbered migration; do not rewrite deployed
-  behavior in an older migration.
+  schema source of truth. Migrations 001–018 are hosted; 019–022 are committed
+  on `tamim` but not yet deployed. Add the next numbered migration; do not
+  rewrite deployed behavior in an older migration.
 - Migration 017 adds an admin bootstrap trigger that automatically registers
   users with admin emails (`admin@relogo.app` / `admin@relogo.ca`) into
   `admin_users` on `auth.users` insert. The trigger function is `SECURITY
@@ -316,7 +318,7 @@ deno test supabase/functions/support-ai/grounding_test.ts \
 
 ### Latest established results
 
-These results apply to the current local, dirty/uncommitted shared tree. They do
+These results apply to the current committed shared tree on `tamim`. They do
 not mean migrations 019–022, the web changes, or a new mobile build are hosted.
 
 - Mobile clean install/dependency check/typecheck and iOS/Android Hermes
@@ -360,7 +362,7 @@ not mean migrations 019–022, the web changes, or a new mobile build are hosted
   `yskknolxbxfxakgvrcmg`, region `ca-central-1`.
 - Anonymous sign-ins are enabled on both with a 30/hour/IP limit. Migrations
   001–018 and `support-ai` version 2 are deployed to both; migrations 019–022
-  remain local/uncommitted.
+  are committed on `tamim` but not yet deployed.
 - Machine-local Supabase link state currently points to production, despite the
   intended preview-first default. Relink preview after explicit hosted work and
   always pass project refs for secrets/functions. Database
@@ -430,9 +432,10 @@ path in [../PLAN.md](../PLAN.md).
 ## Operational facts
 
 - Anonymous sign-ins must be enabled or onboarding fails.
-- The worker schedule is present on the default branch and its required secrets
-  exist. Its first manual run failed during runner dependency installation;
-  the local Ubuntu 22.04 fix is uncommitted and no healthy baseline exists.
+- The worker schedule workflow is on the default branch `main` and its required
+  secrets exist. Its first manual run failed during runner dependency
+  installation; the Ubuntu 22.04 runner fix is committed on `tamim` but not yet
+  merged to `main` (where the schedule runs), so no healthy baseline exists.
 - Worker GitHub secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; optional
   `ALERT_WEBHOOK_URL`.
 - Edge secret: `GEMINI_API_KEY`; never expose it to clients.

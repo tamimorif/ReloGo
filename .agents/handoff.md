@@ -23,9 +23,11 @@ If any file under `.agents/` disagrees with those, the canonical docs win.
   001–022 apply cleanly. Local matrix: mobile Jest 85/85, ESLint 0 errors,
   typecheck clean, iOS/Android exports pass; pgTAP 164/164; Python E2E 85/85.
 - The worker Ubuntu-22.04 runner fix is present in `.github/workflows/worker.yml`.
-- The whole release tranche is verified locally but **uncommitted**, and hosted
-  deploys, EAS device builds, backup billing, credential rotation, a real worker
-  baseline, and legal/store approvals remain — all owner actions, not agent work.
+- The whole release tranche was verified locally but **uncommitted at closure**.
+  It has since been committed and pushed on `tamim` (commit `7c6edfe`, 2026-07-18)
+  and is not yet merged to `main`. Hosted deploys, EAS device builds, backup
+  billing, credential rotation, a real worker baseline, and legal/store approvals
+  remain — all owner actions, not agent work. See `docs/PLAN.md` for live state.
 
 ## Why no Victory Audit verdict
 
