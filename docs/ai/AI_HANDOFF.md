@@ -280,6 +280,7 @@ npx expo export --platform android --output-dir /tmp/relogo-android-check --clea
 # Admin
 cd ../admin
 npm ci
+npm run lint
 npm run build
 npm audit --omit=dev
 
@@ -303,7 +304,9 @@ supabase db reset --local
 supabase db lint --local --schema public --level warning --fail-on warning
 supabase test db --local supabase/tests/
 
-# Supabase API integration suite (resets/owns its local test data)
+# Supabase API integration suite (resets its own local test data, and restores
+# the service_role privilege boundary on teardown so a later pgTAP run is not
+# poisoned -- see the fixture comment in tests/e2e/conftest.py)
 python3.11 -m pip install -r tests/e2e/requirements.txt
 python3.11 -m pytest tests/e2e/ --strict-markers -ra
 
@@ -334,9 +337,21 @@ not mean migrations 019–022, the web changes, or a new mobile build are hosted
   and `@typescript-eslint/array-type` are disabled by design (RN `<Text>`
   renders entities literally; array-type is stylistic and would force the
   CI-synced `types/database.ts` to diverge from admin's byte-identical copy).
-- Admin build: pass; production dependency audit: 0 vulnerabilities.
+- Admin lint/build: pass; production dependency audit: 0 vulnerabilities.
+  `admin/eslint.config.js` is new — the `lint` script previously existed with no
+  eslint dependency and no config, so it failed with "command not found".
+  `@typescript-eslint/array-type` is off there for the same reason as in mobile
+  (the byte-identical `database.ts` contract), and
+  `react-hooks/set-state-in-effect` is a warning: every hit is the same
+  mount-time fetch pattern, and the rule targets React 19/Compiler while admin
+  is React 18.
 - Landing Next.js 16 lint/build: pass; production audit: 0 vulnerabilities.
+  `sharp` is pinned through `overrides` to ^0.35.3; Next pulls it in as an
+  optional image-optimization dependency that a static export with
+  `images.unoptimized` never loads, but the advisory is patched, not ignored.
 - Worker Python 3.11 compile and 69/69 tests: pass.
+- Deno support-ai helper tests: 9/9 pass. Deno is now installable locally
+  (`brew install deno`), so this no longer has to be taken on CI's word.
 - The extracted mobile/admin `Database` interface is byte-identical at 305
   lines; the three support-question allowlists and mobile/database/legal policy
   version (`1.1`) match.

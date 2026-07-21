@@ -142,9 +142,14 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   text.
 - The extracted mobile/admin `Database` interfaces are CI-checked byte-for-byte.
 - CI covers clean installs, mobile types/tests/dependency alignment/native
-  exports, landing lint/build, admin build, worker compile/tests, support helper
-  tests/allowlist synchronization, API integration tests, consent-version
-  synchronization, database lint/pgTAP, and shared types.
+  exports, landing lint/build, admin lint/build, worker compile/tests, support
+  helper tests/allowlist synchronization, API integration tests, consent-version
+  synchronization, database lint/pgTAP, shared types, and a production
+  dependency audit for all three JavaScript apps.
+- The dependency audit gates on high/critical only. Mobile's moderate Expo
+  build-tool transitives are reviewed and accepted, and npm offers only a
+  breaking forced downgrade for them, so failing on moderate would block every
+  run for a known non-issue.
 
 ### Cloud foundation
 
@@ -165,28 +170,48 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ## Verification snapshot
 
-Current local checks for the committed 2026-07-18 shared tree on `tamim`, plus
-the last separately identified hosted checks:
+Every row below was re-run end to end on 2026-07-21 against the committed tree
+on `tamim`, plus the last separately identified hosted checks:
 
 | Check | Result |
 | --- | --- |
-| Mobile clean install and dependency alignment | Pass |
+| Mobile clean install and dependency alignment | Pass (SDK 55.0.28 patch set) |
 | Mobile TypeScript | Pass |
-| Mobile ESLint (eslint-config-expo flat) | Pass; 0 errors |
+| Mobile ESLint (eslint-config-expo flat) | Pass; 0 errors, 1 known warning |
 | Mobile Jest | 85/85 pass |
 | Expo iOS Hermes export | Pass |
 | Expo Android Hermes export | Pass |
 | Mobile production dependency audit | 12 moderate, 0 high/critical (Expo build-tool transitives) |
+| Admin ESLint (flat config) | Pass; 0 errors, 5 `set-state-in-effect` warnings |
 | Admin production build/audit | Pass; 0 vulnerabilities |
 | Landing Next.js 16 lint/static production build | Pass |
-| Landing production dependency audit | 0 vulnerabilities |
+| Landing production dependency audit | 0 vulnerabilities (`sharp` overridden to ^0.35.3) |
 | Worker Python 3.11 compile/tests | 69/69 pass |
+| Deno `support-ai` helper tests | 9/9 pass (now also verified locally, not only in CI) |
 | Database/support/consent synchronization | Pass; extracted `Database` interface byte-identical at 305 lines; support questions and policy version match |
 | Fresh local migrations, public-schema lint, pgTAP | Clean reset applies 001–022; lint clean; 164/164 pgTAP pass |
 | E2E test suite (Python) | 85/85 pass against clean local Supabase |
+| pgTAP/E2E order independence | Pass; pgTAP → E2E → pgTAP → E2E → pgTAP all green |
+| Landing public-route uptime markers | All 7 markers present in the current static build |
 | Backup/restore documentation | Complete at `docs/BACKUP_RESTORE.md` |
 | Hosted preview smoke | Anonymous onboarding, profile, checklist, support fallback, and account deletion pass |
 | Full deployed flow / EAS device builds | Not run; current web/schema changes, healthy worker baseline/webhook, and SDK 55 device builds remain |
+
+Three defects surfaced during that re-run and are fixed:
+
+- Mobile dependency alignment (a CI gate) had drifted behind the current Expo
+  SDK 55 patch set, and `react-dom` was pinned only by an accident of the
+  lockfile, so any fresh install broke `npm ci`. The pin is now declared.
+- Two high-severity `sharp`/libvips advisories reached landing through Next's
+  optional image-optimization dependency. It is unreachable in a static export
+  with `images.unoptimized`, but it is patched rather than suppressed — and
+  nothing in CI was auditing dependencies at all, which is why the documented
+  "0 vulnerabilities" had quietly stopped being true.
+- The Python E2E harness granted `service_role` blanket table access and never
+  restored it, erasing the migration 011/015 least-privilege boundary from the
+  local database and failing nine pgTAP privilege assertions on any later run.
+  It also swallowed failed setup statements, one of which had been failing
+  silently. Both are fixed and the suites are now order-independent.
 
 Passing these checks means the implementation is a strong MVP. It is not a
 production launch until the remaining phases below pass.
