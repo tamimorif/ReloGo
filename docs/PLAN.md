@@ -190,7 +190,7 @@ on `tamim`, plus the last separately identified hosted checks:
 | Deno `support-ai` helper tests | 9/9 pass (now also verified locally, not only in CI) |
 | Database/support/consent synchronization | Pass; extracted `Database` interface byte-identical at 305 lines; support questions and policy version match |
 | Fresh local migrations, public-schema lint, pgTAP | Clean reset applies 001–022; lint clean; 164/164 pgTAP pass |
-| E2E test suite (Python) | 86/86 pass against clean local Supabase |
+| E2E test suite (Python) | 243/243 pass against clean local Supabase (includes all 156 corridors) |
 | pgTAP/E2E order independence | Pass; pgTAP → E2E → pgTAP → E2E → pgTAP all green |
 | Landing public-route uptime markers | All 7 markers present in the current static build |
 | Backup/restore documentation | Complete at `docs/BACKUP_RESTORE.md` |

@@ -11,7 +11,7 @@ roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 ReloGo converts a move between Canadian provinces or territories into a
 personalized checklist of official tasks and suggested timing. A substantial
 MVP is implemented. The current shared tree has clean local verification for
-migrations 001–022, 86 API integration cases, and the checks recorded below.
+migrations 001–022, 243 API integration cases, and the checks recorded below.
 The change set is committed on `tamim` (commit `7c6edfe`) and pushed, but it is
 not yet merged to the default branch `main`, and migrations 019–022 plus the
 current app/web changes are not deployed. The isolated Canadian cloud foundation
@@ -163,7 +163,7 @@ ReloGo/
 │   └── tests/                 pgTAP RLS/RPC adversarial suite
 ├── scripts/                   cross-app contract checks
 ├── tests/
-│   └── e2e/                   Python 3.11 + pytest API integration suite (86 cases)
+│   └── e2e/                   Python 3.11 + pytest API integration suite (243 cases)
 ├── docs/
 │   ├── PLAN.md                canonical status and phased roadmap
 │   ├── DEPLOYMENT.md          deployment/runbook details
@@ -370,7 +370,7 @@ not mean migrations 019–022, the web changes, or a new mobile build are hosted
   lines; the three support-question allowlists and mobile/database/legal policy
   version (`1.1`) match.
 - A clean local reset applies migrations 001–022; public-schema lint is clean;
-  pgTAP passes 164/164; the Python Supabase API integration suite passes 86/86.
+  pgTAP passes 164/164; the Python Supabase API integration suite passes 243/243.
 - Preview's disposable hosted journey passed anonymous auth, profile upsert,
   five matching checklist rules, support fallback persistence, and account
   deletion.
