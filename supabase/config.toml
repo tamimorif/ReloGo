@@ -64,11 +64,14 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-# Product seed data is owned by migration 005, so a separate post-migration
-# seed step would be redundant. Keep this disabled unless a real seed file is
-# introduced for local-only data in the future.
-enabled = false
-sql_paths = []
+# Product seed data is owned by migration 005, so no product rows belong here.
+# seed.sql carries local-only PRIVILEGES instead: the hosted platform grants a
+# table/sequence baseline to anon/authenticated/service_role that `db reset`
+# does not reproduce, so without it a local database has no client DML and the
+# app fails on its first write. Seeds are never applied by `supabase db push`,
+# so this cannot affect a hosted project. See the header of seed.sql.
+enabled = true
+sql_paths = ["./seed.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.

@@ -190,14 +190,56 @@ on `tamim`, plus the last separately identified hosted checks:
 | Deno `support-ai` helper tests | 9/9 pass (now also verified locally, not only in CI) |
 | Database/support/consent synchronization | Pass; extracted `Database` interface byte-identical at 305 lines; support questions and policy version match |
 | Fresh local migrations, public-schema lint, pgTAP | Clean reset applies 001–022; lint clean; 164/164 pgTAP pass |
-| E2E test suite (Python) | 85/85 pass against clean local Supabase |
+| E2E test suite (Python) | 86/86 pass against clean local Supabase |
 | pgTAP/E2E order independence | Pass; pgTAP → E2E → pgTAP → E2E → pgTAP all green |
 | Landing public-route uptime markers | All 7 markers present in the current static build |
 | Backup/restore documentation | Complete at `docs/BACKUP_RESTORE.md` |
 | Hosted preview smoke | Anonymous onboarding, profile, checklist, support fallback, and account deletion pass |
 | Full deployed flow / EAS device builds | Not run; current web/schema changes, healthy worker baseline/webhook, and SDK 55 device builds remain |
 
-Three defects surfaced during that re-run and are fixed:
+### iOS Simulator run (2026-07-21)
+
+The app was run for the first time on Expo SDK 55 against a local Supabase
+carrying migrations 001–022 — the schema no hosted project has yet. Verified by
+observation, not inference:
+
+| Behaviour | Result |
+| --- | --- |
+| Onboarding renders; consent gate blocks submission | Pass; explicit "Consent Required" alert, and **0 auth users / 0 profiles** created while unticked |
+| Anonymous sign-in → profile → checklist | Pass |
+| Checklist matches AB→BC with vehicle | Pass; 4 tasks |
+| Deadline arithmetic | Pass; BC licence 90 days → Jul 22 + 90 = **Oct 20, 2026** |
+| Migration 020 NULL deadlines | Pass; render as "No fixed deadline" |
+| PDF button gating | Pass; only the one task with a registered template offers it |
+| BC health-coverage PDF: download → audited SHA-256 → on-device fill → share | **Pass**; 1.4 MB filled PDF reached the iOS share sheet |
+| Pre-share review acknowledgement | Pass; shown before the share sheet |
+| Session restore after app restart | Pass; resumed at checklist, no re-onboarding |
+| On-device PII vault | Pass; saved, and the value appears **zero times** anywhere server-side |
+| Account deletion (PIPEDA erasure) | Pass; auth users, profile and progress all 0; app returned to clean onboarding |
+
+Not covered by this run, and still genuinely owner work: real-device behaviour,
+Android (including the ten-minute share-target cache grace), and store builds.
+The simulator uses Expo Go, not an EAS binary.
+
+Four defects surfaced during that re-run and are fixed:
+
+- **Onboarding was broken by migration 019 and would have failed for every new
+  user on deployment.** `onboarding.tsx` wrote its profile with `.upsert()`,
+  which emits `INSERT ... ON CONFLICT DO UPDATE`. Migration 019 gates
+  `user_profiles` UPDATE on `has_current_policy_consent()`, and that is false
+  until a profile row already records the current policy version — so the write
+  is refused for exactly the first-time user it exists to serve. Anonymous
+  sign-in succeeded and the first write then failed, surfacing as the generic
+  "Couldn't finish setup" alert. No test caught it because every E2E case
+  creates profiles with `.insert()`; the call the app actually makes was
+  untested. Onboarding now inserts and falls back to an update, and
+  `test_policy_74b` pins the behaviour.
+- Running the app against a local stack was impossible at all: the hosted
+  platform grants a table/sequence baseline to `anon`/`authenticated` that
+  `supabase db reset` does not reproduce, so every client write failed with
+  `42501`. Both test suites hid this by issuing their own `GRANT ALL` during
+  setup. `supabase/seed.sql` now reproduces the hosted grant model locally; it
+  is never applied by `supabase db push`.
 
 - Mobile dependency alignment (a CI gate) had drifted behind the current Expo
   SDK 55 patch set, and `react-dom` was pinned only by an accident of the
@@ -232,8 +274,11 @@ production launch until the remaining phases below pass.
 - The migration 019 re-consent boundary, migration 020 content corrections,
   Support/legal routes, BC PDF workflow, worker runner fix, and uptime workflow
   are committed on `tamim` but not yet merged to `main`, deployed, or activated.
-- The BC government PDF workflow has not been exercised on current SDK 55 EAS
-  builds or real devices.
+- The BC government PDF workflow now runs end to end on SDK 55 in the iOS
+  Simulator (download, audited hash check, on-device fill, review prompt,
+  share sheet). It has still not been exercised on an EAS binary, on a real
+  device, or on Android — where the ten-minute share-target cache grace and the
+  chooser-cancellation path remain unobserved.
 - The initial independent content audit covered all 53 source URLs and all 24
   seeded numeric deadlines, but 15 sources did not yield usable content to the
   automated probe and origin-specific, qualitative, school, and exception-heavy

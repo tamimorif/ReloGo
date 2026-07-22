@@ -79,6 +79,56 @@ def test_policy_74_profile_creation_rejects_missing_and_stale_consent(new_user):
     assert state["has_current_consent"] is False
 
 
+def test_policy_74b_first_run_onboarding_write_is_not_an_upsert(new_user):
+    """A first-time user must be able to create their profile.
+
+    Regression guard for a real onboarding break. Every other test in this
+    suite creates profiles with .insert(), but the app's onboarding screen used
+    .upsert(), which emits INSERT ... ON CONFLICT DO UPDATE. Migration 019
+    gates user_profiles UPDATE on has_current_policy_consent(), and that is
+    false until a profile row already records the current policy version, so
+    the upsert is rejected for exactly the user it exists to serve. Anonymous
+    sign-in succeeded and then the very first write failed, which surfaced in
+    the app as a generic "Couldn't finish setup" alert.
+
+    The insert-then-update shape below is what onboarding.tsx now does. Both
+    the first-run path and the retry path must work.
+    """
+    client = new_user["client"]
+    user_id = new_user["id"]
+
+    # An upsert must still be rejected -- if this ever starts succeeding the
+    # policy has been loosened and this guard should be re-examined.
+    with pytest.raises(APIError) as exc_info:
+        client.table("user_profiles").upsert(
+            _profile_payload(user_id), returning="minimal"
+        ).execute()
+    assert exc_info.value.code == "42501"
+
+    # First run: a plain insert is what actually authorises the new row.
+    client.table("user_profiles").insert(
+        _profile_payload(user_id), returning="minimal"
+    ).execute()
+
+    state = client.rpc("get_policy_consent_state").execute().data
+    assert state["has_profile"] is True
+    assert state["has_current_consent"] is True
+
+    # Retry path: resubmitting onboarding updates the existing row in place
+    # rather than silently discarding the newly entered details.
+    client.table("user_profiles").update(
+        _profile_payload(user_id, origin_prov="BC", dest_prov="NS")
+    ).eq("id", user_id).execute()
+
+    profile = (
+        client.table("user_profiles")
+        .select("origin_prov, dest_prov")
+        .execute()
+        .data
+    )
+    assert profile == [{"origin_prov": "BC", "dest_prov": "NS"}]
+
+
 def test_policy_75_accept_current_policies_uses_server_version_and_timestamp(
     new_user, service_client
 ):

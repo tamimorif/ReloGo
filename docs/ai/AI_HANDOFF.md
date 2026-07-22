@@ -11,7 +11,7 @@ roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 ReloGo converts a move between Canadian provinces or territories into a
 personalized checklist of official tasks and suggested timing. A substantial
 MVP is implemented. The current shared tree has clean local verification for
-migrations 001–022, 85 API integration cases, and the checks recorded below.
+migrations 001–022, 86 API integration cases, and the checks recorded below.
 The change set is committed on `tamim` (commit `7c6edfe`) and pushed, but it is
 not yet merged to the default branch `main`, and migrations 019–022 plus the
 current app/web changes are not deployed. The isolated Canadian cloud foundation
@@ -91,6 +91,20 @@ Deletion also removes the server account and local session.
   schema source of truth. Migrations 001–018 are hosted; 019–022 are committed
   on `tamim` but not yet deployed. Add the next numbered migration; do not
   rewrite deployed behavior in an older migration.
+- `supabase/seed.sql` is LOCAL-ONLY and carries privileges, not product rows.
+  The hosted platform grants a table/sequence baseline to
+  `anon`/`authenticated`/`service_role` that `supabase db reset` does not
+  reproduce, so without it a local database has no client DML and the app fails
+  its first write with `42501`. It re-applies the migration-defined column
+  restrictions after that baseline, mirroring hosted ordering. `supabase db
+  push` never applies it, so it cannot widen production. Read its header before
+  changing any grant.
+- Migration 019's UPDATE policy on `user_profiles` requires
+  `has_current_policy_consent()`, which is false until a profile row exists.
+  A single `INSERT ... ON CONFLICT DO UPDATE` — i.e. supabase-js `.upsert()` —
+  is therefore rejected for a first-time user. Client code that creates a
+  profile must INSERT and fall back to UPDATE, as
+  `mobile/app/(auth)/onboarding.tsx` does. `test_policy_74b` guards this.
 - Migration 017 adds an admin bootstrap trigger that automatically registers
   users with admin emails (`admin@relogo.app` / `admin@relogo.ca`) into
   `admin_users` on `auth.users` insert. The trigger function is `SECURITY
@@ -149,7 +163,7 @@ ReloGo/
 │   └── tests/                 pgTAP RLS/RPC adversarial suite
 ├── scripts/                   cross-app contract checks
 ├── tests/
-│   └── e2e/                   Python 3.11 + pytest API integration suite (85 cases)
+│   └── e2e/                   Python 3.11 + pytest API integration suite (86 cases)
 ├── docs/
 │   ├── PLAN.md                canonical status and phased roadmap
 │   ├── DEPLOYMENT.md          deployment/runbook details
@@ -356,7 +370,7 @@ not mean migrations 019–022, the web changes, or a new mobile build are hosted
   lines; the three support-question allowlists and mobile/database/legal policy
   version (`1.1`) match.
 - A clean local reset applies migrations 001–022; public-schema lint is clean;
-  pgTAP passes 164/164; the Python Supabase API integration suite passes 85/85.
+  pgTAP passes 164/164; the Python Supabase API integration suite passes 86/86.
 - Preview's disposable hosted journey passed anonymous auth, profile upsert,
   five matching checklist rules, support fallback persistence, and account
   deletion.

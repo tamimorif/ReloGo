@@ -145,16 +145,39 @@ export default function OnboardingScreen() {
         consent_version: CURRENT_CONSENT_VERSION,
       };
 
-      // Upsert (last-write-wins): if a profile row already exists — a prior
-      // submit that timed out client-side, or a transient checkProfile
-      // failure routing an existing user back here — the user's freshly
-      // entered details replace it instead of being silently discarded.
-      const { error: profileError } = await supabase
+      // Insert first, then fall back to an update if the row already exists —
+      // a prior submit that timed out client-side, or a transient checkProfile
+      // failure routing an existing user back here. The user's freshly entered
+      // details replace the old ones instead of being silently discarded.
+      //
+      // This deliberately is NOT an upsert. Migration 019 gates
+      // user_profiles UPDATE on has_current_policy_consent(), which is true
+      // only once a profile row already records the current policy version. A
+      // single INSERT ... ON CONFLICT DO UPDATE (what .upsert() emits) is
+      // therefore rejected outright for a first-time user, whose row does not
+      // exist yet: the consent that would authorise the write is precisely
+      // what the write is trying to create. Splitting the two statements keeps
+      // the retry behaviour while letting the plain INSERT policy authorise
+      // the first-run case.
+      const { error: insertError } = await supabase
         .from("user_profiles")
-        .upsert(profile, { onConflict: "id" });
+        .insert(profile);
 
-      if (profileError) {
-        throw profileError;
+      if (insertError) {
+        // 23505 = unique violation, i.e. this user already has a profile row.
+        // Anything else is a real failure.
+        if (insertError.code !== "23505") {
+          throw insertError;
+        }
+
+        const { error: updateError } = await supabase
+          .from("user_profiles")
+          .update(profile)
+          .eq("id", userId);
+
+        if (updateError) {
+          throw updateError;
+        }
       }
 
       setHasProfile(true);
