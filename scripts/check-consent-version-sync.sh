@@ -17,7 +17,9 @@ landing_version="$(sed -n \
   's/^export const CURRENT_POLICY_VERSION = "\([^"]*\)";$/\1/p' \
   "$LANDING")"
 
-contract_migration="$(rg -l '^-- CURRENT_CONSENT_VERSION: ' \
+# grep, not rg: GitHub's runners do not ship ripgrep, so an rg-based check
+# aborts with "command not found" and never actually compares anything.
+contract_migration="$(grep -l -- '^-- CURRENT_CONSENT_VERSION: ' \
   "$MIGRATIONS"/*.sql | sort | tail -n 1)"
 
 if [[ -z "$mobile_version" || -z "$landing_version" || -z "$contract_migration" ]]; then
@@ -51,14 +53,18 @@ for required_function in \
   has_current_policy_consent \
   get_policy_consent_state \
   accept_current_policies; do
-  if ! rg -q "CREATE OR REPLACE FUNCTION public\.${required_function}" \
+  if ! grep -qE "CREATE OR REPLACE FUNCTION public\.${required_function}" \
     "$FOUNDATION"; then
     echo "ERROR: consent foundation is missing ${required_function}()." >&2
     exit 1
   fi
 done
 
-if [[ "$(rg -c 'public\.current_policy_version\(\)' "$FOUNDATION")" -lt 9 ]]; then
+# `|| true` because grep exits 1 on zero matches, which `set -e` would treat
+# as a script failure instead of letting the count comparison below report it.
+version_call_lines="$(grep -cE 'public\.current_policy_version\(\)' \
+  "$FOUNDATION" || true)"
+if [[ "${version_call_lines:-0}" -lt 9 ]]; then
   echo "ERROR: consent triggers, RPCs, or RLS gates no longer share the server-current version." >&2
   exit 1
 fi

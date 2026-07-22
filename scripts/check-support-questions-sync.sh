@@ -7,7 +7,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MOBILE="$ROOT/mobile/lib/supportQuestions.ts"
 EDGE="$ROOT/supabase/functions/support-ai/supportQuestions.ts"
 MIGRATIONS="$ROOT/supabase/migrations"
-MIGRATION="$(rg -l -- '-- SUPPORT_QUESTIONS_SQL_START' \
+# grep, not rg: GitHub's runners do not ship ripgrep, so an rg-based check
+# aborts with "command not found" and never actually compares anything.
+MIGRATION="$(grep -l -- '-- SUPPORT_QUESTIONS_SQL_START' \
   "$MIGRATIONS"/*.sql | sort | tail -n 1)"
 
 extract_allowlist() {
