@@ -2,3 +2,7 @@
 # left behind when a dev-server process is killed. Never commit these.
 vite.config.ts.timestamp-*.mjs
 .vercel
+# Ignore local env files (e.g. the Vercel-created .env.local with an OIDC
+# token) but keep the committed template. Mirrors landing/.gitignore.
+.env*
+!.env.example
