@@ -8,7 +8,7 @@
  */
 import { supabase } from "@/lib/supabase";
 import { deleteAllPII } from "@/lib/secureStore";
-import { wipeFilledPDFs } from "@/lib/pdfEngine";
+import { wipeFilledPDFs } from "@/lib/pdfCleanup";
 
 async function wipeLocalAccountData(): Promise<void> {
   // Attempt both independent stores even if one fails. A partial wipe is not

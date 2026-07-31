@@ -21,26 +21,30 @@ export function WaitlistTable() {
   const [error, setError] = useState<string | null>(null);
 
   // ── Fetch waitlist signups, newest first (first page + total count) ───
-  const fetchSignups = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    const { data, count, error: fetchErr } = await supabase
+  const fetchSignups = useCallback(() => {
+    return supabase
       .from("waitlist")
       .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
-      .range(0, PAGE_SIZE - 1);
-
-    if (fetchErr) {
-      setError(fetchErr.message);
-    } else {
-      const rows = data ?? [];
-      setSignups(rows);
-      setTotalCount(count ?? rows.length);
-      setHasMore(rows.length === PAGE_SIZE);
-    }
-    setLoading(false);
+      .range(0, PAGE_SIZE - 1)
+      .then(({ data, count, error: fetchErr }) => {
+        if (fetchErr) {
+          setError(fetchErr.message);
+        } else {
+          const rows = data ?? [];
+          setSignups(rows);
+          setTotalCount(count ?? rows.length);
+          setHasMore(rows.length === PAGE_SIZE);
+        }
+        setLoading(false);
+      });
   }, []);
+
+  const refreshSignups = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    void fetchSignups();
+  }, [fetchSignups]);
 
   useEffect(() => {
     fetchSignups();
@@ -89,7 +93,7 @@ export function WaitlistTable() {
           </p>
         </div>
         <button
-          onClick={fetchSignups}
+          onClick={refreshSignups}
           disabled={loading}
           className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
         >

@@ -16,16 +16,13 @@ import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import * as aesjs from "aes-js";
 import type { Database } from "@/types/database";
+import { resolveSupabaseConfig } from "@/lib/supabaseConfig";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY. " +
-      "Configure the selected local/EAS environment before starting ReloGo.",
-  );
-}
+const resolvedConfig = resolveSupabaseConfig(
+  process.env.EXPO_PUBLIC_SUPABASE_URL,
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+);
+export const supabaseConfigurationError = resolvedConfig.error;
 
 class LargeSecureStore {
   private async encrypt(key: string, value: string): Promise<string> {
@@ -46,12 +43,7 @@ class LargeSecureStore {
     return aesjs.utils.hex.fromBytes(encryptedBytes);
   }
 
-  private async decrypt(key: string, value: string): Promise<string | null> {
-    const encryptionKeyHex = await SecureStore.getItemAsync(key);
-    if (!encryptionKeyHex) {
-      return null;
-    }
-
+  private decrypt(value: string, encryptionKeyHex: string): string {
     const cipher = new aesjs.ModeOfOperation.ctr(
       aesjs.utils.hex.toBytes(encryptionKeyHex),
       new aesjs.Counter(1),
@@ -62,11 +54,17 @@ class LargeSecureStore {
   }
 
   async getItem(key: string): Promise<string | null> {
-    const encrypted = await AsyncStorage.getItem(key);
-    if (!encrypted) {
+    // Native storage bridges are independent. Reading the ciphertext and its
+    // enclave-held key concurrently removes one full bridge round-trip from
+    // every returning user's session restore on a physical phone.
+    const [encrypted, encryptionKeyHex] = await Promise.all([
+      AsyncStorage.getItem(key),
+      SecureStore.getItemAsync(key),
+    ]);
+    if (!encrypted || !encryptionKeyHex) {
       return null;
     }
-    return this.decrypt(key, encrypted);
+    return this.decrypt(encrypted, encryptionKeyHex);
   }
 
   async setItem(key: string, value: string): Promise<void> {
@@ -80,14 +78,18 @@ class LargeSecureStore {
   }
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: new LargeSecureStore(),
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+export const supabase = createClient<Database>(
+  resolvedConfig.url,
+  resolvedConfig.anonKey,
+  {
+    auth: {
+      storage: new LargeSecureStore(),
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
   },
-});
+);
 
 // Refresh auth tokens only while the app is foregrounded, per the
 // official Supabase React Native guidance.

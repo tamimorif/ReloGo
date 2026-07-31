@@ -15,28 +15,32 @@ export function AlertsTable() {
   const [editingAlert, setEditingAlert] = useState<AlertWithSource | null>(null);
 
   // ── Fetch pending alerts with joined source info (first page) ─────────
-  const fetchAlerts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    const { data, error: fetchErr } = await supabase
+  const fetchAlerts = useCallback(() => {
+    return supabase
       .from("rule_change_alerts")
       .select(
         "id, official_source_id, old_hash, new_hash, diff_summary, status, created_at, official_sources(agency_name, official_url, corridor_rule_id)",
       )
       .eq("status", "PENDING")
       .order("created_at", { ascending: false })
-      .range(0, PAGE_SIZE - 1);
-
-    if (fetchErr) {
-      setError(fetchErr.message);
-    } else {
-      const rows = (data as unknown as AlertWithSource[]) ?? [];
-      setAlerts(rows);
-      setHasMore(rows.length === PAGE_SIZE);
-    }
-    setLoading(false);
+      .range(0, PAGE_SIZE - 1)
+      .then(({ data, error: fetchErr }) => {
+        if (fetchErr) {
+          setError(fetchErr.message);
+        } else {
+          const rows = (data as unknown as AlertWithSource[]) ?? [];
+          setAlerts(rows);
+          setHasMore(rows.length === PAGE_SIZE);
+        }
+        setLoading(false);
+      });
   }, []);
+
+  const refreshAlerts = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    void fetchAlerts();
+  }, [fetchAlerts]);
 
   // ── Load the next page, appended below the current rows ───────────────
   const loadMore = useCallback(async () => {
@@ -89,7 +93,7 @@ export function AlertsTable() {
     setEditingAlert(null);
     if (saved) {
       // Re-fetch to reflect the approved status change
-      fetchAlerts();
+      refreshAlerts();
     }
   };
 
@@ -114,7 +118,7 @@ export function AlertsTable() {
           </p>
         </div>
         <button
-          onClick={fetchAlerts}
+          onClick={refreshAlerts}
           disabled={loading}
           className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
         >

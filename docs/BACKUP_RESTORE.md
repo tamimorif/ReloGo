@@ -1,181 +1,245 @@
-# Supabase Backup and PITR Posture for ReloGo
+# Supabase backup and restore posture for ReloGo
 
-## Executive Summary
-This document defines the Supabase backup and Point-in-Time Recovery (PITR) posture for ReloGo. It evaluates Supabase plan capabilities, defines specific configurations for preview and production environments, and provides a comprehensive, step-by-step recovery runbook.
+_Last reviewed: 2026-07-31_
 
-No existing backup/restore scripts or documentation were previously in the repository, making this the primary reference for ReloGo's disaster recovery protocol.
+## Executive summary
 
----
+This is the recovery runbook for ReloGo's Supabase database. It is a proposed
+operational posture, not evidence that billing, managed backups, PITR, or a
+restore drill are complete.
 
-## 1. Supabase Backup and PITR Plan Options
+Current environment state:
 
-Supabase offers tiered backup capabilities across its plans. The details are synthesized below:
+| Environment | Project | Runtime state | Schema/function state | Backup gate |
+| --- | --- | --- | --- | --- |
+| Preview | `uwfblgllkibbupqyofkl` | Deliberately paused after verification | Migrations 001–026; `support-ai` v3 | Resume only for preview work; verify the Dashboard's available backups before relying on them |
+| Production | `yskknolxbxfxakgvrcmg` | Active | Exact migrations 001–026; `support-ai` v4 ACTIVE/JWT-protected; anonymous auth enabled; user-data tables empty | Plan/retention/PITR selection, funding, and a restore drill remain owner approvals |
 
-| Feature / Plan | Free Plan | Pro Plan | Team Plan | Enterprise Plan |
-| :--- | :--- | :--- | :--- | :--- |
-| **Base Cost** | $0/month | $25/month per project | $599/month organization | Custom |
-| **Database Limit** | 500 MB | 8 GB included (+$0.125/GB extra) | 8 GB included (+$0.125/GB extra) | Custom |
-| **Automated Backups** | None (manual export only) | Daily nightly backups | Daily nightly backups | Daily nightly backups |
-| **Backup Retention** | N/A | 7 days | 14 days | Custom (up to 30+ days) |
-| **Backup Type** | N/A | Logical (<100GB), Physical (>100GB) | Logical (<100GB), Physical (>100GB) | Custom |
-| **PITR Support** | No | Yes (Paid Add-on) | Yes (Paid Add-on) | Yes (Included/Custom) |
-| **PITR Cost** | N/A | Starting at +$100/month | Starting at +$100/month | Included in Custom |
-| **PITR Retention Tiers** | N/A | 7 days (+$100/mo)<br>14 days (+$150/mo)<br>21 days (+$200/mo)<br>28 days (+$250/mo) | Same as Pro | Custom |
-| **Inactivity Pausing** | Paused after 7 days | Never paused | Never paused | Never paused |
+A backup exercise must not apply migration 027+, redeploy functions, or change
+production configuration. Preview 001–026/v3 and production 001–026/v4 are the
+current environment-specific recovery baselines. Future promotion has a
+separate explicit approval gate in
+[DEPLOYMENT.md](DEPLOYMENT.md).
 
-### Crucial Technical Distinctions:
-*   **Daily Automated Backups (Logical/Physical)**: Daily snapshots are scheduled once per day. Restoring from these backups is **destructive** because it overwrites the existing active database. This causes immediate service downtime and results in data loss of up to 24 hours (RPO = 24 hours).
-*   **Point-in-Time Recovery (PITR) (Physical WAL Archiving)**: PITR continuously archives Postgres Write-Ahead Logs (WAL) and periodically takes base backups. It allows recovery down to the second (or microsecond). PITR restore is **non-destructive** because it provisions a **new project** containing the restored state. This prevents data loss (RPO < 1 min) and allows data validation before cutover, resulting in zero downtime for the restore process itself.
+The App Store 1.0 binary points to a deleted Supabase project and has no
+compatible Expo Updates runtime. It cannot be redirected with an OTA update.
+Any database cutover for current users requires a new store binary. The local
+1.0.1 configuration includes Expo Updates, but OTA recovery applies only after
+that binary is released and only to a compatible runtime/channel.
 
----
+## 1. Capability and decision record
 
-## 2. Plan Selection for ReloGo
+Supabase's current public plan page says Free projects do not include automatic
+backups or PITR, while Pro includes daily backups with seven-day retention.
+PITR is a separately billed add-on with retention-dependent pricing. These
+commercial terms change; verify them in the project Dashboard and the official
+pages before approving spend:
 
-To align with budget constraints while ensuring maximum stability and security for user data, the following posture is defined:
+- [Supabase pricing](https://supabase.com/pricing)
+- [PITR usage and pricing](https://supabase.com/docs/guides/platform/manage-your-usage/point-in-time-recovery)
+- [Restore to a new project](https://supabase.com/docs/guides/platform/clone-project)
 
-### A. Preview Environment (`ReloGo Preview` — ref: `uwfblgllkibbupqyofkl`)
-*   **Configuration**: **Pro Plan ($25/month)** without PITR add-on.
-*   **Rationale**:
-    1.  **Prevents Inactivity Pausing**: The Free plan pauses databases after 7 days of inactivity. This would disrupt CI/CD tests, QA verification, and admin preview operations.
-    2.  **Daily Backups (7-day retention)**: Provides sufficient recovery capability for testing schemas and layouts. If a developer runs a bad migration, they can restore from the previous night or run a local script.
-    3.  **Cost Efficiency**: Saves $100/month by omitting PITR, which is unnecessary for transient testing data.
+Required owner decisions before launch:
 
-### B. Production Environment (`ReloGo Production` — ref: `yskknolxbxfxakgvrcmg`)
-*   **Configuration**: **Pro Plan ($25/month) + 7-Day PITR Add-on ($100/month)**
-*   **Total Cost**: $125/month
-*   **Rationale**:
-    1.  **No Data Loss (Low RPO)**: ReloGo production stores active checklists, waitlist signups, and support threads. A maximum data loss of 24 hours (under standard nightly backups) is unacceptable for a production consumer app. PITR reduces RPO to seconds.
-    2.  **Non-Destructive Target Validation**: If a scraper worker bug corrupts data or a bad migration is deployed, a PITR restore clones the database into a *new project*. This allows the team to run pgTAP schemas/tests and inspect the data before making it live, ensuring no corrupt state is exposed.
-    3.  **SLA and Risk Mitigation**: Enables safe rollback immediately prior to any known scraper execution failure or bad admin update.
+1. Confirm the production organization/plan and enable at least managed daily
+   backups with a documented retention window.
+2. Decide whether the recovery objective requires the PITR add-on. Record the
+   approved recovery point objective (RPO), recovery time objective (RTO),
+   retention, owner, and monthly budget here.
+3. Decide whether preview remains paused/free or is funded for managed backups.
+   Preview contains disposable test data and must never be treated as the only
+   production recovery copy.
+4. Assign a restore-drill owner and a secure location for drill evidence. Do
+   not commit database dumps, passwords, API keys, user-linked identifiers, or
+   support data.
 
----
+Decision record (must be completed by the account owner):
 
-## 3. Step-by-Step Restore Runbooks
+| Item | Approved value |
+| --- | --- |
+| Production plan | Pending |
+| Daily-backup retention | Pending |
+| PITR retention | Pending / not enabled |
+| RPO / RTO | Pending |
+| Restore-drill owner and date | Pending |
 
-### Runbook A: Point-in-Time Recovery (PITR) — Production (Recommended)
+## 2. What a Supabase restore does and does not recover
 
-Use this protocol if a production database corruption, accidental deletion, or bad migration occurs.
+Prefer Supabase's **Restore to a New Project** flow for a drill or corruption
+incident when the source project is eligible. It creates an independent,
+database-only copy that can be tested before cutover. Supabase currently marks
+this feature beta and limits it to paid plans with physical backups enabled.
 
-#### Step 1: Identify the Recovery Target Timestamp
-1.  Verify the exact UTC time when the incident occurred (e.g., from worker execution logs, GitHub Actions runner, or Vercel edge logs). Let this be $T_{incident}$.
-2.  Choose a target timestamp $T_{target}$ that is at least 1–2 minutes *before* the incident occurred (e.g., if a bad migration ran at `2026-07-13 12:05:00 UTC`, select `2026-07-13 12:03:00 UTC` as the target).
+According to the official restore guide, the database copy includes schema,
+data, indexes, roles/permissions, Auth user records, and the encryption root
+key. It does **not** fully reconfigure Storage objects/settings, Edge Functions,
+Auth settings and API keys, Realtime settings, database settings/extensions,
+or read replicas. Treat all of those as a separate recovery checklist.
 
-#### Step 2: Initiate PITR in Supabase Dashboard
-1.  Log in to the Supabase Dashboard.
-2.  Select the active production project: `ReloGo Production` (ref: `yskknolxbxfxakgvrcmg`).
-3.  Go to **Database** -> **Backups** from the sidebar.
-4.  Select the **Point-in-Time Recovery** tab.
-5.  Enter the target date and time $T_{target}$ (ensure UTC is selected if entering UTC).
-6.  Click **Restore**.
-7.  *Note*: Supabase will begin provisioning a new project (e.g., `ReloGo Production (Restored)`). This process takes 10 to 30 minutes. Take note of the new restored project's reference ID (e.g., `yskknol_restored`).
+ReloGo currently stores no user-uploaded Storage objects, but still verify that
+assumption during every drill. The database is expected not to contain the
+device-only full name, date of birth, street address, driver's licence number,
+health-card number, or completed PDFs. It does contain user-linked anonymous
+IDs, move metadata, progress, waitlist data, and fixed-question support data,
+so every backup remains confidential.
 
-#### Step 3: Verify the Restored Database
-1.  Once the new project is active, open its Supabase Dashboard.
-2.  Inspect critical tables (`user_profiles`, `user_task_progress`, `waitlist`, `support_threads`) to confirm the data state is healthy and corresponds to $T_{target}$.
-3.  Run the pgTAP test suite against the new database to verify RLS policies and database integrity:
-    ```bash
-    # Link the Supabase CLI to the newly restored project
-    supabase link --project-ref <restored_project_ref>
-    
-    # Run the pgTAP test suite against the restored instance
-    supabase test db --linked
-    ```
-4.  Confirm all pgTAP assertions pass.
+Deleting a Supabase project is permanent and also removes its backups. Never
+delete, pause, or overwrite the source during a drill. Restrict project-delete
+access and require a second human to verify the exact project reference before
+any destructive production action.
 
-#### Step 4: Promote the Restored Database (DNS & Env Secrets Cutover)
-Update all application environments to point to the new database URL and API keys.
+## 3. Restore-to-new-project runbook (preferred)
 
-1.  **Vercel (Landing & Admin)**:
-    *   Go to Vercel Dashboard -> ReloGo Projects.
-    *   Navigate to **Settings** -> **Environment Variables**.
-    *   Update production variables with the restored project credentials:
-        *   `NEXT_PUBLIC_SUPABASE_URL` -> `https://<restored_project_ref>.supabase.co`
-        *   `NEXT_PUBLIC_SUPABASE_ANON_KEY` -> `<new_restored_anon_key>`
-        *   `SUPABASE_SERVICE_ROLE_KEY` -> `<new_restored_service_role_key>`
-    *   Trigger a new deployment or redeploy the current production branch in Vercel to pick up changes.
-2.  **EAS (Expo Mobile App)**:
-    *   Go to EAS Dashboard or credentials configuration.
-    *   Update the production secrets used for build/runtime.
-    *   If using Expo Updates (OTA), publish a new update containing the new Supabase URL and anon key to redirect users without requiring an App Store resubmission:
-        ```bash
-        cd mobile
-        eas update --branch production --message "Database hotfix restore cutover"
-        ```
-3.  **GitHub Actions (Scraper Worker)**:
-    *   Go to GitHub Repository -> **Settings** -> **Secrets and variables** -> **Actions**.
-    *   Update the repository secrets:
-        *   `SUPABASE_URL` -> `https://<restored_project_ref>.supabase.co`
-        *   `SUPABASE_SERVICE_ROLE_KEY` -> `<new_restored_service_role_key>`
-    *   Trigger a manual run of the worker to confirm it can authenticate and scrape successfully.
+Use this for a scheduled drill or when production corruption is suspected.
+The incident commander decides whether writes must be stopped; do not make that
+decision from this document alone.
 
-#### Step 5: Post-Restore Cleanup
-1.  Keep the old (corrupted) project active in a read-only state for 48 hours to resolve any edge-case disputes.
-2.  Rename the new project from `ReloGo Production (Restored)` to `ReloGo Production` in the Supabase Dashboard.
-3.  Delete or pause the old corrupted project once data parity is confirmed to prevent double-billing.
+### Step 1: preserve evidence and select a recovery point
 
----
+1. Record the incident start, discovery time, suspected cause, affected paths,
+   and all timestamps in UTC.
+2. Preserve relevant Supabase, Vercel, GitHub Actions, and app-release logs.
+   Never paste secrets or device PII into the incident record.
+3. In **Database → Backups**, confirm that the chosen physical backup or PITR
+   point predates the incident. Record its UTC timestamp and expected data loss.
+4. Have a second person verify the source is production
+   `yskknolxbxfxakgvrcmg` and the restore target will be a new project.
 
-### Runbook B: Daily Snapshot Restore — Preview
+### Step 2: create the isolated restore target
 
-Use this protocol for the preview environment if a destructive test corrupts the preview database.
+1. In the production project's **Database → Backups → Restore to a New
+   Project** flow, choose the reviewed backup/PITR timestamp.
+2. Keep the restored project in `ca-central-1`; review the displayed compute,
+   disk, and ongoing project cost before confirming.
+3. Record the new target reference without exposing its password or keys.
+4. Do not point any production client, function, worker, webhook, cron, or DNS
+   record at it yet.
+5. Once available, disable or inspect external-operation extensions such as
+   scheduled jobs/webhooks before running tests, as recommended by Supabase.
 
-#### Warning:
-Restoring a daily backup is a **destructive process**. It will completely overwrite the database, causing immediate downtime during restore, and all data written since the backup was taken will be permanently lost.
+### Step 3: reconstruct non-database configuration
 
-#### Steps:
-1.  Log in to the Supabase Dashboard.
-2.  Select `ReloGo Preview` (ref: `uwfblgllkibbupqyofkl`).
-3.  Go to **Database** -> **Backups** -> **Daily Backups**.
-4.  Locate the latest daily snapshot.
-5.  Click **Restore Backup**.
-6.  Wait for the restore to complete (typically 5–15 minutes depending on size).
-7.  Verify database schemas and run database lints/tests:
-    ```bash
-    supabase link --project-ref uwfblgllkibbupqyofkl
-    supabase db lint --local --schema public
-    supabase test db --linked
-    ```
+Using the repository and a reviewed configuration inventory, restore or verify:
 
----
+- anonymous sign-ins and the reviewed per-IP rate limit;
+- allowed Auth redirect/site URLs and email/provider settings;
+- required extensions, Realtime publications, and database settings;
+- `support-ai` with JWT verification enabled and `GEMINI_API_KEY` set as a
+  server-side Edge secret;
+- public publishable keys for mobile/landing/admin and server-only credentials
+  for the worker;
+- Vercel and EAS environment separation;
+- GitHub worker/uptime secrets and variables; and
+- any Storage buckets/objects if ReloGo begins using them later.
 
-### Runbook C: Manual CLI Logical Backup & Restore (Fallback)
+New projects issue new URLs and API keys. Never reuse a source project's secret
+key by assumption, and never place a secret/service-role value in a client.
 
-Use this protocol for local development, schema migrations fallback, or if a manual, offline copy of the database is required.
+### Step 4: validate without production traffic
 
-#### 1. Perform Logical Backup via CLI
-Run the following commands using the Supabase CLI and standard Postgres client tools to create local SQL dumps:
+Link only after visually confirming the restored target reference:
 
 ```bash
-# Define Project URL and variables
-DB_URL="postgresql://postgres:[PASSWORD]@db.yskknolxbxfxakgvrcmg.supabase.co:5432/postgres"
-
-# A. Extract Database Roles
-supabase db dump --db-url "$DB_URL" --role-only > supabase_backup_roles.sql
-
-# B. Extract Database Schema Only
-supabase db dump --db-url "$DB_URL" --schema-only > supabase_backup_schema.sql
-
-# C. Extract Database User Data Only
-supabase db dump --db-url "$DB_URL" --data-only > supabase_backup_data.sql
+supabase link --project-ref <restored-project-ref>
+supabase migration list --linked
+supabase db push --dry-run
+supabase db lint --linked --schema public --level warning --fail-on warning
 ```
 
-*Note: In ReloGo, PII data is restricted to the device client vault and is never sent to Supabase. Thus, these data backups are completely clean of user PII.*
+Then run the transactional pgTAP suite through the password-authenticated
+pooler URL as documented in [DEPLOYMENT.md](DEPLOYMENT.md). Also run a
+self-cleaning hosted smoke test that verifies:
 
-#### 2. Restore Logical Backup to a Fresh Target
-To restore these files to a fresh target database:
+- anonymous auth and account deletion;
+- current policy consent/profile bootstrap;
+- canonical corridor resolution and HTTPS official-source links;
+- progress writes and RLS isolation;
+- authenticated, non-fallback `support-ai`; and
+- admin and worker access boundaries.
+
+Compare critical counts and sampled records with the incident expectations.
+Do not "repair" migration history merely to make the list look current; resolve
+any discrepancy against repository migrations and recorded hosted history.
+
+### Step 5: approve and execute cutover
+
+Cutover requires the account owner, incident commander, and release owner.
+Record the exact values changed and retain a rollback path.
+
+1. Update Vercel production public variables for landing/admin and redeploy the
+   already-reviewed build.
+2. Update GitHub worker/uptime configuration, but keep scheduled jobs disabled
+   until the new target's resolver and write boundaries pass.
+3. Deploy/configure `support-ai` on the new target, verify JWT protection, and
+   run authenticated support smoke testing.
+4. For mobile, publish OTA only if the installed store binary has a compatible
+   Expo Updates runtime/channel and the update has passed preview QA. The
+   shipped 1.0 binary does not, so a new App Store/Play Store binary is required.
+5. Observe auth, API, function, worker, and client health before enabling
+   recurring jobs or declaring recovery complete.
+
+Keep the original project unchanged for the approved evidence-retention window.
+Pause/delete it only after parity, rollback, billing, and legal-retention review;
+deletion is permanent.
+
+## 4. In-place daily-backup restore (last resort)
+
+An in-place restore can overwrite the active database and cause downtime/data
+loss after the chosen snapshot. Use it only when Restore to a New Project is
+unavailable and the incident commander explicitly approves the destructive
+scope.
+
+Before clicking Restore:
+
+1. Verify the exact project ref and backup timestamp with a second person.
+2. Record expected data loss and stop dependent writes/jobs if directed.
+3. Capture the current migration ledger and configuration inventory.
+4. Confirm that Edge Functions, Auth settings, API keys, Realtime, Storage, and
+   integrations have their own reconstruction plan.
+5. After restore, run the same lint, pgTAP, smoke, boundary, and client checks
+   from Step 4 above before reopening traffic.
+
+Do not use production for a practice in-place restore. Resume the preview
+project and use disposable preview data for that exercise only after confirming
+what backup options its current plan actually exposes.
+
+## 5. Manual logical backup/restore fallback
+
+Follow Supabase's maintained
+[CLI backup/restore guide](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
+rather than relying on copied commands from memory. A representative export is:
 
 ```bash
-TARGET_HOST="db.<target_project_ref>.supabase.co"
-
-# A. Restore Custom Roles
-psql -h "$TARGET_HOST" -U postgres -d postgres -f supabase_backup_roles.sql
-
-# B. Restore Schema structure
-# Note: For clean migrations, running standard CLI migration command is preferred:
-# supabase db push
-# If migrations are not configured, restore the schema file directly:
-psql -h "$TARGET_HOST" -U postgres -d postgres -f supabase_backup_schema.sql
-
-# C. Restore User Data
-psql -h "$TARGET_HOST" -U postgres -d postgres -f supabase_backup_data.sql
+supabase db dump --db-url '<source-pooler-url>' -f roles.sql --role-only
+supabase db dump --db-url '<source-pooler-url>' -f schema.sql
+supabase db dump --db-url '<source-pooler-url>' -f data.sql \
+  --use-copy --data-only \
+  -x 'storage.buckets_vectors' -x 'storage.vector_indexes'
 ```
+
+Store the outputs encrypted outside the repository and apply a retention/deletion
+policy. A logical database restore does not reconstruct Edge Functions, Storage
+objects, Auth provider configuration, API keys, Realtime settings, or external
+platform variables. Vault/column encryption and migration-ledger preservation
+have extra steps in the official guide; do not improvise them.
+
+The Supabase CLI local restore path is for inspection/development and is not a
+production service. If a paused project can no longer be restored directly,
+download its available database and Storage backups before their recovery
+window expires and follow Supabase's current migration guidance.
+
+## 6. Drill acceptance criteria
+
+A restore drill is complete only when all of the following evidence exists:
+
+- the source, restore point, target, RPO, RTO, owner, and cost were recorded;
+- production was not mutated and no client was accidentally pointed at the
+  drill target;
+- the migration ledger and repository source of truth were reconciled;
+- lint, pgTAP, RLS/RPC checks, and the self-cleaning hosted smoke passed;
+- Auth, Realtime, Edge Function, worker, and external configuration gaps were
+  explicitly tested or recorded;
+- mobile cutover behavior was proven with a compatible release binary (never
+  inferred from the unrecoverable 1.0 binary);
+- logs and backup artifacts contain no secrets or device-only PII; and
+- the runbook was updated with measured RPO/RTO and lessons learned.

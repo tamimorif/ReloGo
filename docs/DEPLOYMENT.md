@@ -7,16 +7,18 @@ rule monitoring.
 
 ## 0. Order of operations
 
-Follow these top-to-bottom for a first deploy. Use isolated preview and
-production environments; do not point preview builds at production data.
+Follow these top-to-bottom for the recovery release. Use isolated preview and
+production environments; never point a preview build at production data and
+never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Push migrations 001–022, enable anonymous sign-ins, verify admin | [§1](#1-supabase-database) |
+| 1 | Record/reverify production at exact 001–026 and `support-ai` v4; resume preview v3 only for preview QA | [§1](#1-supabase-database), [§6](#ai-support-edge-function) |
 | 2 | Fill each app's `.env` from `.env.example` | per app below |
-| 3 | Deploy landing + admin to Vercel | [§2](#2-landing-page-nextjs-16-static-export-vercel), [§3](#3-admin-dashboard-vite-5-spa-vercel) |
-| 4 | Deploy the `support-ai` function + set `GEMINI_API_KEY`; build mobile via EAS | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 5 | Configure, baseline, and schedule the worker | [§5](#5-rule-monitor-worker-python-311--playwright) |
+| 3 | Build/test 1.0.1 preview binaries on iOS and Android | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 4 | With admin recovery already live, restore GitHub auth/2FA and publish reviewed landing/worker/workflow changes | [§2](#2-landing-page-nextjs-16-static-export-vercel), [§3](#3-admin-dashboard-vite-5-spa-vercel), [§5](#5-rule-monitor-worker-python-311--playwright) |
+| 5 | Run the backend-aware uptime probes and establish named monitoring ownership | [§7](#7-ci), [§8](#8-incident-runbook-and-monitoring) |
+| 6 | Create/submit the new store binary only after legal/store/ops approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 
 **Configured cloud mapping:** separate Supabase preview and production projects
 use `ca-central-1`. Vercel project `relogo` maps to `landing/`; `relo-go` maps
@@ -24,27 +26,46 @@ to `admin/`. Development/preview variables target the preview backend and
 production variables target production in both Vercel and the registered EAS
 project. Values remain platform-managed and are not committed.
 
-The worker workflow and required Supabase repository secrets are on the default
-branch. Its first manual run failed during Playwright system-dependency setup on
-Ubuntu 24.04, before the scraper started. The local workflow pins Ubuntu 22.04;
-commit that fix and rerun it before treating monitoring as operational.
+Current hosted/repository truth (2026-07-31):
+
+| Target | State |
+| --- | --- |
+| Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
+| Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; dry run clean; `support-ai` v4 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, and cleanup; profile/waitlist/support/progress empty |
+| Mobile | Local version 1.0.1 / SDK 55; release/type/lint, 11 Jest suites with 113/113 tests, iOS export 1,752 modules/5.8 MB Hermes bytecode, Android export 1,773 modules/5.9 MB Hermes bytecode, and dependency audit 0 pass; no new EAS binary; all existing cloud artifacts are old SDK 51 |
+| Web/admin | Reviewed admin recovery build is live at `https://relo-go.vercel.app`; manual web-only uptime passes all seven public routes. Landing recovery is not deployed |
+| Worker/uptime | Local compile and tests 77/77 pass; fixes and backend-aware scheduled uptime are not pushed or activated; no healthy production baseline/webhook |
+| GitHub | CLI token invalid; owner reauthentication/2FA is required before secret/variable changes, dispatch, push, or CI claims |
+
+The worker's Ubuntu 22.04 runner is already on `main`. Its latest run reaches
+the Python client and fails "Invalid API key" because `supabase==2.4.0` rejects
+the current `sb_secret_` key format. The local 2.31.0/preflight fix is not live.
 
 ## 1. Supabase (database)
 
-Migrations live in `supabase/migrations/` and are the single source of truth
-for the schema (`001_init.sql` through
-`020_content_audit_corrections.sql`). Hosted preview and production currently
-have 001–018; verify 019–020 in preview before promoting the same files to
-production. Migration 005 seeds provisional destination-wide content plus a
-federal CRA task. Migration 020 conservatively removes unsafe exact timing and
-leaves 12 numeric deadlines. This content is useful for testing but is not a
-substitute for final government, legal, and corridor-specific review.
+Migrations live in `supabase/migrations/` and are the single schema source of
+truth (`001_init.sql` through `026_distinct_move_provinces.sql`). Never edit a
+hosted schema by hand or rewrite a deployed migration. The next migration is
+027.
 
-Migration 019 and policy version 1.1 are a coordinated release boundary. First
-deploy and verify the version 1.1 legal pages, then apply 019–020 to preview and
-test a current SDK 55 preview build. Promote 019 to production only when the
-matching mobile binary can be released: older binaries do not know the consent
-state RPC and will fail closed once the server requires version 1.1.
+Preview and production both have exact migrations 001–026. Preview was verified
+and deliberately paused. Production's post-push dry run is clean; anonymous auth
+is enabled; the self-cleaning smoke passed anonymous auth, resolver output with
+five tasks/five HTTPS sources, a minimal onboarding profile insert,
+authoritative consent/profile confirmation, and cleanup; and profile, waitlist,
+support, and progress tables contain zero rows. Recovery migrations add:
+
+- 023: canonical exact/`ANY` corridor rule resolution plus ordered HTTPS
+  official sources, reused by mobile/admin/AI;
+- 024: one consent/bootstrap response with profile only for current consent;
+- 025: `AVAILABLE`/`COMPLETED` progress only; and
+- 026: rejection of new/updated same-origin/destination moves.
+
+Migration 019/policy 1.1 and 023–026 are coordinated with the 1.0.1 client. The
+currently shipped 1.0 binary points to a deleted backend and cannot be rescued,
+so this is a new-binary recovery rather than an in-place compatibility rollout.
+Still deploy matching legal pages and verify the 1.0.1 preview build before the
+product release.
 
 The support-chat feature requires `004_support_messages.sql`, which creates
 the `support_threads` and `support_messages` chat tables (+ RLS) and enables
@@ -53,18 +74,32 @@ with `supabase db push` like any other migration; the Messages tab in the
 admin dashboard and the in-app support chat will not work until it is applied.
 
 ```bash
-# One-time: authenticate and link the project
+# Authenticate, then target preview explicitly after resuming it in Dashboard.
 supabase login
-supabase link --project-ref <your-project-ref>
-
-# Apply all pending migrations to the linked project
-supabase db push
+supabase link --project-ref uwfblgllkibbupqyofkl
+supabase migration list --linked
+supabase db push --dry-run
 ```
 
-For this repository, always link and verify preview first, promote the same
-migration set to production only after preview passes, then relink preview. Do
-not run `supabase config push`: the committed config intentionally contains
-localhost Auth URLs for local development.
+Preview's dry run should report no pending migrations. Re-run ledger, lint,
+pgTAP, advisors, and the self-cleaning hosted smoke; then pause it again if no
+preview work remains.
+
+Production is currently linked locally and needs no schema push: its ledger is
+exact 001–026 and dry run reports no pending migrations. Record the state with
+read-only commands:
+
+```bash
+supabase link --project-ref yskknolxbxfxakgvrcmg
+supabase migration list --linked
+supabase db push --dry-run
+```
+
+Do not rerun a push merely to reproduce the already-complete promotion. The
+next schema change is migration 027 and requires its own explicit approval,
+preview verification, and pre/post ledger/dry-run/lint/pgTAP/advisor/smoke gates.
+Stop and report any mismatch; do not repair history ad hoc. Never run
+`supabase config push`: committed config contains localhost Auth URLs.
 
 > **Note:** Supabase link state is machine-local and intentionally ignored by
 > git. On a new machine, run `supabase login` and `supabase link` even if another
@@ -96,7 +131,7 @@ projects that cannot resolve the preinstalled pgTAP schema. Use the linked
 pooler URL plus the database password instead; keep the password in Keychain or
 `PGPASSWORD`, never command output. The suite is enclosed in `BEGIN`/`ROLLBACK`.
 
-Supabase CLI 2.107.0 may warn that its optional pg-delta migration catalog cache
+Supabase CLI 2.109.1 may warn that its optional pg-delta migration catalog cache
 could not read a temporary CA file. Treat a push as successful only when the
 command finishes, remote migration history matches, and the post-push dry run,
 lint, and pgTAP checks all pass.
@@ -159,10 +194,10 @@ errors block promotion. Warnings require a written determination; public
 waitlist/signed-in RPCs, anonymous-user RLS, separate admin/owner policies, and
 fresh-database unused indexes may be intentional but must not be ignored.
 
-Before launch, select a plan that meets the required managed backup/PITR
-posture and perform a documented restore drill. Project provisioning alone
-does not meet that gate. Current results and blockers live in
-[PLAN.md](PLAN.md).
+Before launch, the owner must select/fund the managed backup/PITR posture,
+record retention/RPO/RTO, and complete a documented restore drill. The current
+runbook is a proposal, not evidence that backup billing or recovery is
+operational. See [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 
 ## 2. Landing page (Next.js 16 static export, Vercel)
 
@@ -193,8 +228,9 @@ The variables are configured as development/preview → preview Supabase and
 production → production Supabase.
 
 The current public alias is `https://relogo-two.vercel.app`. The custom
-`relogo.app` domain is not configured. The local `/support` and versioned legal
-pages are newer than the deployed build; redeploy, then smoke-test `/`,
+`relogo.app` domain is not configured. The local `/support`, versioned legal,
+and recovery presentation are newer than the deployed build. Deploy first to a
+preview target and review it; after production approval, redeploy and smoke-test `/`,
 `/privacy`, `/terms`, `/support`, `/robots.txt`, and `/sitemap.xml` before
 promotion.
 
@@ -218,9 +254,12 @@ Vercel setup (`admin/vercel.json` already includes the SPA rewrite to
   - `VITE_SUPABASE_ANON_KEY`
 
 The variables are configured with the same preview/production separation.
-The public alias is `https://relo-go.vercel.app`. Before deploying, inspect the
-local Vercel link: `admin/.vercel/project.json` currently names a separate
-`admin` project, so relink or explicitly target the intended `relo-go` project.
+The reviewed current recovery build is deployed to production at
+`https://relo-go.vercel.app`, and the manual seven-route public check includes
+its admin marker. Before any future deployment, inspect the local Vercel link:
+`admin/.vercel/project.json` currently names a separate `admin` project, so
+relink or explicitly target the intended `relo-go` project and use a preview
+deployment before promotion.
 
 ## 4. Mobile app (Expo SDK 55, EAS)
 
@@ -228,20 +267,49 @@ Build profiles are defined in `mobile/eas.json` (`development`, `preview`,
 `production`; EAS CLI `>= 12.0.0`, remote app version source with
 auto-increment in production).
 
-Local iOS and Android Hermes exports pass. The only existing EAS artifacts are
-three old SDK 51 production builds; they are not evidence for the current SDK
-55 tree. New preview builds and real-device QA are required before release.
+The shipped App Store 1.0 binary is not recoverable: its compiled SDK 51 bundle
+contains the deleted `fxrynmgaymslwcklfena` Supabase ref, it had no compatible
+Expo Updates runtime, and there are zero OTA updates for it. Do not attempt an
+`eas update` hotfix for that binary.
+
+The local recovery app is 1.0.1 / SDK 55 and now has app-version-based runtime
+versioning, Expo Updates configuration, and a build-time release preflight.
+This helps future compatible releases; it does not retroactively update 1.0.
+The only existing EAS artifacts are three old SDK 51 builds, so new preview
+builds and real-device QA are mandatory. The registered production EAS values
+pass the release contract and signing credentials exist for iOS and Android.
+The production dependency audit reports 0 vulnerabilities after an exact
+`xcode@3.0.1` override pins the CommonJS-compatible `uuid@11.1.1`; keep that
+override narrow and remove it when fixed upstream.
+The final current-tree local mobile gates pass: release configuration,
+TypeScript, lint, 11 Jest suites with 113/113 tests, iOS export at 1,752
+modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
+bytecode, and audit 0. These results do not replace a new cloud build or
+real-device QA.
+Before internal iOS QA, the account owner must register a test iPhone. Before
+automated Android submission, the owner must provide/review a Google Play
+service-account key; otherwise use a documented owner-controlled manual path.
 
 ```bash
 cd mobile
 npm ci
+npm run check:release
+npx expo install --check
+npm run lint
+npm run typecheck
+npm test -- --runInBand
+npm audit --omit=dev
 npx expo start                                  # local development
 
 npm install -g eas-cli                          # or: npx eas-cli ...
 eas login
-eas build --profile preview --platform all      # internal distribution
-eas build --profile production --platform all   # store build
-eas submit --profile production --platform all  # store submission
+eas env:list --environment preview
+eas build --profile preview --platform all      # first: internal distribution
+
+# Only after preview/device/legal/store/production gates all pass:
+eas env:list --environment production
+eas build --profile production --platform all
+eas submit --profile production --platform all
 ```
 `mobile/eas.json` explicitly selects the EAS `development`, `preview`, and
 `production` environments and intentionally stores no project values. The
@@ -250,7 +318,29 @@ registered EAS project already has `EXPO_PUBLIC_SUPABASE_URL` and
 production targets production. Verify them with
 `eas env:list --environment <name>` after any rotation. The publishable key
 (stored under the compatibility `*_ANON_KEY` name) is public by design;
-RLS/RPCs are the security boundary.
+RLS/RPCs are the security boundary. Runtime validation accepts only clean
+Supabase origins; hosted URLs require HTTPS and cannot contain credentials,
+custom ports, paths, queries, or fragments.
+
+`eas-build-pre-install` runs `npm run check:release`. It rejects a marketing
+version below 1.0.1, a mismatched EAS project/runtime/update URL, the retired
+backend ref, incorrect environment/channel wiring, an unverified legal origin,
+or a production build whose URL is not the exact clean origin
+`https://yskknolxbxfxakgvrcmg.supabase.co` (an optional trailing slash is
+accepted). It trims the public key and rejects missing or whitespace-only
+values. Treat any failure as a release blocker; do not remove the check to make
+a build pass.
+
+The startup recovery removes network work from the static splash path, bounds
+session restore at 3 seconds and consent/profile bootstrap at 5 seconds, avoids
+duplicate initial-session requests, reuses the bootstrap profile, and defers the
+heavy PDF engine until an explicit tap. Checklist profile/rules/progress reads
+abort after 8 seconds and use `retry: false`. Onboarding writes only minimal
+non-PII profile fields, then `get_policy_consent_state()` returns the
+authoritative allowlisted profile that is cached before checklist navigation.
+Onboarding auth, profile insert/update, and confirmation waits are each bounded
+at 10 seconds. Measure cold/warm launch on representative phones and constrained
+networks; local code changes are not proof of user-perceived startup time.
 
 `EXPO_PUBLIC_LEGAL_SITE_URL` defaults to
 `https://relogo-two.vercel.app`; set it explicitly in EAS only when switching to
@@ -274,6 +364,16 @@ and account deletion wipe the cache unconditionally.
 
 For local development copy `mobile/.env.example` to `mobile/.env`.
 
+Before store submission, a human account owner/legal reviewer must confirm the
+draft App Store Connect and Google Play disclosures in `docs/STORE.md`, including
+anonymous account-linked move/progress/support data, Gemini processing, and
+device-only PII. The live App Store "Data Not Collected" answer must be
+corrected. Complete Apple metadata, age rating, availability/trader status,
+2FA/account steps, final screenshots, real-device QA, and a monitored Support
+URL. Never describe a Git draft as a completed store form. Apple device
+registration/2FA and Google Play service-account provisioning are account-owner
+actions, not engineering verification.
+
 ## 5. Rule-monitor worker (Python 3.11 + Playwright)
 
 The worker is part of launch operations: it keeps official-source content under
@@ -284,16 +384,25 @@ branch plus the secrets in [Scheduling](#scheduling-free).
 The worker is containerized (`worker/Dockerfile`, `python:3.11-slim` with
 Chromium for Playwright).
 
-Migration 011 must be applied first. The service role can read the narrow source
-columns and execute `persist_official_source_scrape()` but cannot directly edit
-source baselines or alert rows. The RPC atomically files a PENDING alert and
-advances its baseline; stale compare-and-swap work is discarded and reported.
+Migrations 011 and 023 must be applied first; both are now present in
+production. The service role can read the narrow source columns and execute
+`persist_official_source_scrape()` but cannot directly edit source baselines or
+alert rows. The RPC atomically files a PENDING alert and advances its baseline;
+stale compare-and-swap work is discarded and reported.
+
+The local workflow runs `worker/preflight.py` before browser installation. It
+accepts only `https://yskknolxbxfxakgvrcmg.supabase.co`, rejecting preview,
+lookalike hosts, credentials, ports, paths, queries, and fragments before its
+read-only key/schema/resolver checks. Production has the required resolver.
+`worker/requirements.txt` locally pins `supabase==2.31.0`; the default branch
+still deploys 2.4.0. Current local compile and 77/77 worker tests pass; they do
+not establish a live 53-source production baseline.
 
 ```bash
 cd worker
 docker build -t relogo-worker .
 docker run --rm \
-  -e SUPABASE_URL=https://<your-project-ref>.supabase.co \
+  -e SUPABASE_URL=https://yskknolxbxfxakgvrcmg.supabase.co \
   -e SUPABASE_SERVICE_ROLE_KEY=<service-role-key> \
   relogo-worker
 ```
@@ -307,12 +416,16 @@ Optional tuning: `PAGE_TIMEOUT_MS` (default 30000), `NAV_TIMEOUT_MS`
 
 The workflow defines a daily cron (`0 2 * * *` UTC) plus a manual **Run
 workflow** button. It and the required `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` secrets are already on the default branch. Commit
-the local Ubuntu 22.04 runner fix, manually rerun the workflow, triage every
-failed source, and establish a healthy baseline. Configure and exercise the
-optional `ALERT_WEBHOOK_URL`; that secret is currently absent. The service role
-key bypasses RLS and belongs only in the worker environment, never in a client
-app.
+`SUPABASE_SERVICE_ROLE_KEY` secret names are on the default branch, but current
+values must be reviewed without printing them. GitHub CLI authentication is
+currently invalid, so the dependency/preflight workflow, secret/variable
+updates, and manual dispatch are not complete. The owner must reauthenticate,
+complete any GitHub 2FA, review/commit/push, confirm the GitHub production
+URL/key variables use the exact production origin above and target the reviewed
+001–026 backend, then run preflight and one manual 53-source baseline before
+enabling the schedule. Configure and exercise the
+optional `ALERT_WEBHOOK_URL`; it is currently absent. The secret key bypasses
+RLS and belongs only in the worker, never a client.
 
 Local run without Docker:
 
@@ -320,8 +433,11 @@ Local run without Docker:
 cd worker
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+SUPABASE_URL=https://yskknolxbxfxakgvrcmg.supabase.co \
+  SUPABASE_SERVICE_ROLE_KEY=... python preflight.py
 playwright install chromium
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python main.py
+SUPABASE_URL=https://yskknolxbxfxakgvrcmg.supabase.co \
+  SUPABASE_SERVICE_ROLE_KEY=... python main.py
 ```
 
 ## 6. Secrets and PIPEDA notes
@@ -375,10 +491,19 @@ all user turns, fails closed on unknown/legacy text or human history, bounds
 usage/context, and atomically persists a reply only if the same user turn is
 still latest and the thread remains AI-owned.
 
+Current state: preview v3 was authenticated-smoke-tested before being paused.
+Production v4 is ACTIVE with JWT verification and returns 401 unauthenticated;
+its public resolver smoke passed. v4 grounds through
+`resolve_corridor_rules()`, validates/bounds HTTPS sources, uses current
+reviewed Gemini model IDs, applies a 12-second provider deadline across both
+response headers and the full response-body read, caps output, and returns
+generic PII-safe failures. Keep authenticated production support in the release
+QA matrix even though unauthenticated/JWT behavior is verified.
+
 Deploy and configure it:
 
 ```bash
-# Always target preview explicitly. The env file must be outside the repo and
+# Resume preview first. Always target it explicitly. The env file must be outside the repo and
 # contain exactly: GEMINI_API_KEY=<your-key>
 PREVIEW_REF="replace-with-preview-project-ref"
 PRODUCTION_REF="replace-with-production-project-ref"
@@ -390,7 +515,8 @@ supabase functions deploy support-ai \
   --project-ref "$PREVIEW_REF" --use-api
 supabase functions list --project-ref "$PREVIEW_REF"
 
-# After an authenticated preview Gemini/support flow passes, promote explicitly.
+# Future production redeploy only: require explicit approval and a passing
+# authenticated preview Gemini/support flow first. Production is already on v4.
 supabase secrets set --project-ref "$PRODUCTION_REF" \
   --env-file "$GEMINI_ENV_FILE"
 supabase functions deploy support-ai \
@@ -402,6 +528,11 @@ Never rely on the currently linked project for secret or function commands.
 Keep JWT verification enabled; do not pass `--no-verify-jwt`. See
 [PLAN.md](PLAN.md) for the current deployment/secret status.
 
+After either deployment, inspect `supabase functions list --project-ref ...`,
+verify the expected version is ACTIVE with JWT verification, confirm an
+unauthenticated request is rejected, and run the authenticated non-fallback
+support smoke. A safe fallback alone is not authenticated AI verification.
+
 Only `GEMINI_API_KEY` must be set: `SUPABASE_URL` and
 `SUPABASE_SERVICE_ROLE_KEY` are auto-injected into Edge Functions by Supabase,
 so do not set them yourself. The key is **never** embedded in the mobile or
@@ -410,7 +541,7 @@ admin app — it lives only as a Supabase secret read server-side by the functio
 Create the key in Google AI Studio. The function tries the stable models in the
 `MODELS` list in order and falls through to a human-handoff response on
 quota/availability errors. Re-verify current model IDs and provider terms before
-production deployment.
+any future production redeploy or mobile release.
 
 ### Support / privacy guarantees
 
@@ -428,27 +559,42 @@ production deployment.
 
 `.github/workflows/ci.yml` runs on pushes to `main`/`tamim` and on pull requests:
 
-- `mobile-typecheck`: clean install, Expo dependency alignment, TypeScript
+- Node jobs use Node 22. The recovery edits are local until GitHub auth is
+  restored and the branch is pushed.
+- `mobile-typecheck`: clean install, release-config preflight, Expo dependency
+  alignment, TypeScript
 - `mobile-lint`: clean install, ESLint (`eslint-config-expo` flat config)
 - `mobile-test`: Jest account/date/support/legal/PDF/error-reporting tests
 - `mobile-native-export`: iOS and Android Hermes exports
 - `admin-build`: `npm ci && npm run build` in `admin/`
 - `landing-build`: clean install, ESLint, and static production build
 - `db-tests`: pinned Supabase CLI, fresh local stack, schema lint, pgTAP
-- `e2e-test`: 85-case Python local integration/E2E suite
-- `support-ai-test`: allowlist sync plus Deno helper tests
+- `e2e-test`: full Python local integration/E2E suite (do not hard-code an old
+  case count; record collection/results for the exact release tree)
+- `support-ai-test`: allowlist sync plus Deno format, lint, type, and helper tests
 - `consent-version-sync`: verifies mobile, legal-page, and database policy versions
-- `worker-compile`: compiles worker modules
+- `worker-compile`: compiles worker and read-only preflight modules
 - `worker-test`: Python 3.11 pytest suite
 - `types-sync`: verifies the mobile/admin `Database` interfaces are byte-identical
 
 The web builds use placeholder Supabase env values in CI; real values are
 injected by Vercel at deploy time.
 
-`.github/workflows/uptime.yml` is a separate local pending scheduled workflow.
-After the new support route is deployed and a manual dispatch passes, set the
-repository variable `UPTIME_ENABLED=true` to activate its schedule. Configure
-explicit GitHub notification ownership rather than assuming failure email.
+On the current local recovery tree, admin/landing lint and builds, Deno
+format/lint/type checks with 12/12 support tests, worker compile with 77/77
+tests, and the mobile gates recorded above all pass. CI still requires a pushed
+branch and is not implied by these local results.
+
+`.github/workflows/uptime.yml` is present on `main` but skipped while
+`UPTIME_ENABLED` is unset. Local recovery edits add anonymous-auth configuration
+and canonical-resolver probes using reviewed Supabase URL/public-key variables.
+The script rejects every backend URL except the exact production origin
+`https://yskknolxbxfxakgvrcmg.supabase.co`; the edits are not pushed/live. A
+manual web-only run passes all seven public routes (six landing routes plus
+admin), but it does not exercise Supabase or activate the schedule. After the
+landing/backend-aware release and a manual production-Supabase dispatch pass,
+set `UPTIME_ENABLED=true` only with explicit alert ownership. Never put a
+secret/service-role key in the uptime probe.
 
 ## 8. Incident Runbook and Monitoring
 
@@ -458,9 +604,13 @@ explicit GitHub notification ownership rather than assuming failure email.
   then publish the monitored address through `NEXT_PUBLIC_SUPPORT_EMAIL`.
 - **Edge Function:** review `support-ai` logs for exceptions, Gemini rate limits,
   policy-consent failures, and fallback surges.
-- **Worker:** commit the runner fix, establish a healthy 53-source baseline,
-  configure a webhook, and assign explicit GitHub Actions alert ownership.
-- **App uptime:** commit the uptime workflow after `/support` is live. Provider
+- **Worker:** publish the modern Supabase client/preflight fix, establish a
+  healthy 53-source baseline, configure a webhook, and assign explicit GitHub
+  Actions alert ownership. Ubuntu 22.04 itself is already on `main`.
+- **App uptime:** production has the required resolver; publish the backend-aware
+  uptime changes after the current `/support` build and reviewed GitHub public
+  URL/key variables are live and point to the exact production origin. The
+  seven-route web-only check is green, but is not backend monitoring. Provider
   status pages are useful incident context, but are not ReloGo app monitoring.
 - **Crash/error monitoring:** the mobile app now captures crashes/errors
   on-device in a PII-safe form behind a top-level `AppErrorBoundary` and a
@@ -478,6 +628,9 @@ explicit GitHub notification ownership rather than assuming failure email.
 1. Open the GitHub Actions tab and inspect the failed worker logs.
 2. Determine whether the failure happened during runner setup, authentication,
    or source fetching; rerun only after the cause is understood.
+   The current known failure is the old Python client's rejection of the modern
+   key; verify that the reviewed 2.31.0/preflight change is actually deployed
+   before rotating a valid key unnecessarily.
 3. Triage every failed government source. Fifteen sources currently need a bot,
    server-error, or extraction strategy; do not silently wait for the next cron.
 4. If a site structure changed, update and test the bounded extraction logic.
@@ -497,8 +650,27 @@ explicit GitHub notification ownership rather than assuming failure email.
 **Action:**
 1. Check [Supabase Status](https://status.supabase.com/) for ongoing platform incidents.
 2. Stop unsafe writes, preserve evidence, and follow
-   `docs/BACKUP_RESTORE.md`. The current free plan does not provide the required
-   PITR posture; use PITR only after a capable plan is funded and a restore
-   drill has passed.
+   `docs/BACKUP_RESTORE.md`. Backup plan/retention/PITR are not currently
+   approved as operational; use only capabilities verified in the Dashboard
+   and do not practice an in-place restore on production.
 3. Establish a monitored public incident channel before launch; no public
    status page or mailbox currently exists.
+
+#### 4. Mobile opens slowly or cannot reach the backend
+
+**Symptom:** A user remains on loading/retry UI, or the store build cannot reach
+Supabase.
+
+1. Identify the exact binary version/runtime/channel and embedded project ref.
+   The shipped 1.0 / SDK 51 binary points to a deleted project and cannot be
+   repaired by OTA; direct the incident to the 1.0.1 store-release plan.
+2. For 1.0.1+, distinguish the three-second local secure-session restore, the
+   five-second consent/profile bootstrap, and the eight-second abortable
+   checklist reads. Onboarding auth, profile insert/update, and authoritative
+   confirmation each use a ten-second bound. Automatic query retry is
+   intentionally disabled. Do not log session tokens or user-entered PII.
+3. Verify Supabase health, anonymous auth, resolver availability, and the EAS
+   environment mapping. Do not lengthen startup timeouts merely to hide a
+   backend/configuration failure.
+4. OTA is an option only when the installed binary has a compatible
+   app-version runtime/channel and the update has passed preview QA.

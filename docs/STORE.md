@@ -1,5 +1,15 @@
 # ReloGo App Store Metadata
 
+> **Draft only (2026-07-31):** This repository text is not evidence that App
+> Store Connect or Google Play forms were updated. Before the 1.0.1 submission,
+> the account owner and legal reviewer must confirm the live binary's behavior,
+> anonymous account-linked data, Gemini processing, device-only PII claims,
+> age rating, availability/trader status, screenshots, and monitored Support URL
+> in both stores. The live App Store answer that says ReloGo collects no data
+> must be corrected: the anonymous identifier and linked move, progress, and
+> support records listed below are collected even though sensitive PDF details
+> remain device-only.
+
 ## App Name (iOS and Android)
 ReloGo — Canadian Move Guide
 

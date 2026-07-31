@@ -1,7 +1,7 @@
 import { deleteAccount, signOutAccount } from "../../lib/account";
 import { supabase } from "../../lib/supabase";
 import { deleteAllPII } from "../../lib/secureStore";
-import { wipeFilledPDFs } from "../../lib/pdfEngine";
+import { wipeFilledPDFs } from "../../lib/pdfCleanup";
 
 jest.mock("../../lib/supabase", () => ({
   supabase: {
@@ -14,7 +14,7 @@ jest.mock("../../lib/secureStore", () => ({
   deleteAllPII: jest.fn(),
 }));
 
-jest.mock("../../lib/pdfEngine", () => ({
+jest.mock("../../lib/pdfCleanup", () => ({
   wipeFilledPDFs: jest.fn(),
 }));
 

@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/_layout";
@@ -77,12 +77,17 @@ export default function ReconsentScreen() {
       if (
         stateError ||
         consentState?.has_current_consent !== true ||
+        !consentState.profile ||
         consentState.accepted_version !== consentState.current_version ||
         acceptedVersion !== consentState.current_version
       ) {
         throw new Error("Policy acceptance was not confirmed");
       }
 
+      queryClient.setQueryData(
+        ["profile", session.user.id],
+        consentState.profile,
+      );
       setHasCurrentConsent(true);
       router.replace("/(tabs)/checklist");
     } catch {

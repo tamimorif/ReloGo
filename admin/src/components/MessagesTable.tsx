@@ -49,11 +49,6 @@ export function MessagesTable() {
   // `background` refetches (realtime) refresh the loaded rows in place
   // without blanking the table behind the loading spinner.
   const fetchThreads = useCallback(async (background = false) => {
-    if (!background) {
-      setLoading(true);
-      setError(null);
-    }
-
     const limit = Math.max(loadedCountRef.current, PAGE_SIZE);
     const { data, error: fetchErr } = await supabase
       .from("support_threads")
@@ -70,6 +65,12 @@ export function MessagesTable() {
     }
     if (!background) setLoading(false);
   }, []);
+
+  const refreshThreads = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    void fetchThreads();
+  }, [fetchThreads]);
 
   useEffect(() => {
     fetchThreads();
@@ -133,8 +134,8 @@ export function MessagesTable() {
   // ── After modal close (refetch to reflect status / activity changes) ──
   const handleModalClose = useCallback(() => {
     setSelectedThreadId(null);
-    fetchThreads();
-  }, [fetchThreads]);
+    refreshThreads();
+  }, [refreshThreads]);
 
   // ── Helpers ───────────────────────────────────────────────────────────
   const fmtDate = (iso: string) =>
@@ -155,7 +156,7 @@ export function MessagesTable() {
           </p>
         </div>
         <button
-          onClick={() => fetchThreads()}
+          onClick={refreshThreads}
           disabled={loading}
           className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
         >

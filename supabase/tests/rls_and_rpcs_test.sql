@@ -1088,7 +1088,9 @@ SELECT ok(
           ('public.corridor_task_rules', 'dest_province'),
           ('public.corridor_task_rules', 'days_deadline'),
           ('public.corridor_task_rules', 'is_mandatory'),
+          ('public.corridor_task_rules', 'created_at'),
           ('public.global_tasks', 'id'),
+          ('public.global_tasks', 'task_key'),
           ('public.global_tasks', 'title_en'),
           ('public.global_tasks', 'base_description_en'),
           ('public.global_tasks', 'requires_vehicle'),
@@ -1168,10 +1170,10 @@ SELECT ok(
             ])
             WHEN 'corridor_task_rules' THEN column_name = ANY (ARRAY[
                 'id', 'task_id', 'origin_province', 'dest_province',
-                'days_deadline', 'is_mandatory'
+                'days_deadline', 'is_mandatory', 'created_at'
             ])
             WHEN 'global_tasks' THEN column_name = ANY (ARRAY[
-                'id', 'title_en', 'base_description_en',
+                'id', 'task_key', 'title_en', 'base_description_en',
                 'requires_vehicle', 'requires_dependents'
             ])
             ELSE FALSE
@@ -1215,26 +1217,26 @@ SELECT ok(
         'service_role', 'public.official_sources', required.column_name, 'SELECT'))
        FROM (VALUES
           ('id'),
+          ('corridor_rule_id'),
           ('agency_name'),
           ('official_url'),
+          ('last_verified'),
           ('last_content_hash'),
           ('last_content_text')
        ) AS required(column_name)),
-    'K: worker can select every official-source column it requires'
+    'K: shared role can select every source column required by worker/resolver paths'
 );
 
 SELECT ok(
     NOT has_column_privilege(
-        'service_role', 'public.official_sources', 'corridor_rule_id', 'SELECT')
-    AND NOT has_column_privilege(
-        'service_role', 'public.official_sources', 'last_verified', 'SELECT')
+        'service_role', 'public.official_sources', 'created_at', 'SELECT')
     AND NOT has_table_privilege(
         'service_role', 'public.official_sources', 'INSERT')
     AND NOT has_table_privilege(
         'service_role', 'public.official_sources', 'UPDATE')
     AND NOT has_table_privilege(
         'service_role', 'public.official_sources', 'DELETE'),
-    'K: worker cannot read unneeded source columns or write baselines directly'
+    'K: shared role cannot read unneeded source columns or write baselines directly'
 );
 
 SELECT ok(
@@ -1815,7 +1817,8 @@ SELECT is(
         'has_profile', true,
         'accepted_version', '1.1',
         'current_version', '2.0',
-        'has_current_consent', false
+        'has_current_consent', false,
+        'profile', NULL
     ),
     'O: an upgraded client can detect a stale profile and the server-current version'
 );

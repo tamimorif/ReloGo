@@ -13,9 +13,10 @@ type AdminView = "alerts" | "users" | "messages" | "waitlist";
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  // null = not yet checked (or no session); true/false = is_admin() result
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [adminCheckLoading, setAdminCheckLoading] = useState(false);
+  const [adminCheck, setAdminCheck] = useState<{
+    userId: string;
+    isAdmin: boolean;
+  } | null>(null);
   const [view, setView] = useState<AdminView>("alerts");
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
+      if (!s) setAdminCheck(null);
     });
 
     return () => subscription.unsubscribe();
@@ -37,20 +39,18 @@ export default function App() {
 
   // ── Server-side admin check (admin_users table via is_admin() RPC) ──
   const userId = session?.user.id ?? null;
+  const isAdmin =
+    userId && adminCheck?.userId === userId ? adminCheck.isAdmin : null;
+
   useEffect(() => {
-    if (!userId) {
-      setIsAdmin(null);
-      return;
-    }
+    if (!userId) return;
 
     let cancelled = false;
-    setAdminCheckLoading(true);
 
     supabase.rpc("is_admin").then(({ data, error }) => {
       if (cancelled) return;
       // Any error (network, RPC missing, etc.) is treated as not authorized.
-      setIsAdmin(!error && data === true);
-      setAdminCheckLoading(false);
+      setAdminCheck({ userId, isAdmin: !error && data === true });
     });
 
     return () => {
@@ -61,6 +61,7 @@ export default function App() {
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
     setSession(null);
+    setAdminCheck(null);
   }, []);
 
   if (loading) {
@@ -129,7 +130,7 @@ export default function App() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {!session ? (
           <LoginForm />
-        ) : adminCheckLoading || isAdmin === null ? (
+        ) : isAdmin === null ? (
           <div className="flex min-h-[70vh] items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
           </div>

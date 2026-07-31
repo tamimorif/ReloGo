@@ -14,17 +14,27 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import { Session } from "@supabase/supabase-js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-import { sweepTemporaryPDFs } from "@/lib/pdfEngine";
+import {
+  supabase,
+  supabaseConfigurationError,
+} from "@/lib/supabase";
+import { sweepTemporaryPDFs } from "@/lib/pdfCleanup";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { installGlobalErrorHandler } from "@/lib/errorReporting";
+import { withStartupTimeout } from "@/lib/startupTimeout";
 
 // Route uncaught (async/global) errors through the privacy-safe sanitizer as
 // early as possible, before any screen renders.
 installGlobalErrorHandler();
 
 // Prevent auto-hide so we control when splash goes away
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// Worst-case bootstrap reaches a controlled retry surface in eight seconds:
+// at most three seconds for encrypted local session restoration, followed by
+// five seconds for the consent/profile RPC on a slow or unreachable network.
+const SESSION_RESTORE_TIMEOUT_MS = 3_000;
+const PROFILE_CHECK_TIMEOUT_MS = 5_000;
 
 // Module-level client so cache survives re-renders of the root layout.
 const queryClient = new QueryClient();
@@ -61,7 +71,7 @@ export function useAuth(): AuthContextType {
 
 function RootLayoutInner() {
   const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!supabaseConfigurationError);
   const [hasProfile, setHasProfile] = useState(false);
   const [hasCurrentConsent, setHasCurrentConsent] = useState(false);
   const [authLoadFailed, setAuthLoadFailed] = useState(false);
@@ -76,6 +86,13 @@ function RootLayoutInner() {
   // Monotonic sequence so a slow, stale profile check can never overwrite
   // the result of a newer check or a child screen's completed mutation.
   const profileCheckSeq = useRef(0);
+
+  // Once React has painted the responsive loading/recovery surface, release
+  // the native splash. Remote profile validation must never hold a static
+  // launch image on screen for the duration of a slow mobile connection.
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, []);
 
   function publishHasProfile(value: boolean) {
     profileCheckSeq.current += 1;
@@ -100,12 +117,16 @@ function RootLayoutInner() {
 
   // Listen for auth state changes
   useEffect(() => {
+    if (supabaseConfigurationError) return;
+
     let cancelled = false;
     let authEventSeen = false;
 
     // Get initial session
-    supabase.auth
-      .getSession()
+    withStartupTimeout(
+      supabase.auth.getSession(),
+      SESSION_RESTORE_TIMEOUT_MS,
+    )
       .then(({ data: { session: initialSession }, error }) => {
         // onAuthStateChange can win this race. Its newer session is the source
         // of truth, so never overwrite it with this older snapshot.
@@ -120,7 +141,7 @@ function RootLayoutInner() {
         setSession(initialSession);
         setAuthLoadFailed(false);
         if (initialSession) {
-          checkProfile();
+          checkProfile(initialSession.user.id);
         } else {
           profileCheckSeq.current += 1;
           setHasProfile(false);
@@ -138,13 +159,18 @@ function RootLayoutInner() {
     // Subscribe to auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
+      // getSession() owns bootstrap, including storage/config failure. Recent
+      // Supabase clients also emit INITIAL_SESSION from this subscription;
+      // processing both would launch duplicate consent RPCs on every startup.
+      if (event === "INITIAL_SESSION") return;
+
       authEventSeen = true;
       setAuthLoadFailed(false);
       setSession(newSession);
 
       if (newSession) {
-        checkProfile();
+        checkProfile(newSession.user.id);
       } else {
         // A signed-out session must invalidate every in-flight profile query;
         // otherwise a late response can restore stale profile/loading state.
@@ -162,11 +188,17 @@ function RootLayoutInner() {
     };
   }, []);
 
-  async function checkProfile() {
+  async function checkProfile(userId: string) {
     const seq = ++profileCheckSeq.current;
+    const controller = new AbortController();
     try {
-      const { data, error } = await supabase
-        .rpc("get_policy_consent_state");
+      const { data, error } = await withStartupTimeout(
+        supabase
+          .rpc("get_policy_consent_state")
+          .abortSignal(controller.signal),
+        PROFILE_CHECK_TIMEOUT_MS,
+        () => controller.abort(),
+      );
 
       if (seq !== profileCheckSeq.current) {
         return; // a newer check superseded this one — discard stale result
@@ -184,6 +216,14 @@ function RootLayoutInner() {
       // older in-flight result is discarded before reaching this point.
       setHasProfile(data.has_profile);
       setHasCurrentConsent(data.has_current_consent);
+      if (data.has_current_consent && data.profile) {
+        // Seed the checklist/profile query with the profile already returned
+        // by the consent gate. Rules and progress can now start together,
+        // removing one cellular-network round trip from a warm launch.
+        queryClient.setQueryData(["profile", userId], data.profile);
+      } else {
+        queryClient.removeQueries({ queryKey: ["profile", userId] });
+      }
     } catch (err) {
       if (seq !== profileCheckSeq.current) {
         return; // a newer check superseded this one — discard stale failure
@@ -204,20 +244,23 @@ function RootLayoutInner() {
     if (!session) return;
     setProfileCheckFailed(false);
     setIsLoading(true);
-    checkProfile();
+    checkProfile(session.user.id);
   }
 
   async function retryAuthLoad() {
     setAuthLoadFailed(false);
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } = await withStartupTimeout(
+        supabase.auth.getSession(),
+        SESSION_RESTORE_TIMEOUT_MS,
+      );
       if (error) throw error;
 
       const nextSession = data.session;
       setSession(nextSession);
       if (nextSession) {
-        checkProfile();
+        checkProfile(nextSession.user.id);
       } else {
         profileCheckSeq.current += 1;
         setHasProfile(false);
@@ -272,19 +315,33 @@ function RootLayoutInner() {
     authLoadFailed,
     profileCheckFailed,
     segments,
+    router,
   ]);
 
-  // Hide splash when ready
-  useEffect(() => {
-    if (!isLoading) {
-      SplashScreen.hideAsync();
-    }
-  }, [isLoading]);
+  if (supabaseConfigurationError) {
+    return (
+      <View className="flex-1 items-center justify-center bg-slate-50 px-8">
+        <Text className="text-center text-lg font-semibold text-slate-900">
+          This ReloGo build isn't configured
+        </Text>
+        <Text className="mt-2 text-center text-sm leading-5 text-slate-500">
+          Install the latest release or contact ReloGo support. Your on-device
+          personal information is unchanged.
+        </Text>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50">
+      <View
+        className="flex-1 items-center justify-center bg-slate-50 px-8"
+        accessibilityLabel="Loading your ReloGo checklist"
+      >
         <ActivityIndicator size="large" color="#2563EB" />
+        <Text className="mt-4 text-center text-sm text-slate-500">
+          Getting your checklist ready…
+        </Text>
       </View>
     );
   }

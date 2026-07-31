@@ -9,8 +9,8 @@ name: Worker — rule monitor
 #
 # REQUIRED repo secrets (Settings → Secrets and variables → Actions → New secret):
 #   SUPABASE_URL               — https://<project-ref>.supabase.co
-#   SUPABASE_SERVICE_ROLE_KEY  — the service_role key (bypasses RLS; worker-only,
-#                                never ship it in any client app)
+#   SUPABASE_SERVICE_ROLE_KEY  — a current secret/service-role key (bypasses
+#                                RLS; worker-only, never ship it in a client)
 # The worker exits 1 with a clear log line if either is missing.
 #
 # OPTIONAL repo secrets:
@@ -44,6 +44,10 @@ jobs:
     runs-on: ubuntu-22.04
     # Includes browser installation plus bounded retries across all sources.
     timeout-minutes: 35
+    env:
+      # Job scope makes the sanitized failure notifier's `if:` reliable;
+      # GitHub does not expose `secrets.*` directly in conditional expressions.
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +57,12 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install -r worker/requirements.txt
+
+      - name: Validate production backend, key, and schema
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python worker/preflight.py
 
       - name: Install Chromium + OS dependencies
         run: python -m playwright install --with-deps chromium
@@ -65,3 +75,12 @@ jobs:
           SCRAPE_CONCURRENCY: "8"
           MAX_HTML_TEXT_CHARS: "1000000"
         run: python worker/main.py
+
+      - name: Notify on workflow-level failure
+        if: failure() && env.ALERT_WEBHOOK_URL != ''
+        continue-on-error: true
+        run: >-
+          curl --fail --silent --show-error
+          -H 'Content-Type: application/json'
+          --data "{\"text\":\"ReloGo rule monitor failed before completion: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}"
+          "$ALERT_WEBHOOK_URL"
