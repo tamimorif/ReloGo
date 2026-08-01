@@ -1,4 +1,3 @@
-# Test-only dependencies for the worker (not needed at runtime).
-# The pure-logic tests import only worker/changedetect.py (stdlib), so they do
-# NOT need playwright/supabase from requirements.txt.
+# Test-only dependencies for the worker (install alongside requirements.txt).
+# Preflight tests import the runtime Supabase client as part of module loading.
 pytest==8.2.2
