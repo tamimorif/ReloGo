@@ -35,7 +35,7 @@ Current hosted/repository truth (2026-07-31):
 | Mobile | Local version 1.0.1 / SDK 55 gates pass. iOS production build 6 is `FINISHED` (EAS `2c83c4f5-b154-4632-8604-6350a77bbee4`); Android production build 3 is `FINISHED` (EAS `20256d8c-cf12-472c-a236-7223e0207103`). Real-device QA and submission remain |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; backend-aware uptime run #113 passed production web/auth/resolver checks |
 | Worker/uptime | Worker compile/tests 77/77 pass and backend-aware uptime run #113 passed; worker production baseline/webhook remain blocked by old encrypted secrets pending owner passkey update |
-| GitHub | Recovery commit `0135964` is pushed and Actions variables are corrected; encrypted secrets remain old pending owner passkey; no pull request or CI evidence exists |
+| GitHub | Recovery commit `0135964` and the final evidence update are pushed in pull request #2; Actions variables are corrected; encrypted secrets remain old pending owner passkey; required CI checks are the review gate |
 
 The worker's Ubuntu 22.04 runner is already on `main`, and the modern
 `supabase==2.31.0` client/preflight source is pushed in `0135964`. Old encrypted
@@ -562,8 +562,9 @@ any future production redeploy or mobile release.
 
 `.github/workflows/ci.yml` runs on pushes to `main`/`tamim` and on pull requests:
 
-- Node jobs use Node 22. Recovery commit `0135964` is pushed on
-  `codex/recovery-and-mobile-startup`, but no pull request or CI evidence exists.
+- Node jobs use Node 22. Recovery commit `0135964` and the final evidence update
+  are pushed on `codex/recovery-and-mobile-startup` in pull request #2; its
+  required checks are the CI review gate.
 - `mobile-typecheck`: clean install, release-config preflight, Expo dependency
   alignment, TypeScript
 - `mobile-lint`: clean install, ESLint (`eslint-config-expo` flat config)

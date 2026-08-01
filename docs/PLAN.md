@@ -240,9 +240,9 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 ## Verification snapshot
 
 Verification must be interpreted by tree and environment; older green counts do
-not prove a newer tree. Recovery commit `0135964` is pushed and has a complete
-local matrix, but no pull request or CI evidence exists, and local evidence does
-not replace real-device or store-submission evidence.
+not prove a newer tree. Recovery commit `0135964` and the final evidence update
+are pushed in pull request #2, whose required checks are the CI review gate.
+Local evidence does not replace real-device or store-submission evidence.
 
 | Scope | Latest established evidence |
 | --- | --- |
@@ -259,8 +259,9 @@ not replace real-device or store-submission evidence.
 
 The recovery database result was established locally, both hosted backends now
 carry the reviewed schema/function, and the current local cross-app matrix is
-green. The release owner must still obtain PR/CI evidence, real-device QA, and
-store-submission evidence before product release approval.
+green. The release owner must still obtain passing required CI evidence on pull
+request #2, real-device QA, and store-submission evidence before product release
+approval.
 
 ### iOS Simulator run (2026-07-21)
 
@@ -337,8 +338,8 @@ binaries, real-device QA, CI, or the remaining release phases below.
   QA and store approval; automated Google Play submission needs an
   owner-provided service-account key or reviewed manual submission path.
 - The production backend promotion is complete at exact 001–026/function v4,
-  and its source is pushed in recovery commit `0135964`. No pull request or CI
-  evidence exists yet.
+  and its source is pushed in recovery commit `0135964`. Pull request #2 is
+  open; its required CI checks are the review gate.
 - GitHub Actions variables are corrected, and backend-aware uptime run #113
   passed. Encrypted secrets still contain old values and require the owner's
   passkey-authorized update before the worker baseline; do not expose them.
@@ -405,9 +406,9 @@ binaries, real-device QA, CI, or the remaining release phases below.
 Status: **recovery source pushed; release evidence incomplete.** The reviewed
 recovery implementation is pushed on `codex/recovery-and-mobile-startup` at
 `0135964`. Its migrations/function and admin recovery are live, and the final
-current-tree local matrix is green. No pull request or CI evidence exists;
-GitHub Actions variables are corrected, while encrypted secrets remain old
-pending the owner's passkey-authorized update.
+current-tree local matrix is green. Pull request #2 is open and its required CI
+checks are the review gate. GitHub Actions variables are corrected, while
+encrypted secrets remain old pending the owner's passkey-authorized update.
 
 - Consolidate planning into this file and agent context into AI_HANDOFF.
 - Remove tracked generated files and duplicate root Expo configuration.
@@ -437,8 +438,9 @@ Status: **backend environments recovered; operational gates incomplete.**
 - Completed: supplied `GEMINI_API_KEY` securely to preview and production.
 - Completed: exact deployed migration/function source is pushed in recovery
   commit `0135964`.
-- Remaining: open the pull request and attach CI/final release evidence;
-  preserve explicit targeting for future 027+.
+- Completed: opened pull request #2 for the pushed recovery source.
+- Remaining: obtain its required CI/final release evidence; preserve explicit
+  targeting for future 027+.
 - Remaining: choose/fund a backup posture and complete a measured restore drill.
 - Remaining: rotate/revoke the exposed bootstrap admin credentials and complete
   a reviewed Git-history remediation decision.

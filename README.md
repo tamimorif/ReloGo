@@ -76,8 +76,8 @@ baseline are not complete.
   run #113 passed against the production web, anonymous-auth, and resolver
   checks.
 - GitHub Actions variables are corrected. Encrypted secret values remain old
-  pending the owner's passkey-authorized update. There is no pull request or CI
-  evidence yet.
+  pending the owner's passkey-authorized update. Pull request #2 is open, and
+  its required CI checks are the review gate.
 
 The backend promotion does not release the rest of the product. See the
 [deployment guide](docs/DEPLOYMENT.md) for the remaining guarded release order

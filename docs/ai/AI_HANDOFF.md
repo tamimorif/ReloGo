@@ -43,9 +43,10 @@ Environment truth:
   build 3 is `FINISHED` (EAS
   `20256d8c-cf12-472c-a236-7223e0207103`). Neither status is real-device QA or
   store-submission evidence.
-- GitHub: recovery commit `0135964` is pushed and Actions variables are
-  corrected. Encrypted secrets still contain old values pending the owner's
-  passkey-authorized update. No pull request or CI evidence exists yet.
+- GitHub: recovery commit `0135964` and the final evidence update are pushed in
+  pull request #2. Actions variables are corrected. Encrypted secrets still
+  contain old values pending the owner's passkey-authorized update; required CI
+  checks are the review gate.
 
 Remaining release gates include pull-request/CI evidence, real-device
 startup/PDF/privacy QA, store submission and review, the
@@ -447,10 +448,11 @@ deno test --config supabase/functions/support-ai/deno.json \
 
 ## Known limits and next work
 
-1. Open a pull request for pushed recovery commit `0135964`, review any later
-   local workflow deltas, and obtain CI evidence. Actions variables are already
-   corrected; the owner must use the passkey-authorized flow to update the old
-   encrypted secrets without printing them.
+1. Pull request #2 is open for recovery commit `0135964` and the final evidence
+   update. Review any later deltas and obtain its required CI evidence. Actions
+   variables are already corrected; encrypted secrets can be updated only
+   through an owner-controlled local GitHub authentication flow, with no
+   password or credential shared.
 2. Distribute both finished production builds through approved owner-controlled
    test paths, and measure startup/PDF/privacy behavior on real iOS and Android
    devices. Resume preview and reconfirm 001–026/v3 only if isolated preview QA
@@ -498,10 +500,10 @@ decision.
   explicit approval.
 - Preview is paused after successful verification; resume deliberately and
   account for the project's live plan and pausing behavior.
-- Recovery commit `0135964` is pushed, Actions variables are corrected, and
-  backend-aware uptime run #113 passed. Encrypted secrets still contain old
-  values pending the owner's passkey-authorized update. No pull request or CI
-  evidence exists.
+- Recovery commit `0135964` and the final evidence update are pushed in pull
+  request #2, Actions variables are corrected, and backend-aware uptime run
+  #113 passed. Encrypted secrets still contain old values pending the owner's
+  passkey-authorized update; required CI checks are the review gate.
 - The Ubuntu 22.04 worker runner is already on `main`, and the modern
   dependency/preflight source is pushed in `0135964`. Old encrypted values
   block the current production baseline; no healthy baseline or webhook exists.
