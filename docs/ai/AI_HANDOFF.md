@@ -374,6 +374,7 @@ deno lint supabase/functions/support-ai
 deno check --config supabase/functions/support-ai/deno.json \
   supabase/functions/support-ai/index.ts
 deno test --config supabase/functions/support-ai/deno.json \
+  supabase/functions/support-ai/geminiTransport_test.ts \
   supabase/functions/support-ai/grounding_test.ts \
   supabase/functions/support-ai/humanTakeover_test.ts \
   supabase/functions/support-ai/supportQuestions_test.ts
@@ -395,10 +396,10 @@ deno test --config supabase/functions/support-ai/deno.json \
 - Mobile production dependency audit: 0 vulnerabilities after exact
   `xcode@3.0.1` → `uuid@11.1.1`; clean install and iOS project generation pass.
 - Final current-tree local matrix (2026-07-31): mobile release configuration,
-  TypeScript, lint, 11 Jest suites with 113/113 tests, iOS export at 1,752
+  TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
   modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
   bytecode, and production audit 0; admin and landing lint/build; Deno
-  format/lint/type checks and support tests 12/12; worker compile and tests
+  format/lint/type checks and support tests 16/16; worker compile and tests
   77/77; contract sync, workflow YAML, shell syntax, and diff checks all passed.
 - iOS production store build is `FINISHED`: version 1.0.1, build 6, EAS
   `2c83c4f5-b154-4632-8604-6350a77bbee4`.

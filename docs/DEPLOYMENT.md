@@ -285,7 +285,7 @@ The production dependency audit reports 0 vulnerabilities after an exact
 `xcode@3.0.1` override pins the CommonJS-compatible `uuid@11.1.1`; keep that
 override narrow and remove it when fixed upstream.
 The final current-tree local mobile gates pass: release configuration,
-TypeScript, lint, 11 Jest suites with 113/113 tests, iOS export at 1,752
+TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
 modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
 bytecode, and audit 0. Cloud build completion does not replace real-device QA
 or store-submission evidence; do not start duplicate builds merely to reproduce
@@ -585,7 +585,7 @@ The web builds use placeholder Supabase env values in CI; real values are
 injected by Vercel at deploy time.
 
 On the current recovery tree, admin/landing lint and builds, Deno
-format/lint/type checks with 12/12 support tests, worker compile with 77/77
+format/lint/type checks with 16/16 support tests, worker compile with 77/77
 tests, and the mobile gates recorded above all pass. CI still requires a pushed
 pull request/workflow run and is not implied by these local results.
 

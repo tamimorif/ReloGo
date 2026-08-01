@@ -5,7 +5,12 @@
 export function safeOfficialUrl(value: string): string | null {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "https:" && parsed.hostname ? parsed.href : null;
+    return parsed.protocol === "https:" &&
+      parsed.hostname &&
+      !parsed.username &&
+      !parsed.password
+      ? parsed.href
+      : null;
   } catch {
     return null;
   }

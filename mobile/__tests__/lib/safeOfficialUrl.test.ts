@@ -14,4 +14,12 @@ describe("safeOfficialUrl", () => {
   ])("rejects unsafe URL %s", (value) => {
     expect(safeOfficialUrl(value)).toBeNull();
   });
+
+  it.each([
+    "https://user@example.com/official",
+    "https://:password@example.com/official",
+    "https://user:password@example.com/official",
+  ])("rejects HTTPS URLs containing credentials: %s", (value) => {
+    expect(safeOfficialUrl(value)).toBeNull();
+  });
 });

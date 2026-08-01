@@ -45,6 +45,7 @@ import {
   formatOfficialSources,
   normalizeSupportReply,
 } from "./grounding.ts";
+import { fetchResponseTextWithTimeout } from "./geminiTransport.ts";
 import { isAiEligibleThread } from "./humanTakeover.ts";
 import { hasOnlyAllowedUserQuestions } from "./supportQuestions.ts";
 
@@ -324,30 +325,19 @@ async function callGeminiModel(
 
   // Auth via the x-goog-api-key header (not the query string) so the key can
   // never land in URL/proxy access logs.
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    GEMINI_REQUEST_TIMEOUT_MS,
-  );
-  let resp: Response;
-  let responseBody: string;
-  try {
-    resp = await fetch(endpointFor(model), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
+  const { response: resp, body: responseBody } =
+    await fetchResponseTextWithTimeout(
+      endpointFor(model),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(requestBody),
       },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-    // Keep the abort window active through the body read. fetch() resolves as
-    // soon as response headers arrive, so clearing the timer before this point
-    // would still allow a stalled upstream body to hold the Edge invocation.
-    responseBody = await resp.text();
-  } finally {
-    clearTimeout(timeout);
-  }
+      GEMINI_REQUEST_TIMEOUT_MS,
+    );
 
   if (!resp.ok) {
     // The Gemini error body does NOT contain the API key (sent via header), so

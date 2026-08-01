@@ -197,6 +197,7 @@ jobs:
       - name: Test support AI helpers
         run: >-
           deno test --config supabase/functions/support-ai/deno.json
+          supabase/functions/support-ai/geminiTransport_test.ts
           supabase/functions/support-ai/grounding_test.ts
           supabase/functions/support-ai/humanTakeover_test.ts
           supabase/functions/support-ai/supportQuestions_test.ts

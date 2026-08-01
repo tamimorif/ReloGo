@@ -60,10 +60,10 @@ baseline are not complete.
   audit is now clean: a narrow `xcode@3.0.1` override pins `uuid` 11.1.1, with
   0 reported vulnerabilities.
 - Final current-tree local checks pass: mobile release configuration,
-  TypeScript, lint, 11 Jest suites with 113/113 tests, iOS export (1,752 modules,
+  TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export (1,752 modules,
   5.8 MB Hermes bytecode), Android export (1,773 modules, 5.9 MB Hermes
   bytecode), and audit 0; landing and admin lint/build; Deno
-  format/lint/type checks and 12/12 support tests; worker compile and 77/77
+  format/lint/type checks and 16/16 support tests; worker compile and 77/77
   tests; and contract/workflow/script validation.
   Worker and backend-aware uptime preflights now reject every Supabase URL
   except the exact production project origin.
