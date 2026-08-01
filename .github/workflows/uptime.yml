@@ -29,7 +29,7 @@ jobs:
       # Job scope makes this available when GitHub evaluates the step `if:`.
       ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check public routes and page markers
         run: bash scripts/check-public-uptime.sh
 

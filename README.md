@@ -25,10 +25,11 @@ The JavaScript applications are independent projects. Each owns its own
 
 ## Recovery and release status
 
-The current recovery work is implemented locally on
-`codex/recovery-and-mobile-startup`. The production backend recovery is now
-deployed, and the current admin recovery build is live in production. The
-mobile, landing-recovery, worker, and workflow changes are not yet released.
+The recovery source is committed and pushed on
+`codex/recovery-and-mobile-startup` at `0135964`. The production backend and
+reviewed admin recovery are live; landing is unchanged and live. Mobile
+real-device QA/store submission and the worker's secret-gated production
+baseline are not complete.
 
 - The local schema is migrations 001–026. Preview was migrated to 001–026,
   passed the hosted smoke checks (including authenticated AI support), and was
@@ -54,9 +55,10 @@ mobile, landing-recovery, worker, and workflow changes are not yet released.
   fields, then `get_policy_consent_state()` returns the authoritative
   allowlisted profile that is cached before checklist navigation. Its auth,
   profile insert/update, and confirmation waits are each bounded at 10 seconds.
-  Real-device EAS preview builds are still required to measure and approve
-  startup performance. Its production dependency audit is now clean: a narrow
-  `xcode@3.0.1` override pins `uuid` 11.1.1, with 0 reported vulnerabilities.
+  Real-device QA is still required to measure and approve startup performance;
+  a successful cloud build is not device evidence. Its production dependency
+  audit is now clean: a narrow `xcode@3.0.1` override pins `uuid` 11.1.1, with
+  0 reported vulnerabilities.
 - Final current-tree local checks pass: mobile release configuration,
   TypeScript, lint, 11 Jest suites with 113/113 tests, iOS export (1,752 modules,
   5.8 MB Hermes bytecode), Android export (1,773 modules, 5.9 MB Hermes
@@ -65,14 +67,17 @@ mobile, landing-recovery, worker, and workflow changes are not yet released.
   tests; and contract/workflow/script validation.
   Worker and backend-aware uptime preflights now reject every Supabase URL
   except the exact production project origin.
-- The reviewed admin build is deployed at `https://relo-go.vercel.app`. A
-  web-only public uptime pass covered all seven routes (six landing routes plus
-  admin). This is availability evidence, not a passing scheduled
-  backend-aware uptime workflow or a landing recovery deployment.
-- GitHub CLI authentication is currently invalid. The recovery changes remain
-  uncommitted/unpushed, and repository secrets, variables, workflow dispatches,
-  and CI evidence cannot be updated until an owner completes GitHub
-  reauthentication/2FA.
+- iOS production store build — `FINISHED`: version 1.0.1, build 6, EAS
+  `2c83c4f5-b154-4632-8604-6350a77bbee4`.
+- Android production store build — `FINISHED`: version 1.0.1, build 3, EAS
+  `20256d8c-cf12-472c-a236-7223e0207103`.
+- The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
+  unchanged and live at `https://relogo-two.vercel.app`. Backend-aware uptime
+  run #113 passed against the production web, anonymous-auth, and resolver
+  checks.
+- GitHub Actions variables are corrected. Encrypted secret values remain old
+  pending the owner's passkey-authorized update. There is no pull request or CI
+  evidence yet.
 
 The backend promotion does not release the rest of the product. See the
 [deployment guide](docs/DEPLOYMENT.md) for the remaining guarded release order
@@ -195,10 +200,10 @@ when rotating them or creating another EAS project.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
 The project is a recovery-ready MVP with its production backend promoted, not a
-completed release. The landing recovery deployment, a healthy worker baseline
-and webhook, funded backup/restore with a drill, 1.0.1 real-device and store
-builds, a monitored public mailbox/custom domain, final government
-content/legal review, correction of the live App Store privacy answer, and
-App Store/Google Play metadata approval remain.
+completed release. Real-device QA, store submission/metadata, a healthy worker
+baseline and webhook, funded
+backup/restore with a drill, a monitored public mailbox/custom domain, final
+government content/legal review, and correction of the live App Store privacy
+answer remain.
 The disclosure text in `docs/STORE.md` is a conservative draft; the account
 owner and legal reviewer must confirm it in both stores before submission.
