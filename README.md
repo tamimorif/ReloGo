@@ -25,11 +25,13 @@ The JavaScript applications are independent projects. Each owns its own
 
 ## Recovery and release status
 
-The recovery source is committed and pushed on
-`codex/recovery-and-mobile-startup` at `0135964`. The production backend and
-reviewed admin recovery are live; landing is unchanged and live. Mobile
-real-device QA/store submission and the worker's secret-gated production
-baseline are not complete.
+The final reviewed source is committed and pushed on
+`codex/recovery-and-mobile-startup` at `2624ad3`. The production database and
+reviewed admin recovery are live; landing is unchanged and live. Production
+still runs `support-ai` v4 from the recovery baseline and must receive the final
+transport source after pull request #2 merges. The App Store still distributes
+the broken 1.0 release; the repaired 1.0.1 release, real-device QA, and a
+healthy worker baseline are not complete.
 
 - The local schema is migrations 001–026. Preview was migrated to 001–026,
   passed the hosted smoke checks (including authenticated AI support), and was
@@ -40,10 +42,13 @@ baseline are not complete.
   official sources, a minimal onboarding profile insert, authoritative
   consent/profile confirmation, and cleanup. Production currently has no
   profile, waitlist, support, or progress rows.
-- The App Store 1.0 binary is built from the retired SDK 51 configuration and
-  contains a Supabase project reference that no longer exists. It did not
-  include a compatible Expo Updates runtime, so it cannot be repaired by an
-  OTA update. A new 1.0.1 store binary is required.
+- App Store version 1.0 has been live since 2026-06-23 (Apple ID `6781947478`,
+  bundle ID `com.relogo.app`). It is built from the retired SDK 51
+  configuration and contains a Supabase project reference that no longer
+  exists. It did not include a compatible Expo Updates runtime, so its
+  backend-dependent onboarding and checklist flows cannot be repaired by an
+  OTA update. A final 1.0.1 store binary from the merged recovery tree is the
+  user-facing recovery path and has not shipped.
 - The local 1.0.1 / SDK 55 app no longer holds the native splash screen on a
   network request, restores its encrypted session with bounded timeouts,
   avoids duplicate startup fetches, caches the profile/bootstrap result, and
@@ -59,25 +64,41 @@ baseline are not complete.
   a successful cloud build is not device evidence. Its production dependency
   audit is now clean: a narrow `xcode@3.0.1` override pins `uuid` 11.1.1, with
   0 reported vulnerabilities.
-- Final current-tree local checks pass: mobile release configuration,
+- The latest full code matrix at `2624ad3` passed mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export (1,752 modules,
   5.8 MB Hermes bytecode), Android export (1,773 modules, 5.9 MB Hermes
   bytecode), and audit 0; landing and admin lint/build; Deno
   format/lint/type checks and 16/16 support tests; worker compile and 77/77
-  tests; and contract/workflow/script validation.
+  tests; and contract/workflow/script validation. A focused 2026-08-03 rerun on
+  the documentation tree again passed mobile 116/116, TypeScript, release
+  configuration, worker 77/77, Gemini transport 4/4, Python dependency
+  consistency, uptime-script syntax, and whitespace checks.
   Worker and backend-aware uptime preflights now reject every Supabase URL
   except the exact production project origin.
 - iOS production store build — `FINISHED`: version 1.0.1, build 6, EAS
   `2c83c4f5-b154-4632-8604-6350a77bbee4`.
 - Android production store build — `FINISHED`: version 1.0.1, build 3, EAS
   `20256d8c-cf12-472c-a236-7223e0207103`.
+- Both recorded builds predate the credential-bearing URL fix in `2624ad3`.
+  They remain useful recovery evidence, but fresh iOS and Android builds are
+  required before final device QA or submission.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
   unchanged and live at `https://relogo-two.vercel.app`. Backend-aware uptime
   run #113 passed against the production web, anonymous-auth, and resolver
-  checks.
-- GitHub Actions variables are corrected. Encrypted secret values remain old
-  pending the owner's passkey-authorized update. Pull request #2 is open, and
-  its required CI checks are the review gate.
+  checks, but that was a manually dispatched recovery-branch run. The scheduled
+  workflow on default `main` remains web-only until pull request #2 merges;
+  verify a main-branch run executes both backend probes afterward.
+- Pull request #2's pushed head `2624ad3` passed all 19 GitHub/Vercel checks.
+  It is mergeable but blocked by two unresolved Copilot threads whose fixes and
+  regression tests are already present. Do not reuse `2624ad3`'s CI result for
+  a later head: publish this documentation correction and require its own fresh
+  CI evidence before those threads are resolved and the pull request is merged.
+- The default branch still pins `supabase==2.4.0`, which rejects modern
+  `sb_secret_` keys before making a network request. The recovery branch pins
+  `2.31.0` and runs a read-only preflight first. Merge and rerun that version
+  before rotating any encrypted worker secret; rotate only if the new preflight
+  still reports an authentication failure. A healthy full run must report
+  `scraped > 0`.
 
 The backend promotion does not release the rest of the product. See the
 [deployment guide](docs/DEPLOYMENT.md) for the remaining guarded release order
@@ -199,11 +220,13 @@ when rotating them or creating another EAS project.
   verification matrix, and next engineering steps for agents.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
-The project is a recovery-ready MVP with its production backend promoted, not a
-completed release. Real-device QA, store submission/metadata, a healthy worker
-baseline and webhook, funded
+The production backend is recovered, but the App Store still serves broken
+version 1.0 and the 1.0.1 recovery release is incomplete. Resolving/merging pull
+request #2, deploying its final Edge Function source, creating fresh store
+builds, real-device QA, store
+submission/metadata, a healthy worker baseline and webhook, funded
 backup/restore with a drill, a monitored public mailbox/custom domain, final
 government content/legal review, and correction of the live App Store privacy
 answer remain.
 The disclosure text in `docs/STORE.md` is a conservative draft; the account
-owner and legal reviewer must confirm it in both stores before submission.
+owner and legal reviewer must confirm it before the 1.0.1 recovery submission.

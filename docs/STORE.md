@@ -1,14 +1,19 @@
 # ReloGo App Store Metadata
 
-> **Draft only (2026-07-31):** This repository text is not evidence that App
-> Store Connect or Google Play forms were updated. Before the 1.0.1 submission,
-> the account owner and legal reviewer must confirm the live binary's behavior,
-> anonymous account-linked data, Gemini processing, device-only PII claims,
-> age rating, availability/trader status, screenshots, and monitored Support URL
-> in both stores. The live App Store answer that says ReloGo collects no data
-> must be corrected: the anonymous identifier and linked move, progress, and
-> support records listed below are collected even though sensitive PDF details
-> remain device-only.
+> **Draft only (2026-08-03):** App Store version 1.0 has been live since
+> 2026-06-23 (Apple ID `6781947478`, bundle ID `com.relogo.app`) and still
+> points to the deleted backend; 1.0.1 has not shipped. This repository text is
+> not evidence that App Store Connect or Google Play forms were updated. Before
+> the 1.0.1 recovery submission, the account owner and legal reviewer must
+> confirm the binary's behavior, anonymous account-linked data, Gemini
+> processing, device-only PII claims, screenshots, and monitored Support URL.
+> Reconcile the age rating shown by Apple's surfaces and inspect territorial
+> availability/trader status in App Store Connect without assuming why some
+> European/UK storefronts are absent. Google Play does not publicly expose the
+> package now, but that does not establish its publication history. The live
+> App Store answer that says ReloGo collects no data must be corrected: the
+> anonymous identifier and linked move, progress, and support records listed
+> below are collected even though sensitive PDF details remain device-only.
 
 ## App Name (iOS and Android)
 ReloGo — Canadian Move Guide
@@ -49,13 +54,13 @@ Purposes: app functionality and customer support. Data is encrypted in transit,
 and the in-app **Delete My Data** action deletes the account and associated
 server records.
 
-**Not collected by the current app:**
+**Not collected by the 1.0.1 recovery app:**
 - Advertising data or advertising identifiers.
 - Product interaction analytics.
 - Crash logs, performance diagnostics, or a third-party monitoring identifier.
 
-Update this section before submission if a crash-monitoring or analytics SDK is
-added.
+Update this section before the 1.0.1 recovery submission if a crash-monitoring
+or analytics SDK is added.
 
 **Processed only on the device, not collected by ReloGo:**
 - Name
