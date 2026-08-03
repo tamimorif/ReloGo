@@ -265,11 +265,11 @@ Local evidence does not replace real-device or store-submission evidence.
 | Prior committed `tamim` baseline (2026-07-21) | Mobile 85/85, worker 69/69, support helpers 9/9, pgTAP 164/164, API E2E 243/243, both native Hermes exports and web/admin builds passed |
 | Latest full code matrix at `2624ad3` (2026-08-01) | Mobile release configuration, TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export 1,752 modules/5.8 MB Hermes bytecode, Android export 1,773 modules/5.9 MB Hermes bytecode, and production audit 0; admin and landing lint/build; Deno format/lint/type checks and tests 16/16; worker compile and tests 77/77; contract sync, workflow YAML, shell syntax, and diff checks passed |
 | Focused documentation-tree recheck (2026-08-03) | Mobile 116/116, TypeScript, release configuration, worker 77/77, Gemini transport 4/4, Python dependency consistency, uptime shell syntax, and `git diff --check` passed; code paths are unchanged from `2624ad3` |
-| Post-merge worker safeguards | Duplicate-URL fan-out, per-origin serialization/pacing, Cloudflare/Radware classification, task cleanup, baseline-safety reporting, compile, and 96/96 worker tests pass; failure policy remains nonzero for any failed/stale source |
+| Post-merge worker safeguards | Duplicate-URL fan-out, per-origin serialization/pacing, Cloudflare/Radware classification, task cleanup, baseline-safety reporting, compile, and 96/96 worker tests pass. Production run `30845791036` verified 50 unique fetches/3 reused outcomes and kept 11 failures visible; failure policy remains nonzero for any failed/stale source |
 | Pull request #2 / CI | Final head `f34b64a`; 19/19 GitHub and Vercel checks passed; both review threads resolved; merged to `main` as `e75f449` |
 | iOS production store build | Fresh build 7 `FINISHED`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`, exact merged commit `e75f449`; real-device QA and submission remain |
 | Android production store build | Fresh build 4, EAS `28076f35-1495-466b-af77-97a9339c5ea2`, started from exact merged commit `e75f449`; terminal result, real-device QA, and publication decision remain |
-| Web/worker/uptime recovery | Admin recovery live; landing unchanged/live; main uptime run `30843906264` passed required backend probes. Main worker run `30843904269` passed the `2.31.0` preflight and persisted 42/53 baselines; 11 official pages remain failed behind managed challenges, key rotation is not needed, and the webhook is unset |
+| Web/worker/uptime recovery | Admin recovery live; landing unchanged/live; main uptime run `30843906264` passed required backend probes. Hardened worker run `30845791036` passed preflight, fetched 50 unique URLs for 53 rows, completed 42 rows, and left 11 outcomes failed closed; 43/53 sources now have baselines, three new alerts are PENDING human review, key rotation is not needed, and the webhook is unset |
 | Backup/restore | Runbook corrected; funding/retention decision and a measured restore drill remain |
 
 The recovery database result was established locally, production carries the
@@ -358,8 +358,11 @@ binaries, real-device QA, CI, or the remaining release phases below.
   cleaned up; unauthenticated invocation returned 401.
 - GitHub Actions variables are corrected and main uptime run `30843906264`
   passed. Main worker run `30843904269` passed the modern-key preflight and
-  persisted 42/53 source baselines, proving that secret rotation is not needed.
-  Eleven official URLs remain blocked by managed challenges; keep them visible
+  created 42 source baselines, proving that secret rotation is not needed.
+  Hardened run `30845791036` added one baseline and completed 42 rows while
+  preserving 11 failures, so 43/53 sources now have baselines. Ten failures
+  were explicit managed/CAPTCHA challenges and one PEI source returned an empty
+  body; keep them visible
   until an equivalent first-party source is reviewed or explicit manual
   monitoring is modeled. The worker webhook is still unset.
 - No complete live pass has exercised the new mobile binary, Gemini, database,
@@ -372,8 +375,8 @@ binaries, real-device QA, CI, or the remaining release phases below.
   hosted admin credentials and decide the reviewed history-remediation approach
   before release.
 - The reviewed admin recovery build is live, landing is unchanged/live, and
-  main backend-aware uptime passed. Worker authentication and 42 baselines are
-  established, but 11 challenge-blocked sources and webhook ownership remain.
+  main backend-aware uptime passed. Worker authentication and 43 baselines are
+  established, but 11 failed source-row outcomes and webhook ownership remain.
   `relogo.app` does not resolve and no monitored public support/privacy mailbox
   exists.
 - The BC government PDF workflow now runs end to end on SDK 55 in the iOS
@@ -404,8 +407,9 @@ binaries, real-device QA, CI, or the remaining release phases below.
 - Fixed-question support protects privacy but cannot collect arbitrary bug
   details; define a privacy-reviewed support channel before broad launch.
 - The default branch now contains `supabase==2.31.0` and the read-only exact-
-  origin preflight. Run `30843904269` authenticated and persisted 42 baselines;
-  11 managed-challenge sources and webhook delivery remain unresolved.
+  origin preflight. Hardened run `30845791036` authenticated, left 43/53
+  baselines, and safely rejected 10 access challenges plus one empty response;
+  source review/manual monitoring and webhook delivery remain unresolved.
   `ALERT_WEBHOOK_URL` is unset.
 - Mobile's audit is clean after the exact `xcode@3.0.1` → `uuid@11.1.1`
   override. It is intentionally narrow because UUID 12 removes CommonJS;
@@ -480,11 +484,14 @@ Status: **in progress.**
 - Remaining: Configure the public privacy/support mailbox, attach a reviewed
   public domain, and verify every legal/metadata route under that domain.
 - Completed: Main worker run `30843904269` passed the exact-origin/key/schema
-  preflight and persisted 42/53 baselines. The encrypted key works and must not
-  be rotated merely because official sites block automation.
+  preflight and created 42 baselines. Hardened run `30845791036` verified
+  dedupe/pacing, added one baseline, and filed three PENDING alerts while 11
+  outcomes failed closed; 43/53 sources now have baselines. The encrypted key
+  works and must not be rotated merely because official sites block automation.
 - Remaining: Review equivalent first-party URLs or assign explicit manual
-  monitoring for 11 managed-challenge sources; never baseline challenge pages
-  or bypass CAPTCHAs. Configure/test webhook delivery.
+  monitoring for 10 access-challenge outcomes plus the empty PEI driver page;
+  never baseline challenge pages or bypass CAPTCHAs. Configure/test webhook
+  delivery.
 - Remaining: Verify waitlist signup → admin visibility and source change → PENDING alert → human approval/dismissal.
 
 Exit: both web apps are live, one complete worker run is healthy, notifications

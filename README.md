@@ -97,7 +97,12 @@ gate.
   manual monitoring. The post-merge worker follow-up fetches duplicate URLs
   once, serializes/paces same-origin requests, and reports managed challenges
   separately while preserving the nonzero fail-closed policy; its worker suite
-  passes 96/96. `ALERT_WEBHOOK_URL` is still unset.
+  passes 96/96. Production verification run `30845791036` fetched 50 unique
+  URLs for 53 rows, reused three duplicate outcomes, and again completed 42
+  rows (`1` new baseline, `38` unchanged, `3` changed) while keeping 11 blocked
+  outcomes failed. Production now has 43/53 source baselines; the three changes
+  are PENDING human-review alerts, not live-rule edits. `ALERT_WEBHOOK_URL` is
+  still unset.
 
 The backend promotion does not release the rest of the product. See the
 [deployment guide](docs/DEPLOYMENT.md) for the remaining guarded release order
@@ -222,7 +227,7 @@ when rotating them or creating another EAS project.
 The production backend is recovered, but the App Store still serves broken
 version 1.0 and the 1.0.1 recovery release is incomplete. Terminal fresh-build
 results, real-device QA, store submission/metadata, reviewed monitoring for the
-11 challenge-blocked sources, a tested worker webhook, funded backup/restore
+11 failed source-row outcomes, a tested worker webhook, funded backup/restore
 with a drill, a monitored public mailbox/custom domain, final government
 content/legal review, and correction of the live App Store privacy answer
 remain.

@@ -49,12 +49,16 @@ Environment truth:
   checks, both fixed review threads were resolved, and it merged as `e75f449`.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
   key/schema/resolver preflight passed, proving the encrypted key works. It
-  persisted 42/53 baselines and failed closed on 11 official managed-challenge
-  pages. `ALERT_WEBHOOK_URL` is unset.
+  created 42 baselines and failed closed on 11 source rows. Hardened run
+  `30845791036` fetched 50 unique URLs for 53 rows, reused three outcomes,
+  completed 42 rows, added one baseline, and filed three PENDING human-review
+  alerts while 11 outcomes remained failed (`8` managed challenges, `2`
+  CAPTCHAs, `1` empty body). Production now has 43/53 baselines.
+  `ALERT_WEBHOOK_URL` is unset.
 
 Remaining release gates include Android's terminal build result, real-device
 startup/PDF/privacy QA, store submission and review, reviewed alternate/manual
-monitoring for 11 challenge-blocked sources, a tested worker webhook, backup
+monitoring for 11 failed source-row outcomes, a tested worker webhook, backup
 funding/restore drill, admin credential rotation, a
 monitored public mailbox/domain, correction of the live App Store privacy
 answer, and human legal/content/store approval.
@@ -412,7 +416,8 @@ deno test --config supabase/functions/support-ai/deno.json \
 - Post-merge worker safeguards: exact duplicate URLs are fetched once and
   fanned out per source row; same-origin requests are serialized and paced;
   managed challenges/CAPTCHAs are categorized but remain failed closed. Worker
-  compile and 96/96 tests pass.
+  compile and 96/96 tests pass. Production run `30845791036` verified 50 unique
+  fetches/three reused outcomes and preserved all 11 failed source-row outcomes.
 - Pull request #2 final head `f34b64a`: all 19 GitHub/Vercel checks passed,
   including native exports, database/pgTAP, full API integration, support,
   audits, worker, web builds, and both Vercel deployments. Its review threads
@@ -519,10 +524,12 @@ decision.
   account for the project's live plan and pausing behavior.
 - Pull request #2 final head `f34b64a` passed all 19 checks, its fixed review
   threads were resolved, and it merged as `e75f449`.
-- Main worker run `30843904269` passed the `2.31.0` preflight and persisted 42
-  baselines. Eleven official pages are behind managed challenges; keep the
-  nonzero failure visible until reviewed first-party alternatives or explicit
-  manual monitoring exist. Key rotation is not needed; the webhook is absent.
+- Main worker run `30843904269` passed the `2.31.0` preflight and created 42
+  baselines. Hardened run `30845791036` added one baseline and filed three
+  PENDING alerts while 11 outcomes remained failed; 43/53 sources now have
+  baselines. Keep the nonzero failure visible until reviewed first-party
+  alternatives or explicit manual monitoring exist. Key rotation is not
+  needed; the webhook is absent.
 - The worker preflight and backend-aware uptime probe fail closed unless
   `SUPABASE_URL` is the exact production origin
   `https://yskknolxbxfxakgvrcmg.supabase.co`.

@@ -34,7 +34,7 @@ Current hosted/repository truth (2026-08-03):
 | Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
 | Mobile | Local version 1.0.1 / SDK 55 gates pass. Fresh exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) finished successfully; Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) needs a terminal result. Real-device QA and submission remain |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; main run `30843906264` passed public web/auth/resolver checks with required backend probes |
-| Worker/uptime | Worker compile/tests 77/77. Main run `30843904269` passed the `2.31.0` preflight and persisted 42/53 baselines; 11 official pages remain visibly failed behind managed challenges. Key rotation is not needed. `ALERT_WEBHOOK_URL` is unset |
+| Worker/uptime | Main run `30843904269` passed the `2.31.0` preflight and created 42 baselines. Hardened run `30845791036` fetched 50 unique URLs for 53 rows, completed 42 rows, added one baseline, and filed three PENDING alerts while 11 outcomes remained failed closed. Production now has 43/53 baselines; key rotation is not needed; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 final head `f34b64a` passed all 19 checks; both review threads were resolved and it merged to `main` as `e75f449` |
 
 The worker's Ubuntu 22.04 runner and `supabase==2.31.0` exact-origin preflight
@@ -413,8 +413,12 @@ read-only key/schema/resolver checks. Production has the required resolver.
 77/77 worker tests passed. Post-merge safeguards fetch duplicate URLs once, serialize
 and pace each origin, and classify access challenges without weakening the
 failure policy; the expanded suite passes 96/96. Main run `30843904269` passed
-the key/schema/resolver preflight and persisted 42 baselines; it then failed
-closed on 11 managed challenge/browser-verification responses.
+the key/schema/resolver preflight and created 42 baselines. Hardened production
+run `30845791036` fetched 50 unique URLs for 53 rows, reused three duplicate
+outcomes, completed 42 rows (`1` baseline, `38` unchanged, `3` changed), and
+kept 11 outcomes failed closed (`8` managed challenges, `2` CAPTCHAs, `1`
+empty-body rejection). Production now has 43/53 baselines. The three changes
+are PENDING human-review alerts; the worker did not update live rules.
 
 ```bash
 cd worker
@@ -448,6 +452,13 @@ equivalent first-party URL through the next migration (027), or model explicit
 manual monitoring. Configure and exercise optional `ALERT_WEBHOOK_URL`, which
 is currently unset. The secret key bypasses RLS and belongs only in the worker,
 never a client.
+
+Hardened verification run `30845791036` intentionally exited nonzero after the
+successful preflight because 11 source-row outcomes remained inaccessible. It
+also demonstrated exact-URL deduplication (50 fetches for 53 rows) and filed
+three PENDING alerts for human review: Manitoba Health navigation/layout churn
+and two ICBC footer `Feedback` toggles. Do not auto-approve or auto-dismiss
+them; preserve the admin review boundary.
 
 Local run without Docker:
 
@@ -627,9 +638,9 @@ service-role key in the uptime probe.
   then publish the monitored address through `NEXT_PUBLIC_SUPPORT_EMAIL`.
 - **Edge Function:** review `support-ai` logs for exceptions, Gemini rate limits,
   policy-consent failures, and fallback surges.
-- **Worker:** main run `30843904269` passed the `2.31.0` preflight and persisted
-  42/53 baselines; key rotation is not needed. Review equivalent first-party
-  alternatives or assign manual monitoring for the 11 challenge-blocked
+- **Worker:** hardened run `30845791036` passed preflight and left 43/53
+  baselines; key rotation is not needed. Review equivalent first-party
+  alternatives or assign manual monitoring for the 11 failed source-row
   sources, then configure a webhook and explicit GitHub Actions alert owner.
 - **App uptime:** main run `30843906264` passed the public web, production
   anonymous-auth, and resolver checks against the exact production origin.
