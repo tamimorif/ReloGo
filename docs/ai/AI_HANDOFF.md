@@ -416,7 +416,7 @@ deno test --config supabase/functions/support-ai/deno.json \
 - Post-merge worker safeguards: exact duplicate URLs are fetched once and
   fanned out per source row; same-origin requests are serialized and paced;
   managed challenges/CAPTCHAs are categorized but remain failed closed. Worker
-  compile and 96/96 tests pass. Production run `30845791036` verified 50 unique
+  compile and 97/97 tests pass. Production run `30845791036` verified 50 unique
   fetches/three reused outcomes and preserved all 11 failed source-row outcomes.
 - Pull request #2 final head `f34b64a`: all 19 GitHub/Vercel checks passed,
   including native exports, database/pgTAP, full API integration, support,

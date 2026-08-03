@@ -412,7 +412,7 @@ read-only key/schema/resolver checks. Production has the required resolver.
 `worker/requirements.txt` pins `supabase==2.31.0`. Pull request #2's compile and
 77/77 worker tests passed. Post-merge safeguards fetch duplicate URLs once, serialize
 and pace each origin, and classify access challenges without weakening the
-failure policy; the expanded suite passes 96/96. Main run `30843904269` passed
+failure policy; the expanded suite passes 97/97. Main run `30843904269` passed
 the key/schema/resolver preflight and created 42 baselines. Hardened production
 run `30845791036` fetched 50 unique URLs for 53 rows, reused three duplicate
 outcomes, completed 42 rows (`1` baseline, `38` unchanged, `3` changed), and

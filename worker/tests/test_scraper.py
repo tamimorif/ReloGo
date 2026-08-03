@@ -52,6 +52,26 @@ def test_origin_gate_applies_spacing_and_bounds_injected_jitter():
     assert sleeps == [1.25]
 
 
+def test_missing_url_fails_before_request_gate():
+    class GateThatMustNotBeUsed:
+        def request_slot(self):
+            raise AssertionError("missing URL must bypass the origin gate")
+
+    async def exercise():
+        return await worker.scrape_source(
+            None,
+            _source("1", ""),
+            asyncio.Semaphore(1),
+            GateThatMustNotBeUsed(),
+        )
+
+    outcome = asyncio.run(exercise())
+
+    assert outcome.body_text is None
+    assert outcome.error == "official source URL is missing"
+    assert outcome.failure_category == "configuration"
+
+
 def test_managed_challenge_header_gets_distinct_non_retryable_error():
     class Response:
         status = 403

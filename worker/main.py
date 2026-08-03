@@ -530,13 +530,26 @@ async def scrape_source(
     agency = str(source.get("agency_name") or "Unknown")
     url = str(source.get("official_url") or "")
 
+    if not url:
+        exc = WorkerConfigurationError("official source URL is missing")
+        error = concise_error(exc)
+        category = failure_category(exc)
+        logger.warning(
+            "  🚫 [%s] (missing URL) failed [%s]: %s",
+            agency,
+            category,
+            error,
+        )
+        return ScrapeOutcome(
+            source=source,
+            error=error,
+            failure_category=category,
+        )
+
     async with origin_gate.request_slot():
         async with semaphore:
             logger.info("Scraping [%s] %s …", agency, url or "(missing URL)")
             try:
-                if not url:
-                    raise WorkerConfigurationError("official source URL is missing")
-
                 pdf_source = is_pdf_url(url)
                 if pdf_source:
                     body_text = await asyncio.to_thread(_scrape_pdf_with_retry, url)

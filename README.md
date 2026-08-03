@@ -97,7 +97,7 @@ gate.
   manual monitoring. The post-merge worker follow-up fetches duplicate URLs
   once, serializes/paces same-origin requests, and reports managed challenges
   separately while preserving the nonzero fail-closed policy; its worker suite
-  passes 96/96. Production verification run `30845791036` fetched 50 unique
+  passes 97/97. Production verification run `30845791036` fetched 50 unique
   URLs for 53 rows, reused three duplicate outcomes, and again completed 42
   rows (`1` new baseline, `38` unchanged, `3` changed) while keeping 11 blocked
   outcomes failed. Production now has 43/53 source baselines; the three changes
