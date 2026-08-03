@@ -13,12 +13,12 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Publish the documentation corrections, obtain fresh CI for that head, confirm/resolve the two fixed review threads, then merge pull request #2 only with explicit owner authorization | [§7](#7-ci) |
-| 2 | After merge and with explicit production-deploy authorization, deploy the final support source and reverify production at exact 001–026; in parallel run the modern worker and backend-aware uptime workflows | [§1](#1-supabase-database), [§5](#5-rule-monitor-worker-python-311--playwright), [§6](#ai-support-edge-function), [§7](#7-ci) |
-| 3 | With explicit build authorization, create a fresh iOS 1.0.1 production build from merged `main` and complete real-device recovery QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 4 | Submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 5 | Build/QA Android in parallel or immediately afterward; confirm the intended Google Play publication path | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 6 | Establish recurring worker/uptime/webhook ownership; resume preview v3 only for isolated preview QA | [§5](#5-rule-monitor-worker-python-311--playwright), [§7](#7-ci), [§8](#8-incident-runbook-and-monitoring) |
+| 1 | Record terminal results for the fresh iOS/Android builds created from merged `main`; do not submit a failed or mismatched artifact | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 2 | Complete real-device startup, offline/recovery, PDF, deletion, and privacy QA on the exact fresh artifacts | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 3 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 4 | QA Android and confirm an owner-controlled Google Play publication path; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 5 | Review first-party alternatives or assign manual monitoring for challenge-blocked sources; configure/test worker webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
+| 6 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
 
 **Configured cloud mapping:** separate Supabase preview and production projects
 use `ca-central-1`. Vercel project `relogo` maps to `landing/`; `relo-go` maps
@@ -31,18 +31,16 @@ Current hosted/repository truth (2026-08-03):
 | Target | State |
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
-| Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; dry run clean; `support-ai` v4 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, and cleanup; profile/waitlist/support/progress empty |
-| Mobile | Local version 1.0.1 / SDK 55 gates pass. iOS build 6 and Android build 3 are `FINISHED`, but both predate `2624ad3`'s final URL-safety fix. Fresh builds, real-device QA, and submission remain |
-| Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; backend-aware uptime run #113 passed production web/auth/resolver checks |
-| Worker/uptime | Worker compile/tests 77/77 and backend-aware uptime run #113 passed. The 2026-08-03 scheduled worker still ran default-branch `supabase==2.4.0` and failed its modern-key format check before network access; merge/rerun `2.31.0` before considering secret rotation |
-| GitHub | Pull request #2's pushed head `2624ad3` passed all 19 checks and is mergeable; two fixed/outdated unresolved Copilot threads block merge. Any documentation successor requires its own fresh CI before resolution/merge |
+| Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
+| Mobile | Local version 1.0.1 / SDK 55 gates pass. Fresh exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) finished successfully; Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) needs a terminal result. Real-device QA and submission remain |
+| Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; main run `30843906264` passed public web/auth/resolver checks with required backend probes |
+| Worker/uptime | Worker compile/tests 77/77. Main run `30843904269` passed the `2.31.0` preflight and persisted 42/53 baselines; 11 official pages remain visibly failed behind managed challenges. Key rotation is not needed. `ALERT_WEBHOOK_URL` is unset |
+| GitHub | Pull request #2 final head `f34b64a` passed all 19 checks; both review threads were resolved and it merged to `main` as `e75f449` |
 
-The worker's Ubuntu 22.04 runner is already on `main`, and the modern
-`supabase==2.31.0` client/preflight source is pushed in `0135964`. Main still
-uses `2.4.0`, which validates keys as legacy JWTs and rejects modern
-`sb_secret_` values before a request. Merge and manually run the modern
-preflight first. Rotate the encrypted key through an owner-controlled flow only
-if that merged preflight still fails authentication; never print it.
+The worker's Ubuntu 22.04 runner and `supabase==2.31.0` exact-origin preflight
+are now on `main`. Run `30843904269` proved that the existing encrypted key and
+schema access work, so do not rotate or request another credential. Its 11
+remaining failures are official-site managed challenges, not authentication.
 
 ## 1. Supabase (database)
 
@@ -231,9 +229,9 @@ The variables are configured as development/preview → preview Supabase and
 production → production Supabase.
 
 The current public alias is `https://relogo-two.vercel.app`; the landing site is
-unchanged/live, and pull request #2's Vercel preview passed. Verify the
-production alias again after merge. Backend-aware uptime run #113 passed its
-public route markers. The
+unchanged/live, and pull request #2's Vercel preview passed. Main-branch uptime
+run `30843906264` reverified its public route markers plus production auth and
+resolver health. The
 custom `relogo.app` domain and monitored support/privacy mailbox are not
 configured. Preview, review, and smoke-test `/`, `/privacy`, `/terms`,
 `/support`, `/robots.txt`, and `/sitemap.xml` before any future promotion.
@@ -281,14 +279,14 @@ attempt an `eas update` hotfix for that binary.
 The recovery app is 1.0.1 / SDK 55 and now has app-version-based runtime
 versioning, Expo Updates configuration, and a build-time release preflight.
 This helps future compatible releases; it does not retroactively update 1.0.
-The recorded iOS production store build is `FINISHED`: version 1.0.1, build 6,
-EAS `2c83c4f5-b154-4632-8604-6350a77bbee4`. The Android production store build
-is `FINISHED`: version 1.0.1, build 3, EAS
-`20256d8c-cf12-472c-a236-7223e0207103`. The registered production EAS values
-pass the release contract and signing credentials exist for iOS and Android.
-Both builds predate the final credential-bearing URL fix in `2624ad3`. Keep
-them as recovery evidence, but create fresh builds from the merged tree before
-final device QA or store submission.
+Fresh production/store builds were created from exact merged `main` `e75f449`:
+iOS version 1.0.1 build 7 finished successfully, EAS
+`765965d7-c7c1-432c-ac1d-302d2f0c5116`, and Android version 1.0.1 build 4, EAS
+`28076f35-1495-466b-af77-97a9339c5ea2`. The registered production EAS values
+passed the release contract and existing remote signing credentials worked;
+no credential or password was requested. Record terminal build results before
+device QA. Neither build has been submitted, and cloud completion still cannot
+replace real-device evidence or store approval.
 Prioritize the iOS recovery because broken 1.0 is publicly downloadable there.
 Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
@@ -411,10 +409,12 @@ The workflow runs `worker/preflight.py` before browser installation. It
 accepts only `https://yskknolxbxfxakgvrcmg.supabase.co`, rejecting preview,
 lookalike hosts, credentials, ports, paths, queries, and fragments before its
 read-only key/schema/resolver checks. Production has the required resolver.
-`worker/requirements.txt` pins `supabase==2.31.0`, and the modern client/
-preflight source is pushed in recovery commit `0135964`. Current compile and
-77/77 worker tests pass; they do not establish a live 53-source production
-baseline.
+`worker/requirements.txt` pins `supabase==2.31.0`. Pull request #2's compile and
+77/77 worker tests passed. Post-merge safeguards fetch duplicate URLs once, serialize
+and pace each origin, and classify access challenges without weakening the
+failure policy; the expanded suite passes 96/96. Main run `30843904269` passed
+the key/schema/resolver preflight and persisted 42 baselines; it then failed
+closed on 11 managed challenge/browser-verification responses.
 
 ```bash
 cd worker
@@ -426,8 +426,10 @@ docker run --rm \
 ```
 
 Optional tuning: `PAGE_TIMEOUT_MS` (default 30000), `NAV_TIMEOUT_MS`
-(default 60000), `SCRAPE_CONCURRENCY` (default 8), `MAX_HTML_TEXT_CHARS`
-(default and hard ceiling 1000000 characters), and
+(default 60000), `SCRAPE_CONCURRENCY` (default 8),
+`ORIGIN_MIN_SPACING_SECONDS` (default 1.0, capped at 10),
+`ORIGIN_MAX_JITTER_SECONDS` (default 0.25, capped at 2),
+`MAX_HTML_TEXT_CHARS` (default and hard ceiling 1000000 characters), and
 `MAX_PDF_BYTES` (default 25 MiB).
 
 ### Scheduling
@@ -435,14 +437,17 @@ Optional tuning: `PAGE_TIMEOUT_MS` (default 30000), `NAV_TIMEOUT_MS`
 The workflow defines a daily cron (`0 2 * * *` UTC) plus a manual **Run
 workflow** button. It and the required `SUPABASE_URL` and
 `SUPABASE_SERVICE_ROLE_KEY` secret names are on the default branch. GitHub
-Actions variables are corrected. The latest scheduled failure used main's old
-`supabase==2.4.0`; after merge, confirm the exact production origin and run the
-`2.31.0` preflight plus one manual 53-source baseline. Rotate the encrypted key
-without printing it only if that preflight still fails authentication. Then
-configure and exercise the optional `ALERT_WEBHOOK_URL`. Do not treat a green
-preflight as a healthy worker run: the full run must report `scraped > 0`. It
-also is not proof of named alert ownership. The secret key bypasses RLS and
-belongs only in the worker, never a client.
+Actions variables are corrected. Main run `30843904269` confirmed the exact
+production origin and existing encrypted key with the `2.31.0` preflight; do
+not rotate it. The full run scraped and persisted 42 of 53 sources, then exited
+nonzero because 11 official pages returned RAMQ/Yukon/Nunavut managed HTTP 403
+challenges or PEI browser-verification content. Preserve this fail-closed
+visibility: never baseline a block page, solve/evasion-test a CAPTCHA, or use an
+unreviewed cache/third-party mirror. Replace a source only with a reviewed,
+equivalent first-party URL through the next migration (027), or model explicit
+manual monitoring. Configure and exercise optional `ALERT_WEBHOOK_URL`, which
+is currently unset. The secret key bypasses RLS and belongs only in the worker,
+never a client.
 
 Local run without Docker:
 
@@ -533,9 +538,9 @@ supabase functions deploy support-ai \
   --project-ref "$PREVIEW_REF" --use-api
 supabase functions list --project-ref "$PREVIEW_REF"
 
-# Required recovery production source deploy after merge, fresh CI, and explicit
-# authorization. Production already has GEMINI_API_KEY; do not reset it for a
-# source-only deploy. Run authenticated production smoke immediately afterward.
+# Future production source deploys require fresh CI and explicit authorization.
+# Production already has GEMINI_API_KEY; do not reset it for a source-only
+# deploy. Run authenticated production smoke immediately afterward.
 supabase functions deploy support-ai \
   --project-ref "$PRODUCTION_REF" --use-api
 supabase functions list --project-ref "$PRODUCTION_REF"
@@ -576,10 +581,9 @@ the recovery production deploy and before later mobile releases.
 
 `.github/workflows/ci.yml` runs on pushes to `main`/`tamim` and on pull requests:
 
-- Node jobs use Node 22. Pull request #2's pushed head `2624ad3` passed all 19
-  GitHub/Vercel checks. It is mergeable but blocked by two fixed/outdated
-  unresolved Copilot threads. Do not reuse that result for a documentation
-  successor; require fresh CI before thread resolution/merge.
+- Node jobs use Node 22. Pull request #2 final head `f34b64a` passed all 19
+  GitHub/Vercel checks, both fixed review threads were resolved, and it merged
+  to `main` as `e75f449`.
 - `mobile-typecheck`: clean install, release-config preflight, Expo dependency
   alignment, TypeScript
 - `mobile-lint`: clean install, ESLint (`eslint-config-expo` flat config)
@@ -607,15 +611,13 @@ evidence. A focused 2026-08-03 recheck on the documentation tree passed mobile
 116/116, TypeScript, release configuration, worker 77/77, Gemini transport 4/4,
 Python dependency consistency, uptime shell syntax, and whitespace checks.
 
-The pushed recovery-branch `.github/workflows/uptime.yml` was manually
-dispatched with corrected repository variables. Backend-aware run #113 passed
-the public web, production anonymous-auth, and canonical-resolver probes. The
-script rejects every backend URL except the exact production origin
-`https://yskknolxbxfxakgvrcmg.supabase.co`. The default branch still needs the
-reviewed workflow merge: its currently scheduled uptime check is web-only. After
-merge, dispatch or observe a main-branch run and confirm both backend probes
-execute. One passing run does not prove recurring schedule or alert ownership.
-Never put a secret/service-role key in the uptime probe.
+Pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel checks and was
+merged as `e75f449`. Main-branch uptime run `30843906264` then passed the public
+web, production anonymous-auth, and canonical-resolver probes with
+`REQUIRE_SUPABASE_CHECK=true`. The script rejects every backend URL except the
+exact production origin `https://yskknolxbxfxakgvrcmg.supabase.co`. One passing
+run does not prove recurring schedule or alert ownership. Never put a secret/
+service-role key in the uptime probe.
 
 ## 8. Incident Runbook and Monitoring
 
@@ -625,12 +627,11 @@ Never put a secret/service-role key in the uptime probe.
   then publish the monitored address through `NEXT_PUBLIC_SUPPORT_EMAIL`.
 - **Edge Function:** review `support-ai` logs for exceptions, Gemini rate limits,
   policy-consent failures, and fallback surges.
-- **Worker:** the modern Supabase client/preflight source is pushed on the
-  recovery branch. Merge it, run the `2.31.0` preflight and establish a healthy
-  53-source baseline with `scraped > 0`; rotate the encrypted key only if
-  authentication still fails. Then configure a webhook and assign explicit
-  GitHub Actions alert ownership. Ubuntu 22.04 itself is already on `main`.
-- **App uptime:** backend-aware run #113 passed the public web, production
+- **Worker:** main run `30843904269` passed the `2.31.0` preflight and persisted
+  42/53 baselines; key rotation is not needed. Review equivalent first-party
+  alternatives or assign manual monitoring for the 11 challenge-blocked
+  sources, then configure a webhook and explicit GitHub Actions alert owner.
+- **App uptime:** main run `30843906264` passed the public web, production
   anonymous-auth, and resolver checks against the exact production origin.
   Establish recurring schedule and alert ownership before relying on it as an
   operational monitor. Provider status pages are useful incident context, but

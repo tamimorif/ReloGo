@@ -10,6 +10,17 @@ import json
 import urllib.request
 
 
+def challenge_counts(failed_sources: list[dict]) -> tuple[int, int]:
+    """Return managed-challenge and CAPTCHA failure counts."""
+
+    managed = sum(
+        failure.get("category") == "managed_challenge"
+        for failure in failed_sources
+    )
+    captcha = sum(failure.get("category") == "captcha" for failure in failed_sources)
+    return managed, captcha
+
+
 def run_should_fail(stats: dict[str, int]) -> bool:
     """Return whether a completed run must exit non-zero.
 
@@ -59,6 +70,12 @@ def build_notification_text(
         )
 
     if failed_sources:
+        managed, captcha = challenge_counts(failed_sources)
+        if managed or captcha:
+            lines.append(
+                "Access challenges (still failed closed): "
+                f"{managed} managed anti-bot, {captcha} CAPTCHA."
+            )
         lines.append(f"Failures ({len(failed_sources)}):")
         for failure in failed_sources:
             lines.append(
@@ -138,6 +155,17 @@ def build_step_summary(
         ]
 
     if failed_sources:
+        managed, captcha = challenge_counts(failed_sources)
+        if managed or captcha:
+            lines += [
+                "",
+                "### Access challenges",
+                "",
+                f"- Managed anti-bot challenges: **{managed}**",
+                f"- CAPTCHA challenges: **{captcha}**",
+                "- These responses were rejected and did not replace any "
+                "last-known-good baseline.",
+            ]
         lines += ["", "### Failures", ""]
         for failure in failed_sources:
             lines.append(

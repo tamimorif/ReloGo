@@ -73,6 +73,35 @@ def test_success_notification_has_no_failure_section():
     assert "Failures" not in text
 
 
+def test_reporting_distinguishes_managed_and_captcha_challenges():
+    failures = [
+        {
+            "agency": "Managed",
+            "url": "https://managed.example/page",
+            "error": "HTTP 403 managed anti-bot challenge",
+            "kind": "source",
+            "category": "managed_challenge",
+        },
+        {
+            "agency": "Captcha",
+            "url": "https://captcha.example/page",
+            "error": "CAPTCHA challenge returned instead of source content",
+            "kind": "source",
+            "category": "captcha",
+        },
+    ]
+
+    text = build_notification_text(_stats(scraped=1, failed=2), [], failures)
+    summary = build_step_summary(_stats(scraped=1, failed=2), [], failures)
+
+    assert "1 managed anti-bot, 1 CAPTCHA" in text
+    assert "still failed closed" in text
+    assert "### Access challenges" in summary
+    assert "Managed anti-bot challenges: **1**" in summary
+    assert "CAPTCHA challenges: **1**" in summary
+    assert "did not replace any last-known-good baseline" in summary
+
+
 def test_stale_notification_explains_incomplete_no_write_outcome():
     text = build_notification_text(_stats(stale=1), [], [])
 

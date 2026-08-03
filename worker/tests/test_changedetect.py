@@ -279,6 +279,7 @@ class TestContentRejectionReason:
             "Access Denied",
             "Attention Required! | Cloudflare",
             "Checking your browser before accessing this site",
+            "Verifying your browser before proceeding",
             "Please verify you are human to continue",
             "404 Not Found",
             "503 Service Unavailable",
