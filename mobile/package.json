@@ -1,6 +1,6 @@
 {
   "name": "relogo-mobile",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "check:release": "node scripts/check-release-config.js",
+    "eas-build-pre-install": "npm run check:release"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -34,7 +36,7 @@
     "nativewind": "^4.2.6",
     "pdf-lib": "^1.17.1",
     "react": "19.2.0",
-    "react-native": "0.83.6",
+    "react-native": "0.83.10",
     "react-native-gesture-handler": "~2.30.0",
     "react-native-get-random-values": "~1.11.0",
     "react-native-reanimated": "4.2.1",
@@ -59,6 +61,9 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "xcode@3.0.1": {
+      "uuid": "11.1.1"
+    }
   }
 }

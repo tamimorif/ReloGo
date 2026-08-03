@@ -1,6 +1,6 @@
 # ReloGo — canonical project plan
 
-_Last updated: 2026-07-18_
+_Last updated: 2026-08-03_
 
 This is the single source of truth for the product concept, implemented state,
 remaining work, phased roadmap, and definition of done. Operational commands
@@ -29,7 +29,7 @@ Supabase, sent to Gemini, logged, or exposed to the admin dashboard.
 | `landing/` | Marketing, legal, support, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
-| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Local migrations 001–022, Deno Edge Function |
+| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Local migrations 001–026, Deno Edge Function |
 
 There is no monorepo build layer. Each JavaScript app has an independent
 lockfile and environment. Supabase migrations are the schema source of truth;
@@ -41,11 +41,14 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
    `join_waitlist()` RPC.
 2. Mobile creates an anonymous account and stores only non-sensitive move
    metadata in `user_profiles`.
-3. The app compares the profile's accepted policy version with the
-   server-current version and routes stale profiles through re-consent before
-   normal data access.
-4. Checklist rules match exact province/territory codes plus `ANY` wildcards,
-   filter for vehicle/dependents, and calculate local-calendar deadlines.
+3. One consent-state RPC returns the server-current policy state and, only for
+   current consent, the allowlisted non-PII startup profile. Stale profiles are
+   routed through re-consent before normal data access.
+4. The canonical `resolve_corridor_rules()` RPC selects one rule per task with
+   deterministic precedence: exact/exact, `ANY`/destination, origin/`ANY`, then
+   `ANY`/`ANY`. It also returns ordered, validated HTTPS official-source links.
+   Mobile then filters vehicle/dependent flags and calculates local-calendar
+   deadlines.
 5. Sensitive form values stay in the device secure store. Filled PDFs are
    generated locally and shared only after an explicit action.
 6. Support uses six fixed general questions. Database policy enforces the exact
@@ -59,11 +62,51 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ### Mobile
 
-- Anonymous onboarding with required Privacy Policy and Terms consent.
+- App Store version 1.0 has been live since 2026-06-23 (Apple ID
+  `6781947478`, bundle ID `com.relogo.app`). Its SDK 51 bundle points at the
+  deleted Supabase project `fxrynmgaymslwcklfena` and has no compatible
+  Expo Updates runtime. Backend-dependent onboarding and checklist flows are
+  therefore broken in the currently downloadable release; 1.0.1 has not
+  shipped.
+- The recovery release is version 1.0.1 on Expo SDK 55 and its final reviewed
+  branch head is `2624ad3`. iOS production store build — `FINISHED`: version
+  1.0.1, build 6,
+  EAS `2c83c4f5-b154-4632-8604-6350a77bbee4`. Android production store build —
+  `FINISHED`: version 1.0.1, build 3, EAS
+  `20256d8c-cf12-472c-a236-7223e0207103`. Those builds predate `2624ad3`'s
+  credential-bearing URL regression fix and are recovery evidence, not final
+  submission candidates. Fresh builds, Apple metadata/device QA, and a Google
+  Play service-account key or reviewed manual Android path remain.
+- Startup no longer waits behind a static native splash for remote work.
+  Session storage reads the encrypted value and key concurrently; session
+  restore is bounded at 3 seconds and consent/profile bootstrap at 5 seconds,
+  with a retryable recovery screen instead of an indefinite spinner. Duplicate
+  `INITIAL_SESSION` work is ignored, the bootstrap profile seeds React Query,
+  and checklist profile/rules/progress reads use bounded stale times, abort
+  after 8 seconds, and disable automatic retries so an offline request reaches
+  visible recovery UI promptly.
+- Missing or invalid Supabase release configuration now renders a controlled
+  recovery state rather than throwing during module evaluation. Runtime public
+  URLs must be clean origins, and the production build preflight accepts only
+  the exact production Supabase origin plus a trimmed, nonblank public key. It
+  also checks version, EAS environment/channel, retired project references,
+  legal origin, and update/runtime configuration.
+- The PDF cleanup path is lightweight at startup; `pdf-lib` and sharing code
+  are dynamically loaded only after an explicit fill action. Direct icon
+  imports avoid loading the package-wide icon entry point.
+- Anonymous onboarding with required Privacy Policy and Terms consent. Its
+  insert/update sends only the minimal non-PII profile fields; the existing
+  `get_policy_consent_state()` RPC then returns the authoritative allowlisted
+  profile and seeds React Query before the first checklist load. Auth, profile
+  insert/update, and authoritative confirmation waits are each bounded at 10
+  seconds.
 - Server-current policy checks, server-authored acceptance timestamps, and a
   fail-closed re-consent route are implemented locally through migration 019.
 - Profile-aware auth routing with retry and stale-request protection.
 - Personalized, deadline-sorted checklist and optimistic progress updates.
+  It uses the canonical server resolver, labels rule requirements as Required
+  or Optional, exposes safe HTTPS official sources, and has no dead `LOCKED`
+  state (`AVAILABLE`/`COMPLETED` only).
 - Editable non-PII move profile and on-device encrypted PII vault.
 - Secure sign-out and account deletion wipe PII, cached PDFs, and local session.
 - A destination-scoped British Columbia Application for Health and Drug
@@ -78,6 +121,9 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 - Realtime support transcript, fixed questions, AI replies, human takeover,
   resolve/reopen behavior, and local fallback escalation.
 - Expo SDK 55 dependencies aligned; native iOS/Android Hermes exports pass.
+- The production dependency audit reports 0 vulnerabilities after a narrow
+  `xcode@3.0.1` override pins its CommonJS-compatible `uuid` dependency to
+  11.1.1. Keep the override exact and remove it when Expo/xcode fixes upstream.
 - A top-level PII-safe crash boundary (`AppErrorBoundary`) and global error
   handler capture only redacted, non-PII diagnostics on-device and never
   transmit them; redaction is unit-tested.
@@ -111,6 +157,10 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ### Worker
 
+- A read-only preflight accepts only the exact production Supabase origin, then
+  validates the key, required schema, and canonical resolver before Chromium is
+  installed. It rejects preview and malformed/lookalike URLs. The Supabase
+  Python client is updated to 2.31.0 so current `sb_secret_` keys are accepted.
 - Bounded parallel scraping with an isolated page/download per source.
 - Retry and sanity gates for blank, blocked, error, oversized, or invalid data.
 - Inert, size-capped PDF fingerprinting for official PDF sources.
@@ -123,7 +173,7 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ### Backend and CI
 
-- Ordered local migrations 001–022 cover schema, seed data, RLS, deletion,
+- Ordered local migrations 001–026 cover schema, seed data, RLS, deletion,
   admin authorization, admin bootstrap, consent/re-consent, support, waitlist,
   worker state, atomic workflows, conservative content corrections,
   server-side admin pagination (021), and enumeration-safe waitlist signup
@@ -135,9 +185,18 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   server-current policy version. Migration 020 removes exact-day arithmetic
   where the source uses calendar months, material conditions, unsupported
   scope, or stale-law evidence; a fresh database retains 12 numeric deadlines.
+- Migration 023 centralizes exact/`ANY` corridor precedence and official-source
+  ordering in one RPC shared by mobile, admin, and AI grounding. Migration 024
+  folds the current allowlisted profile into the consent bootstrap response.
+  Migration 025 removes the unused `LOCKED` progress state. Migration 026
+  rejects new/updated same-origin-and-destination profile/waitlist rows while
+  preserving legacy rows through `NOT VALID` constraints.
 - Support timestamps are server-authored; AI persistence is atomic and
   service-only; human involvement is permanently marked; client write columns
   are narrow.
+- Support AI applies one provider deadline across response headers and the full
+  response-body read, so a stalled body cannot hold the Edge invocation after
+  headers arrive.
 - Support message bodies and thread metadata cannot carry client-authored free
   text.
 - The extracted mobile/admin `Database` interfaces are CI-checked byte-for-byte.
@@ -146,62 +205,84 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   helper tests/allowlist synchronization, API integration tests, consent-version
   synchronization, database lint/pgTAP, shared types, and a production
   dependency audit for all three JavaScript apps.
-- The dependency audit gates on high/critical only. Mobile's moderate Expo
-  build-tool transitives are reviewed and accepted, and npm offers only a
-  breaking forced downgrade for them, so failing on moderate would block every
-  run for a known non-issue.
+- Recovery-branch CI work moves Node jobs to Node 22, runs the mobile release
+  preflight, adds Deno format/lint/type checks, compiles the worker preflight,
+  and expands public uptime checks to production Supabase auth and resolver
+  health. Worker and uptime preflights reject every Supabase URL except the
+  exact production origin. The implementation is pushed at `2624ad3`; the
+  documentation correction must be published and receive its own fresh CI
+  before merge.
+- The dependency audit gates on high/critical. Mobile currently reports 0
+  vulnerabilities after the exact `xcode@3.0.1` → `uuid@11.1.1` override;
+  clean install and iOS project-generation checks cover that temporary
+  out-of-range transitive pin.
 
 ### Cloud foundation
 
-- Separate preview and production Supabase projects are active in Canada's
+- Separate preview and production Supabase projects exist in Canada's
   `ca-central-1` region. Development/preview clients target preview; production
   clients target production in Vercel and EAS.
-- Hosted anonymous sign-ins are enabled with a 30-per-hour-per-IP limit.
-- Migrations 001–018 and `support-ai` version 2 are deployed to both projects.
-  JWT verification is enabled, `GEMINI_API_KEY` is configured, and the first
-  admin identity is server-authorized in both environments. Committed migrations
-  019–022 and the current app/web changes are not deployed.
-- Preview passed a self-cleaning anonymous onboarding → profile → checklist →
-  support fallback → account deletion smoke test.
-- Hosted public-schema lint and all 143 pgTAP checks pass in both environments.
-  Security/performance advisor results were reviewed; the remaining warnings
-  are intentional RPC/RLS policy shape or expected unused-index noise on fresh
-  databases.
+- Preview (`uwfblgllkibbupqyofkl`) was migrated to 001–026, deployed with
+  JWT-protected `support-ai` v3, and passed a self-cleaning hosted smoke that
+  covered anonymous auth, canonical resolution/HTTPS sources, consent gating,
+  authenticated non-fallback AI support, and cleanup. It was then deliberately
+  paused and is currently inactive.
+- Production (`yskknolxbxfxakgvrcmg`) is active and currently linked locally at
+  exact migrations 001–026 with JWT-protected `support-ai` v4. The post-push
+  dry run is clean; unauthenticated function invocation returns 401; anonymous
+  auth is enabled; and the self-cleaning hosted smoke passed anonymous auth,
+  resolver output with five tasks/five HTTPS official sources, a minimal
+  onboarding profile insert, authoritative consent/profile confirmation, and
+  cleanup. Production has zero profile, waitlist, support, or progress rows, so
+  no user data was carried through the promotion.
+- The reviewed current admin recovery build is deployed to production at
+  `https://relo-go.vercel.app`; landing is unchanged and live at
+  `https://relogo-two.vercel.app`. Backend-aware uptime run #113 passed the
+  production web, anonymous-auth, and canonical-resolver checks.
+- The latest reviewed hosted advisor results had no errors; six
+  multiple-permissive-policy warnings were intentional. Re-run production
+  lint, pgTAP, advisors, and authenticated smoke against 001–026 in final
+  release verification and before any future hosted change.
+- A separate empty/new Supabase project (`gbhzaathkkqzosovhnjh`) exists in
+  another organization and is documented here, but is not configured as a
+  ReloGo deployment target. Always use the two explicit refs above.
 
 ## Verification snapshot
 
-Every row below was re-run end to end on 2026-07-21 against the committed tree
-on `tamim`, plus the last separately identified hosted checks:
+Verification must be interpreted by tree and environment; older green counts do
+not prove a newer tree. Pull request #2's pushed head `2624ad3` passed all 19
+GitHub/Vercel checks. It is mergeable but GitHub still blocks merge because two
+fixed Copilot review threads are outdated but unresolved. The current
+documentation successor must receive its own fresh CI before resolution/merge;
+do not reuse the `2624ad3` result for a later head.
+Local evidence does not replace real-device or store-submission evidence.
 
-| Check | Result |
+| Scope | Latest established evidence |
 | --- | --- |
-| Mobile clean install and dependency alignment | Pass (SDK 55.0.28 patch set) |
-| Mobile TypeScript | Pass |
-| Mobile ESLint (eslint-config-expo flat) | Pass; 0 errors, 1 known warning |
-| Mobile Jest | 85/85 pass |
-| Expo iOS Hermes export | Pass |
-| Expo Android Hermes export | Pass |
-| Mobile production dependency audit | 12 moderate, 0 high/critical (Expo build-tool transitives) |
-| Admin ESLint (flat config) | Pass; 0 errors, 5 `set-state-in-effect` warnings |
-| Admin production build/audit | Pass; 0 vulnerabilities |
-| Landing Next.js 16 lint/static production build | Pass |
-| Landing production dependency audit | 0 vulnerabilities (`sharp` overridden to ^0.35.3) |
-| Worker Python 3.11 compile/tests | 69/69 pass |
-| Deno `support-ai` helper tests | 9/9 pass (now also verified locally, not only in CI) |
-| Database/support/consent synchronization | Pass; extracted `Database` interface byte-identical at 305 lines; support questions and policy version match |
-| Fresh local migrations, public-schema lint, pgTAP | Clean reset applies 001–022; lint clean; 164/164 pgTAP pass |
-| E2E test suite (Python) | 243/243 pass against clean local Supabase (includes all 156 corridors) |
-| pgTAP/E2E order independence | Pass; pgTAP → E2E → pgTAP → E2E → pgTAP all green |
-| Landing public-route uptime markers | All 7 markers present in the current static build |
-| Backup/restore documentation | Complete at `docs/BACKUP_RESTORE.md` |
-| Hosted preview smoke | Anonymous onboarding, profile, checklist, support fallback, and account deletion pass |
-| Full deployed flow / EAS device builds | Not run; current web/schema changes, healthy worker baseline/webhook, and SDK 55 device builds remain |
+| Current recovery database work | Fresh local reset applies 001–026; public-schema lint clean; pgTAP 198/198; focused resolver/integrity API E2E 5/5 |
+| Hosted preview recovery | Exact ledger 001–026; JWT-protected `support-ai` v3; hosted smoke passed before preview was deliberately paused |
+| Production backend | Active at exact ledger 001–026; dry run clean; `support-ai` v4 ACTIVE/JWT-protected; unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, and cleanup; user-data tables empty |
+| Mobile dependency audit | 0 vulnerabilities with exact `xcode@3.0.1` → `uuid@11.1.1` override; clean install and iOS project generation verified |
+| Prior committed `tamim` baseline (2026-07-21) | Mobile 85/85, worker 69/69, support helpers 9/9, pgTAP 164/164, API E2E 243/243, both native Hermes exports and web/admin builds passed |
+| Latest full code matrix at `2624ad3` (2026-08-01) | Mobile release configuration, TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export 1,752 modules/5.8 MB Hermes bytecode, Android export 1,773 modules/5.9 MB Hermes bytecode, and production audit 0; admin and landing lint/build; Deno format/lint/type checks and tests 16/16; worker compile and tests 77/77; contract sync, workflow YAML, shell syntax, and diff checks passed |
+| Focused documentation-tree recheck (2026-08-03) | Mobile 116/116, TypeScript, release configuration, worker 77/77, Gemini transport 4/4, Python dependency consistency, uptime shell syntax, and `git diff --check` passed; code paths are unchanged from `2624ad3` |
+| Pull request #2 / CI | Pushed head `2624ad3`; 19/19 GitHub and Vercel checks passed; mergeable but blocked by two fixed, outdated, unresolved Copilot threads. A later documentation commit requires fresh CI |
+| iOS production store build | Build 6 `FINISHED`, EAS `2c83c4f5-b154-4632-8604-6350a77bbee4`; predates `2624ad3`, so a fresh final build, real-device QA, and submission remain |
+| Android production store build | Build 3 `FINISHED`, EAS `20256d8c-cf12-472c-a236-7223e0207103`; predates `2624ad3`, so a fresh final build, real-device QA, and submission remain |
+| Web/worker/uptime recovery | Admin recovery live; landing unchanged/live; manual recovery-branch uptime run #113 passed backend probes, but scheduled `main` remains web-only until merge. The 2026-08-03 scheduled worker still ran default-branch `supabase==2.4.0` and failed its modern-key format check before network access; merge/rerun `2.31.0` before considering secret rotation |
+| Backup/restore | Runbook corrected; funding/retention decision and a measured restore drill remain |
+
+The recovery database result was established locally, both hosted backends carry
+the recovery schema/function, and the current local and pull-request matrices
+are green. The release still requires resolution/merge of the two outdated
+review threads, deployment of the final Edge Function source, fresh mobile
+builds, real-device QA, and store-submission evidence.
 
 ### iOS Simulator run (2026-07-21)
 
-The app was run for the first time on Expo SDK 55 against a local Supabase
-carrying migrations 001–022 — the schema no hosted project has yet. Verified by
-observation, not inference:
+This is historical simulator evidence from 2026-07-21, not evidence for the
+current 1.0.1 recovery tree. The app ran against local migrations 001–022 and
+the following behavior was verified by observation, not inference:
 
 | Behaviour | Result |
 | --- | --- |
@@ -255,25 +336,48 @@ Four defects surfaced during that re-run and are fixed:
   It also swallowed failed setup statements, one of which had been failing
   silently. Both are fixed and the suites are now order-independent.
 
-Passing these checks means the implementation is a strong MVP. It is not a
-production launch until the remaining phases below pass.
+Those historical checks established a strong SDK 55 simulator baseline. The
+current local matrix is now green as well, but neither result replaces new EAS
+binaries, real-device QA, CI, or the remaining release phases below.
 
 ## Remaining risks and deliberate limits
 
 ### Release blockers
 
-- The current free Supabase plan does not provide the required managed
-  backup/PITR posture; a paid-backup decision and restore drill remain.
-  Backup/restore procedures are documented at `docs/BACKUP_RESTORE.md`.
-- No complete live pass has exercised mobile, Gemini, database, admin, landing,
-  and worker together against the intended hosted projects.
+- The shipped App Store 1.0 / SDK 51 binary contains a deleted Supabase project
+  reference and has no compatible Expo Updates runtime. The old backend and
+  binary cannot be recovered or redirected; a new tested 1.0.1 store binary is
+  required. The recorded iOS 1.0.1 artifact is `FINISHED` (build 6, EAS
+  `2c83c4f5-b154-4632-8604-6350a77bbee4`); Android is `FINISHED` (build 3,
+  EAS `20256d8c-cf12-472c-a236-7223e0207103`). Both predate the final mobile
+  URL-safety fix in `2624ad3`; fresh builds still require real-device QA and
+  store approval. Automated Google Play submission needs an
+  owner-provided service-account key or reviewed manual submission path.
+- The production backend promotion is complete at exact 001–026/function v4,
+  and its deployed source is recovery commit `0135964`. Final transport
+  hardening is pushed at `2624ad3`; after the two outdated review threads are
+  resolved and pull request #2 merges, redeploy the function and repeat the
+  authenticated production support smoke. All 19 checks passed on the pushed
+  `2624ad3` head; the documentation commit requires fresh CI.
+- GitHub Actions variables are corrected, and backend-aware uptime run #113
+  passed. The default branch still pins `supabase==2.4.0`, which rejects modern
+  `sb_secret_` keys before making a request. Merge the recovery branch's
+  `2.31.0` client/preflight and rerun it first; rotate the encrypted worker key
+  only if the merged preflight still fails authentication, and never expose it.
+- No complete live pass has exercised the new mobile binary, Gemini, database,
+  admin, landing, and worker together against the intended production stack.
+- The Supabase backup plan/retention/PITR decision is not approved or funded,
+  and no measured restore drill has passed. The proposed runbook is
+  [BACKUP_RESTORE.md](BACKUP_RESTORE.md), not proof of an operational backup.
 - Legacy admin bootstrap helpers containing password material were removed from
   the working tree, but the value remains in Git history. Rotate/revoke the
   hosted admin credentials and decide the reviewed history-remediation approach
   before release.
-- The migration 019 re-consent boundary, migration 020 content corrections,
-  Support/legal routes, BC PDF workflow, worker runner fix, and uptime workflow
-  are committed on `tamim` but not yet merged to `main`, deployed, or activated.
+- The reviewed admin recovery build is live, landing is unchanged/live, and
+  backend-aware uptime run #113 passed. The worker still lacks a healthy
+  production baseline because its fixed client/preflight has not reached the
+  default branch. `relogo.app` does not resolve and no monitored public
+  support/privacy mailbox exists.
 - The BC government PDF workflow now runs end to end on SDK 55 in the iOS
   Simulator (download, audited hash check, on-device fill, review prompt,
   share sheet). It has still not been exercised on an EAS binary, on a real
@@ -283,8 +387,13 @@ production launch until the remaining phases below pass.
   seeded numeric deadlines, but 15 sources did not yield usable content to the
   automated probe and origin-specific, qualitative, school, and exception-heavy
   content still needs human/legal review before promotion.
-- Legal text, store disclosures, backup/restore, active monitoring, and a
-  monitored public support/privacy mailbox are not production-approved.
+- `docs/STORE.md` contains conservative draft disclosures (anonymous user ID
+  linked to non-PII move/progress/support data and Gemini processing; device PII
+  not collected). The account owner/legal reviewer must correct the live App
+  Store "Data Not Collected" answer and confirm the App Store Connect/Google
+  Play privacy forms, age rating, availability/trader status, support
+  URL/mailbox, Apple metadata/device QA, final screenshots, and legal text. A
+  draft in Git is not a completed store disclosure.
 
 ### Follow-ups that do not block local stabilization
 
@@ -296,14 +405,16 @@ production launch until the remaining phases below pass.
   if warranted.
 - Fixed-question support protects privacy but cannot collect arbitrary bug
   details; define a privacy-reviewed support channel before broad launch.
-- The first manual worker workflow attempt failed during Playwright dependency
-  installation on Ubuntu 24.04, before the scraper ran. The Ubuntu 22.04 runner
-  fix is committed on `tamim` but not yet merged to the default branch `main`
-  where the schedule runs; a full real 53-source baseline and webhook delivery
-  still have not succeeded with production credentials.
-- Mobile dependency audit findings are limited to moderate Expo toolchain
-  transitive advisories; avoid unsafe forced downgrades and recheck with future
-  supported SDK updates.
+- The default branch still contains the historical worker workflow whose latest
+  run failed in `supabase==2.4.0`. The `supabase==2.31.0` dependency and
+  read-only preflight fix are pushed on recovery commit `0135964`, but are not
+  on the default branch until review/merge. A full 53-source production
+  baseline and webhook delivery still have not succeeded;
+  `ALERT_WEBHOOK_URL` is unset.
+- Mobile's audit is clean after the exact `xcode@3.0.1` → `uuid@11.1.1`
+  override. It is intentionally narrow because UUID 12 removes CommonJS;
+  recheck and remove the override when an upstream Expo/xcode release supports
+  a fixed dependency directly.
 - Mobile now captures crashes/errors on-device in a PII-safe form (redacted,
   never transmitted) behind a top-level boundary. Wiring an external crash
   service remains a deliberate, privacy-reviewed decision; do not add one that
@@ -314,10 +425,13 @@ production launch until the remaining phases below pass.
 
 ### Phase 0 — repository consolidation and local stabilization
 
-Status: **complete.** The release-readiness change set (migrations 001–022 and
-the current app/web work) is committed on `tamim` and pushed, the working tree is
-clean, and the local CI matrix is green. It is not yet merged to `main` or
-deployed to hosted environments; that promotion is tracked under Phases 1–2.
+Status: **recovery implementation pushed; documentation and release evidence
+incomplete.** The reviewed implementation is pushed on
+`codex/recovery-and-mobile-startup` at `2624ad3`. Its recovery
+migrations/function and admin build are live, and all 19 pull-request checks
+passed for that pushed head. Pull request #2 is mergeable but blocked by two
+fixed, outdated, unresolved Copilot threads. The documentation correction must
+be published and receive fresh CI before thread resolution and merge.
 
 - Consolidate planning into this file and agent context into AI_HANDOFF.
 - Remove tracked generated files and duplicate root Expo configuration.
@@ -325,40 +439,61 @@ deployed to hosted environments; that promotion is tracked under Phases 1–2.
 - Close account, support, admin, waitlist logging, and worker race/security bugs.
 - Make the complete local verification matrix a CI contract.
 
-The stabilization exit is met: fresh migrations apply cleanly, installs are
-clean, and the 001–022 change set is committed and pushed on `tamim`.
+Exit now requires: finish and publish the documentation correction with fresh
+CI, resolve the two outdated threads, merge pull request #2, deploy the final
+Edge Function source, create fresh store builds, and establish a healthy
+worker baseline. Rotate the worker key only if the merged preflight proves it
+necessary; never share credentials.
 
 ### Phase 1 — provision isolated environments
 
-Status: **completed except backup/billing and admin credential rotation.**
+Status: **backend environments recovered; operational gates incomplete.**
 
 - Completed: separate Canadian preview/production Supabase projects.
 - Completed: environment-scoped public variables in Vercel, EAS, and local preview files.
-- Completed: anonymous auth/rate limit, migrations 001–018, active JWT-protected `support-ai`, hosted lint/pgTAP, advisors, and preview smoke test.
-- Completed: pushed migrations 017 and 018 to both hosted projects; verified the admin bootstrap trigger works.
+- Completed: preview migrations 001–026, JWT-protected `support-ai` v3,
+  hosted verification, and recovery smoke; preview is deliberately paused.
+- Completed: production is active at exact migrations 001–026 with
+  JWT-protected `support-ai` v4, clean dry run, and unauthenticated 401. Its
+  self-cleaning smoke passed anonymous auth, resolver output with five
+  tasks/five HTTPS sources, minimal onboarding profile insert, authoritative
+  consent/profile confirmation, and cleanup. Profile, waitlist, support, and
+  progress tables are empty.
 - Completed: created the first admin identity (`admin@relogo.app`) and verified `is_admin()` in both environments.
 - Completed: supplied `GEMINI_API_KEY` securely to preview and production.
-- Remaining: choose a backup/PITR-capable plan and complete a restore drill (requires billing upgrade).
+- Completed: exact deployed migration/function source is pushed in recovery
+  commit `0135964`.
+- Completed: opened pull request #2 at pushed head `2624ad3`; all 19 checks
+  passed for that head.
+- Remaining: publish the documentation correction, obtain fresh CI, resolve the
+  two fixed/outdated review threads, merge with explicit authorization,
+  redeploy the final Edge Function source, and preserve explicit targeting for
+  future 027+.
+- Remaining: choose/fund a backup posture and complete a measured restore drill.
 - Remaining: rotate/revoke the exposed bootstrap admin credentials and complete
   a reviewed Git-history remediation decision.
 
-Exit: preview/prod credentials cannot cross, a real anonymous user can onboard,
-an admin is server-authorized, Gemini-backed support is configured in production,
-and database/function security checks pass.
+Exit: preview/prod credentials cannot cross, production matches the reviewed
+release ledger/function, a real user and authenticated AI flow pass, advisors
+are reviewed, and backup/credential gates are closed.
 
 ### Phase 2 — deploy web and monitoring worker
 
 Status: **in progress.**
 
-- Completed: Deployed landing and admin to Vercel with intended public variables.
-- Completed: Added `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` GitHub secrets for the worker.
+- Completed: The reviewed admin recovery is live, the landing site is
+  unchanged/live, and backend-aware uptime run #113 passed the production web,
+  anonymous-auth, and canonical-resolver checks.
+- Completed: GitHub Actions variables are corrected. The required
+  `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` secret names exist.
 - Completed: The scheduled worker workflow is present on the default branch.
-- Remaining: Deploy the current Support/legal build, configure the public
-  privacy/support mailbox, attach a reviewed public domain, and verify every
-  legal/metadata route. The current live aliases still serve the earlier build.
-- Remaining: Merge the committed Ubuntu 22.04 worker fix from `tamim` into the
-  default branch `main` (the schedule runs from `main`), rerun manually to
-  establish healthy baselines, and configure/test webhook delivery.
+- Remaining: Configure the public privacy/support mailbox, attach a reviewed
+  public domain, and verify every legal/metadata route under that domain.
+- Remaining: Merge the modern Supabase client and exact-origin preflight pushed
+  in `0135964`, then run a manual worker job and establish a healthy 53-source
+  baseline with `scraped > 0`. Rotate the encrypted key through an
+  owner-controlled flow only if the merged preflight still fails
+  authentication, without printing it. Then configure/test webhook delivery.
 - Remaining: Verify waitlist signup → admin visibility and source change → PENDING alert → human approval/dismissal.
 
 Exit: both web apps are live, one complete worker run is healthy, notifications
@@ -366,9 +501,27 @@ work, and no worker path can modify live rules.
 
 ### Phase 3 — mobile preview and full end-to-end QA
 
-Status: **blocked on Phase 2.**
+Status: **pre-final recovery builds finished; fresh final builds and
+real-device QA not complete.**
 
-- Produce EAS preview builds for iOS and Android.
+- iOS production store build is `FINISHED`: version 1.0.1, build 6, EAS
+  `2c83c4f5-b154-4632-8604-6350a77bbee4`.
+- Android production store build is `FINISHED`: version 1.0.1, build 3, EAS
+  `20256d8c-cf12-472c-a236-7223e0207103`.
+- Both recorded builds predate `2624ad3`'s final URL-safety fix. Create fresh
+  builds from the merged tree; build completion is not device or store
+  evidence. If isolated preview QA is still required, resume preview and
+  reconfirm exact 001–026/v3 before using it. Do not use the three old SDK 51
+  artifacts as evidence.
+- Prioritize the iOS build/device/release path because broken version 1.0 is
+  publicly downloadable there. Google Play does not currently expose
+  `com.relogo.app`; Android recovery work can run in parallel or immediately
+  afterward, but a public-store 404 alone does not prove publication history.
+- Register an approved test iPhone before the internal iOS build. Keep device
+  enrollment and Apple 2FA with the account owner.
+- Measure cold and warm startup on representative phones and slow networks;
+  confirm the static splash releases promptly, timeout/retry states work, and
+  deferred PDF code does not inflate startup work.
 - Test onboarding, checklist selection/deadlines, progress, profile edits,
   local-only PII, sign-out, deletion, and PDF cache behavior on real devices.
 - On both platforms, verify the BC form stays editable, mapped and Unicode
@@ -402,37 +555,57 @@ Status: **in progress.**
   share.
 - Drafted: App Store/Play Store descriptions, privacy nutrition labels, and
   data-safety answers in `docs/STORE.md`; current name/subtitle/short-description
-  and keyword lengths fit platform limits, but final legal/store review remains,
-  so these are not submission-ready.
+  and keyword lengths fit platform limits. Version 1.0 is already live and
+  broken; the draft specifically remains unapproved for the 1.0.1 recovery
+  submission.
 - Recommended: Start content work with AB↔ON, then ON↔BC and AB↔BC, using
   waitlist demand before final commercial ranking.
 - Remaining: Resolve inaccessible/blocked sources, deepen origin and
   destination rules, and obtain human/legal approval for conditional content.
-- Remaining: Deploy migrations 019–022 and current web/mobile changes, then test
-  policy re-consent and the BC PDF on SDK 55 EAS builds and real devices.
+- Remaining: release the reviewed web/mobile recovery only after preview/device
+  gates; then test policy re-consent, resolver sources, and the BC PDF on SDK 55
+  EAS builds and real devices against the now-current production backend.
 - Remaining: Complete Apple/Google accounts and replace the existing pre-final
   screenshots with store-ready captures from the release candidate.
+- Remaining: provision/review a Google Play service-account key for automated
+  Android submission, or document the owner-controlled manual submission path.
+- Remaining human/account gates: confirm the draft privacy nutrition/data
+  safety forms (including anonymous linked data and Gemini processing), correct
+  the live App Store "Data Not Collected" answer, finish Apple metadata and
+  real-device QA, reconcile the age rating shown by Apple, and inspect
+  territorial availability/trader status in App Store Connect without assuming
+  why European/UK storefronts are absent; complete any 2FA; approve final
+  legal/content language; and make the Support URL point to a monitored mailbox.
 
 Exit: content is defensible, one production PDF works, legal/disclosures are
-approved, and store submissions are ready.
+approved, and the 1.0.1 recovery submissions are ready.
 
-### Phase 5 — observability and controlled launch
+### Phase 5 — observability and controlled recovery rollout
 
 Status: **in progress.**
 
-- Completed: Created an incident runbook and added a privacy-safe public
-  route check plus opt-in scheduled uptime workflow. The workflow is committed on
-  `tamim` and remains inactive until `UPTIME_ENABLED=true`; operational ownership
-  and alert delivery are not established.
+- Completed: The pushed recovery-branch uptime workflow was manually dispatched
+  with the corrected repository variables. Run #113 passed the public web,
+  production anonymous-auth, and canonical-resolver probes; the probe rejects
+  preview and every URL except the exact production origin.
+- Remaining: The scheduled uptime workflow on default `main` is still web-only
+  until pull request #2 merges. After merge, dispatch or observe a main-branch
+  run and confirm that both production anonymous-auth and canonical-resolver
+  probes execute.
 - Completed locally: Added a PII-safe on-device crash/error boundary and global
   handler in mobile (redacts identifiers, transmits nothing off-device).
-- Remaining: Decide on and, if approved, wire a privacy-reviewed external
-  crash/error service; activate uptime checks; configure Edge/worker alerts;
-  verify support ownership; and add backup checks.
-- Remaining: Soft-launch to a small set of verified corridors.
-- Remaining: Monitor onboarding, completion, escalations, worker noise, deletions, and source accuracy before expanding.
+- Remaining: A single passing run does not establish recurring schedule or
+  alert ownership. Decide on and, if approved, wire a privacy-reviewed external
+  crash/error service; establish recurring uptime/alert ownership; configure
+  Edge/worker alerts; verify support ownership; and add backup checks.
+- Remaining: Treat 1.0.1 as an incident-recovery release: ship it only after
+  the release gates pass, then monitor a small verified cohort/corridor set
+  before expanding availability or marketing.
+- Remaining: Monitor onboarding, completion, escalations, worker noise,
+  deletions, and source accuracy before expanding.
 
-Exit: a controlled audience is live, observable, recoverable, and supportable.
+Exit: 1.0.1 users are observable, recoverable, and supportable, and the broken
+1.0 release is no longer the current App Store version.
 
 ### Phase 6 — post-launch product growth
 
@@ -441,14 +614,17 @@ Status: **deferred.**
 - Recoverable/linkable accounts and multi-device sync.
 - Push reminders, calendar export, and deadline notifications.
 - French content and UI localization.
-- Server-side admin pagination, audit log, and full content/source CRUD.
+- Admin audit log and full content/source CRUD (server-side user pagination is
+  already implemented in migration 021).
 - Broader corridor coverage, worker queues/per-source schedules, analytics,
   partnerships, and monetization.
 
 ## Definition of done
 
-MVP launch is complete only when:
+Recovery completion and MVP readiness are established only when:
 
+- App Store version 1.0.1 has passed real-device QA and is released, so broken
+  version 1.0 is no longer the current downloadable version;
 - the repository is clean, committed, reproducible, and CI-green;
 - isolated preview/production environments are configured;
 - hosted migrations, RLS/RPCs, Edge Function, web apps, and worker are live;

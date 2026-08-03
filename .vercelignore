@@ -1,0 +1,19 @@
+# Vercel projects are rooted at admin/ or landing/, but the CLI uploads from
+# the repository root so those cloud rootDirectory settings can be honored.
+# Allow only the two web source trees; keep mobile, Supabase temp connection
+# files, worker data, docs, local caches, and every local environment file out
+# of deployment archives.
+/*
+!admin
+!landing
+
+admin/.env*
+admin/.vercel/
+admin/node_modules/
+admin/dist/
+
+landing/.env*
+landing/.vercel/
+landing/node_modules/
+landing/.next/
+landing/out/

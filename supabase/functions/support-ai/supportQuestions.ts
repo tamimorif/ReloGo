@@ -36,7 +36,6 @@ export function hasOnlyAllowedUserQuestions(
   messages: readonly SupportTranscriptMessage[],
 ): boolean {
   return messages.every(
-    (message) =>
-      message.sender !== "user" || isSupportQuestion(message.body),
+    (message) => message.sender !== "user" || isSupportQuestion(message.body),
   );
 }

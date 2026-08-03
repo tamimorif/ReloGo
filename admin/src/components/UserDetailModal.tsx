@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { safeHttpUrl } from "../lib/safeUrl";
+import { safeHttpsUrl } from "../lib/safeUrl";
 import type { AdminUserDetail, TaskStatus } from "../types/database";
 import { PROVINCE_LABELS } from "../types/database";
 
@@ -12,7 +12,6 @@ interface UserDetailModalProps {
 const STATUS_STYLES: Record<TaskStatus, string> = {
   COMPLETED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   AVAILABLE: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  LOCKED: "bg-slate-600/30 text-slate-400 border-slate-600",
 };
 
 function fmtDateTime(iso: string | null): string {
@@ -190,11 +189,7 @@ export function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
                   </p>
                 ) : (
                   <ul className="space-y-2">
-                    {detail.tasks.map((task) => {
-                      // Only http/https URLs become links; anything else
-                      // renders as plain text (defense against javascript:).
-                      const officialUrl = safeHttpUrl(task.official_url);
-                      return (
+                    {detail.tasks.map((task) => (
                       <li
                         key={task.task_rule_id}
                         className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5"
@@ -208,25 +203,47 @@ export function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
                               {task.days_deadline !== null
                                 ? `Due ${task.days_deadline} days after move`
                                 : "No fixed deadline"}
-                              {task.is_mandatory ? " · Required" : ""}
+                              {` · ${task.is_mandatory ? "Required" : "Optional"}`}
                               {task.status_updated_at
                                 ? ` · Updated ${fmtDateTime(task.status_updated_at)}`
                                 : ""}
                             </p>
-                            {officialUrl ? (
-                              <a
-                                href={officialUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-0.5 block truncate text-xs text-blue-400 underline decoration-slate-600 hover:text-blue-300"
+                            {task.official_sources.length > 0 ? (
+                              <ul
+                                className="mt-1 space-y-0.5"
+                                aria-label={`Official sources for ${task.title}`}
                               >
-                                {officialUrl}
-                              </a>
-                            ) : task.official_url ? (
-                              <span className="mt-0.5 block truncate text-xs text-slate-500">
-                                {task.official_url}
-                              </span>
-                            ) : null}
+                                {task.official_sources.map((source) => {
+                                  const officialUrl = safeHttpsUrl(
+                                    source.official_url,
+                                  );
+
+                                  return (
+                                    <li key={source.id} className="truncate text-xs">
+                                      {officialUrl ? (
+                                        <a
+                                          href={officialUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          aria-label={`${source.agency_name} official source (opens in a new tab)`}
+                                          className="text-blue-400 underline decoration-slate-600 hover:text-blue-300"
+                                        >
+                                          {source.agency_name}
+                                        </a>
+                                      ) : (
+                                        <span className="text-slate-500">
+                                          {source.agency_name} (link unavailable)
+                                        </span>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="mt-1 text-xs text-slate-500">
+                                No official source linked.
+                              </p>
+                            )}
                           </div>
                           <span
                             className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[task.status]}`}
@@ -235,8 +252,7 @@ export function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
                           </span>
                         </div>
                       </li>
-                      );
-                    })}
+                    ))}
                   </ul>
                 )}
               </section>

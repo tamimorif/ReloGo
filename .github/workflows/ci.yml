@@ -17,16 +17,18 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Check Expo dependency alignment
         run: npx expo install --check
+      - name: Check release configuration contract
+        run: npm run check:release
       - name: Typecheck
         run: npx tsc --noEmit
 
@@ -37,10 +39,10 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - name: Install dependencies
@@ -55,10 +57,10 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - name: Install dependencies
@@ -73,10 +75,10 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - name: Install dependencies
@@ -98,10 +100,10 @@ jobs:
       VITE_SUPABASE_URL: https://placeholder.supabase.co
       VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: admin/package-lock.json
       - name: Install dependencies
@@ -123,10 +125,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: landing/package-lock.json
       - name: Install dependencies
@@ -140,10 +142,10 @@ jobs:
     name: Database tests (RLS + RPCs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.107.0
+          version: 2.109.1
       - name: Start local Supabase (applies migrations)
         run: supabase start
       - name: Lint database schema
@@ -160,15 +162,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: tests/e2e/requirements.txt
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.107.0
+          version: 2.109.1
       - name: Install E2E test dependencies
         run: python -m pip install -r tests/e2e/requirements.txt
       - name: Start isolated local Supabase
@@ -180,15 +182,22 @@ jobs:
     name: Support AI unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Verify mobile and Edge question allowlists match
         run: bash scripts/check-support-questions-sync.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Format, lint, and typecheck support AI
+        run: >-
+          deno fmt --check supabase/functions/support-ai &&
+          deno lint supabase/functions/support-ai &&
+          deno check --config supabase/functions/support-ai/deno.json
+          supabase/functions/support-ai/index.ts
       - name: Test support AI helpers
         run: >-
-          deno test
+          deno test --config supabase/functions/support-ai/deno.json
+          supabase/functions/support-ai/geminiTransport_test.ts
           supabase/functions/support-ai/grounding_test.ts
           supabase/functions/support-ai/humanTakeover_test.ts
           supabase/functions/support-ai/supportQuestions_test.ts
@@ -197,7 +206,7 @@ jobs:
     name: Consent version sync (mobile vs database)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check consent version contract
         run: bash scripts/check-consent-version-sync.sh
 
@@ -205,14 +214,15 @@ jobs:
     name: Worker syntax check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Compile worker
         run: >-
           python -m py_compile
           worker/main.py
+          worker/preflight.py
           worker/changedetect.py
           worker/reporting.py
 
@@ -223,12 +233,16 @@ jobs:
       run:
         working-directory: worker
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            worker/requirements.txt
+            worker/requirements-dev.txt
       - name: Install test dependencies
-        run: pip install -r requirements-dev.txt
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Test
         run: pytest
 
@@ -236,7 +250,7 @@ jobs:
     name: Database types sync (mobile vs admin)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check Database interface is byte-identical in both apps
         run: bash scripts/check-database-types-sync.sh
 
@@ -251,10 +265,10 @@ jobs:
       run:
         working-directory: ${{ matrix.app }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
       - name: Install dependencies

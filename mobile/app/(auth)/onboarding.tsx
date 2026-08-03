@@ -23,13 +23,18 @@ import {
   Linking,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
+import {
+  withAbortableTimeout,
+  withStartupTimeout,
+} from "@/lib/startupTimeout";
 import {
   CURRENT_CONSENT_VERSION,
   PRIVACY_POLICY_URL,
@@ -41,6 +46,8 @@ import {
   PROVINCE_LABELS,
   UserProfileInsert,
 } from "@/types/database";
+
+const ONBOARDING_REQUEST_TIMEOUT_MS = 10_000;
 
 /**
  * Format a Date as YYYY-MM-DD in LOCAL time. toISOString() converts to UTC,
@@ -55,6 +62,7 @@ function formatLocalDate(d: Date): string {
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { session, setHasProfile, setHasCurrentConsent } = useAuth();
 
   const [originProvince, setOriginProvince] = useState<Province | null>(null);
@@ -122,8 +130,10 @@ export default function OnboardingScreen() {
       // Requires "Allow anonymous sign-ins" to be enabled in the
       // Supabase dashboard (Authentication → Providers).
       if (!userId) {
-        const { data: authData, error: authError } =
-          await supabase.auth.signInAnonymously();
+        const { data: authData, error: authError } = await withStartupTimeout(
+          supabase.auth.signInAnonymously(),
+          ONBOARDING_REQUEST_TIMEOUT_MS,
+        );
 
         if (authError) {
           throw authError;
@@ -159,9 +169,14 @@ export default function OnboardingScreen() {
       // what the write is trying to create. Splitting the two statements keeps
       // the retry behaviour while letting the plain INSERT policy authorise
       // the first-run case.
-      const { error: insertError } = await supabase
-        .from("user_profiles")
-        .insert(profile);
+      const { error: insertError } = await withAbortableTimeout(
+        (signal) =>
+          supabase
+            .from("user_profiles")
+            .insert(profile)
+            .abortSignal(signal),
+        ONBOARDING_REQUEST_TIMEOUT_MS,
+      );
 
       if (insertError) {
         // 23505 = unique violation, i.e. this user already has a profile row.
@@ -170,16 +185,45 @@ export default function OnboardingScreen() {
           throw insertError;
         }
 
-        const { error: updateError } = await supabase
-          .from("user_profiles")
-          .update(profile)
-          .eq("id", userId);
+        const { error: updateError } = await withAbortableTimeout(
+          (signal) =>
+            supabase
+              .from("user_profiles")
+              .update(profile)
+              .eq("id", userId)
+              .abortSignal(signal),
+          ONBOARDING_REQUEST_TIMEOUT_MS,
+        );
 
         if (updateError) {
           throw updateError;
         }
       }
 
+      // INSERT ... RETURNING is intentionally unavailable here: the
+      // consent-gated SELECT policy cannot see a first-time row in the same
+      // statement snapshot. Confirm through the existing SECURITY DEFINER
+      // consent RPC instead, which returns the authoritative allowlisted row.
+      const { data: consentState, error: consentError } =
+        await withAbortableTimeout(
+          (signal) =>
+            supabase
+              .rpc("get_policy_consent_state")
+              .abortSignal(signal),
+          ONBOARDING_REQUEST_TIMEOUT_MS,
+        );
+      if (
+        consentError ||
+        consentState?.has_profile !== true ||
+        consentState.has_current_consent !== true ||
+        !consentState.profile
+      ) {
+        throw new Error("Profile write was not confirmed");
+      }
+
+      // Seed the checklist cache so first-run onboarding does not immediately
+      // fetch the row again after this authoritative confirmation.
+      queryClient.setQueryData(["profile", userId], consentState.profile);
       setHasProfile(true);
       setHasCurrentConsent(true);
       router.replace("/(tabs)/checklist");

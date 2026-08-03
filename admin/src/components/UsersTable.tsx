@@ -53,24 +53,29 @@ export function UsersTable() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   // ── Fetch the first page via the admin RPC ────────────────────────────
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(() => {
+    return supabase
+      .rpc("admin_list_users", {
+        p_limit: PAGE_SIZE,
+        p_offset: 0,
+      })
+      .then(({ data, error: fetchErr }) => {
+        if (fetchErr) {
+          setError(fetchErr.message);
+        } else {
+          const page = data ?? [];
+          setUsers(page);
+          setTotalCount(page[0]?.total_count ?? 0);
+        }
+        setLoading(false);
+      });
+  }, []);
+
+  const refreshUsers = useCallback(() => {
     setLoading(true);
     setError(null);
-
-    const { data, error: fetchErr } = await supabase.rpc("admin_list_users", {
-      p_limit: PAGE_SIZE,
-      p_offset: 0,
-    });
-
-    if (fetchErr) {
-      setError(fetchErr.message);
-    } else {
-      const page = data ?? [];
-      setUsers(page);
-      setTotalCount(page[0]?.total_count ?? 0);
-    }
-    setLoading(false);
-  }, []);
+    void fetchUsers();
+  }, [fetchUsers]);
 
   // ── Fetch the next page and append it ─────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -121,7 +126,7 @@ export function UsersTable() {
           </p>
         </div>
         <button
-          onClick={fetchUsers}
+          onClick={refreshUsers}
           disabled={loading}
           className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
         >

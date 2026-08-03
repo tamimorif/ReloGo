@@ -117,11 +117,13 @@ def _run_sql(statement: str, attempts: int = 3) -> None:
     )
 
 
-# Mirrors the service_role privilege model established by migrations 011 and 015.
+# Mirrors the service_role privilege model established by migrations 011, 015,
+# and 023.
 _SERVICE_ROLE_BOUNDARY_SQL = [
     # Migration 011 — worker least privilege.
     "REVOKE ALL PRIVILEGES ON TABLE public.official_sources FROM service_role;",
-    "GRANT SELECT (id, agency_name, official_url, last_content_hash, last_content_text)"
+    "GRANT SELECT (id, corridor_rule_id, agency_name, official_url, last_verified,"
+    " last_content_hash, last_content_text)"
     " ON TABLE public.official_sources TO service_role;",
     "REVOKE ALL PRIVILEGES ON TABLE public.rule_change_alerts FROM service_role;",
     # Migration 015 — support AI least privilege.
@@ -136,10 +138,12 @@ _SERVICE_ROLE_BOUNDARY_SQL = [
     "GRANT SELECT (id, origin_prov, dest_prov, move_date, has_vehicle, has_dependents)"
     " ON TABLE public.user_profiles TO service_role;",
     "REVOKE ALL PRIVILEGES ON TABLE public.corridor_task_rules FROM service_role;",
-    "GRANT SELECT (id, task_id, origin_province, dest_province, days_deadline, is_mandatory)"
+    "GRANT SELECT (id, task_id, origin_province, dest_province, days_deadline,"
+    " is_mandatory, created_at)"
     " ON TABLE public.corridor_task_rules TO service_role;",
     "REVOKE ALL PRIVILEGES ON TABLE public.global_tasks FROM service_role;",
-    "GRANT SELECT (id, title_en, base_description_en, requires_vehicle, requires_dependents)"
+    "GRANT SELECT (id, task_key, title_en, base_description_en, requires_vehicle,"
+    " requires_dependents)"
     " ON TABLE public.global_tasks TO service_role;",
     "NOTIFY pgrst, 'reload schema';",
 ]

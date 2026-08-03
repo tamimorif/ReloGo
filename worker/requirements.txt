@@ -1,4 +1,6 @@
 playwright==1.44.0
-supabase==2.4.0
+# 2.4.0 rejected Supabase's modern sb_secret_ keys before making a request.
+# Keep this aligned with the already-verified E2E client stack.
+supabase==2.31.0
 python-dotenv==1.0.0
 tenacity==8.3.0

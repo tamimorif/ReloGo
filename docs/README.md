@@ -10,6 +10,8 @@ Use one of these two entry points:
 Supporting references:
 
 - [DEPLOYMENT.md](DEPLOYMENT.md) — detailed deployment commands and platform setup.
+- [BACKUP_RESTORE.md](BACKUP_RESTORE.md) — proposed backup posture and guarded
+  restore runbooks; funding and a restore drill are still pending.
 - [ai/PROJECT_MAP.md](ai/PROJECT_MAP.md) — annotated file tree.
 
 `PLAN.md` is the source of truth for current status and remaining work. The
