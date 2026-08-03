@@ -25,23 +25,22 @@ The JavaScript applications are independent projects. Each owns its own
 
 ## Recovery and release status
 
-The final reviewed source is committed and pushed on
-`codex/recovery-and-mobile-startup` at `2624ad3`. The production database and
-reviewed admin recovery are live; landing is unchanged and live. Production
-still runs `support-ai` v4 from the recovery baseline and must receive the final
-transport source after pull request #2 merges. The App Store still distributes
-the broken 1.0 release; the repaired 1.0.1 release, real-device QA, and a
-healthy worker baseline are not complete.
+The reviewed recovery source was merged through pull request #2 into `main` at
+`e75f449`. The production database, final support function, reviewed admin
+recovery, and backend-aware uptime checks are live; landing is unchanged and
+live. The App Store still distributes the broken 1.0 release, so real-device
+QA, approved store metadata, and release of 1.0.1 remain the user-facing outage
+gate.
 
 - The local schema is migrations 001–026. Preview was migrated to 001–026,
   passed the hosted smoke checks (including authenticated AI support), and was
   then deliberately paused. Production is active at exact migrations 001–026
-  with `support-ai` version 4 ACTIVE/JWT-protected; unauthenticated invocation
+  with `support-ai` version 5 ACTIVE/JWT-protected; unauthenticated invocation
   returns 401. Its post-promotion dry run is clean. A self-cleaning production
-  smoke passed anonymous auth, resolver output with five tasks/five HTTPS
-  official sources, a minimal onboarding profile insert, authoritative
-  consent/profile confirmation, and cleanup. Production currently has no
-  profile, waitlist, support, or progress rows.
+  smoke against the final function passed anonymous auth, resolver output with
+  five tasks/five HTTPS official sources, a minimal onboarding profile insert,
+  authoritative consent/profile confirmation, authenticated non-fallback AI,
+  and cleanup.
 - App Store version 1.0 has been live since 2026-06-23 (Apple ID `6781947478`,
   bundle ID `com.relogo.app`). It is built from the retired SDK 51
   configuration and contains a Supabase project reference that no longer
@@ -75,30 +74,35 @@ healthy worker baseline are not complete.
   consistency, uptime-script syntax, and whitespace checks.
   Worker and backend-aware uptime preflights now reject every Supabase URL
   except the exact production project origin.
-- iOS production store build — `FINISHED`: version 1.0.1, build 6, EAS
-  `2c83c4f5-b154-4632-8604-6350a77bbee4`.
-- Android production store build — `FINISHED`: version 1.0.1, build 3, EAS
-  `20256d8c-cf12-472c-a236-7223e0207103`.
-- Both recorded builds predate the credential-bearing URL fix in `2624ad3`.
-  They remain useful recovery evidence, but fresh iOS and Android builds are
-  required before final device QA or submission.
+- Fresh iOS production/store build 7 `FINISHED` successfully from exact merged
+  `main` `e75f449` (version 1.0.1, EAS
+  `765965d7-c7c1-432c-ac1d-302d2f0c5116`). Android version 1.0.1 build 4 was
+  started from the same commit (EAS
+  `28076f35-1495-466b-af77-97a9339c5ea2`) and needs a terminal result. Neither
+  has been submitted.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
-  unchanged and live at `https://relogo-two.vercel.app`. Backend-aware uptime
-  run #113 passed against the production web, anonymous-auth, and resolver
-  checks, but that was a manually dispatched recovery-branch run. The scheduled
-  workflow on default `main` remains web-only until pull request #2 merges;
-  verify a main-branch run executes both backend probes afterward.
-- Pull request #2's pushed head `2624ad3` passed all 19 GitHub/Vercel checks.
-  It is mergeable but blocked by two unresolved Copilot threads whose fixes and
-  regression tests are already present. Do not reuse `2624ad3`'s CI result for
-  a later head: publish this documentation correction and require its own fresh
-  CI evidence before those threads are resolved and the pull request is merged.
-- The default branch still pins `supabase==2.4.0`, which rejects modern
-  `sb_secret_` keys before making a network request. The recovery branch pins
-  `2.31.0` and runs a read-only preflight first. Merge and rerun that version
-  before rotating any encrypted worker secret; rotate only if the new preflight
-  still reports an authentication failure. A healthy full run must report
-  `scraped > 0`.
+  unchanged and live at `https://relogo-two.vercel.app`. Main-branch uptime run
+  `30843906264` passed every public route plus production anonymous-auth and
+  canonical-resolver probes with `REQUIRE_SUPABASE_CHECK=true`.
+- Pull request #2's final head `f34b64a` passed all 19 GitHub/Vercel checks;
+  both fixed review threads were resolved and the pull request was merged as
+  `e75f449`.
+- Main-branch worker run `30843904269` installed `supabase==2.31.0`; its exact-
+  origin key/schema preflight passed, proving that secret rotation is not
+  needed. The full run persisted 42 of 53 baselines. Eleven sources remain
+  failed because RAMQ, Yukon, and Nunavut returned managed HTTP 403 challenges
+  and PEI returned browser-verification pages. These failures must stay visible:
+  do not baseline challenge content or bypass CAPTCHAs. Replace a source only
+  after review of an equivalent first-party URL, otherwise assign explicit
+  manual monitoring. The post-merge worker follow-up fetches duplicate URLs
+  once, serializes/paces same-origin requests, and reports managed challenges
+  separately while preserving the nonzero fail-closed policy; its worker suite
+  passes 97/97. Production verification run `30845791036` fetched 50 unique
+  URLs for 53 rows, reused three duplicate outcomes, and again completed 42
+  rows (`1` new baseline, `38` unchanged, `3` changed) while keeping 11 blocked
+  outcomes failed. Production now has 43/53 source baselines; the three changes
+  are PENDING human-review alerts, not live-rule edits. `ALERT_WEBHOOK_URL` is
+  still unset.
 
 The backend promotion does not release the rest of the product. See the
 [deployment guide](docs/DEPLOYMENT.md) for the remaining guarded release order
@@ -221,12 +225,11 @@ when rotating them or creating another EAS project.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
 The production backend is recovered, but the App Store still serves broken
-version 1.0 and the 1.0.1 recovery release is incomplete. Resolving/merging pull
-request #2, deploying its final Edge Function source, creating fresh store
-builds, real-device QA, store
-submission/metadata, a healthy worker baseline and webhook, funded
-backup/restore with a drill, a monitored public mailbox/custom domain, final
-government content/legal review, and correction of the live App Store privacy
-answer remain.
+version 1.0 and the 1.0.1 recovery release is incomplete. Terminal fresh-build
+results, real-device QA, store submission/metadata, reviewed monitoring for the
+11 failed source-row outcomes, a tested worker webhook, funded backup/restore
+with a drill, a monitored public mailbox/custom domain, final government
+content/legal review, and correction of the live App Store privacy answer
+remain.
 The disclosure text in `docs/STORE.md` is a conservative draft; the account
 owner and legal reviewer must confirm it before the 1.0.1 recovery submission.
