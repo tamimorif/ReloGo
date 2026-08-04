@@ -13,7 +13,7 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Complete real-device startup, offline/recovery, PDF, deletion, and privacy QA on exact iOS build 7 and Android build 4 | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 1 | Reverify EAS metadata for iOS build 7 and Android build 4 identifies exact merged commit `e75f449`; reject any mismatched artifact, then complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 4 | Review first-party alternatives or assign manual monitoring for challenge-blocked sources; configure/test worker webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
