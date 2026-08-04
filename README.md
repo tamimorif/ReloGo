@@ -26,11 +26,12 @@ The JavaScript applications are independent projects. Each owns its own
 ## Recovery and release status
 
 The reviewed recovery source was merged through pull request #2 into `main` at
-`e75f449`. The production database, final support function, reviewed admin
-recovery, and backend-aware uptime checks are live; landing is unchanged and
-live. The App Store still distributes the broken 1.0 release, so real-device
-QA, approved store metadata, and release of 1.0.1 remain the user-facing outage
-gate.
+`e75f449`; worker hardening and its evidence then merged through pull request
+#3 at `d2db994`. The production database, final support function, reviewed
+admin recovery, and backend-aware uptime checks are live; landing is unchanged
+and live. The App Store still distributes the broken 1.0 release, so real-
+device QA, approved store metadata, and release of 1.0.1 remain the user-facing
+outage gate.
 
 - The local schema is migrations 001–026. Preview was migrated to 001–026,
   passed the hosted smoke checks (including authenticated AI support), and was
@@ -76,10 +77,10 @@ gate.
   except the exact production project origin.
 - Fresh iOS production/store build 7 `FINISHED` successfully from exact merged
   `main` `e75f449` (version 1.0.1, EAS
-  `765965d7-c7c1-432c-ac1d-302d2f0c5116`). Android version 1.0.1 build 4 was
-  started from the same commit (EAS
-  `28076f35-1495-466b-af77-97a9339c5ea2`) and needs a terminal result. Neither
-  has been submitted.
+  `765965d7-c7c1-432c-ac1d-302d2f0c5116`). Android production/store build 4
+  also `FINISHED` successfully from the same commit (version 1.0.1, EAS
+  `28076f35-1495-466b-af77-97a9339c5ea2`). Neither has been submitted; both
+  still require real-device QA and owner/legal/store approval.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
   unchanged and live at `https://relogo-two.vercel.app`. Main-branch uptime run
   `30843906264` passed every public route plus production anonymous-auth and
@@ -87,6 +88,8 @@ gate.
 - Pull request #2's final head `f34b64a` passed all 19 GitHub/Vercel checks;
   both fixed review threads were resolved and the pull request was merged as
   `e75f449`.
+- Pull request #3's final head `3f063e9` passed all 19 checks, its sole review
+  thread was fixed/resolved, and it merged as `d2db994`.
 - Main-branch worker run `30843904269` installed `supabase==2.31.0`; its exact-
   origin key/schema preflight passed, proving that secret rotation is not
   needed. The full run persisted 42 of 53 baselines. Eleven sources remain
@@ -225,8 +228,8 @@ when rotating them or creating another EAS project.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
 The production backend is recovered, but the App Store still serves broken
-version 1.0 and the 1.0.1 recovery release is incomplete. Terminal fresh-build
-results, real-device QA, store submission/metadata, reviewed monitoring for the
+version 1.0 and the 1.0.1 recovery release is incomplete. Real-device QA,
+store submission/metadata, reviewed monitoring for the
 11 failed source-row outcomes, a tested worker webhook, funded backup/restore
 with a drill, a monitored public mailbox/custom domain, final government
 content/legal review, and correction of the live App Store privacy answer

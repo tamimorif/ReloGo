@@ -1,6 +1,6 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-08-03_
+_Current as of 2026-08-04_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
@@ -12,11 +12,13 @@ ReloGo turns a move between Canadian provinces or territories into a
 personalized checklist of government tasks, timing, and official sources. Pull
 request #2 final head `f34b64a` passed all 19 GitHub/Vercel checks, its two
 fixed review threads were resolved, and it merged into `main` as `e75f449`.
-The final production Edge Function v5, reviewed admin recovery, landing site,
-and backend-aware main uptime are live. The App Store still distributes the
-broken 1.0 binary; 1.0.1 has not shipped. Recovery is not complete because
-real-device/store, challenge-blocked source monitoring, and human approval
-gates remain.
+Pull request #3 final head `3f063e9` then passed all 19 checks, its sole review
+thread was fixed/resolved, and worker hardening merged as `d2db994`. The final
+production Edge Function v5, reviewed admin recovery, landing site, and
+backend-aware main uptime are live. The App Store still distributes the broken
+1.0 binary; 1.0.1 has not shipped. Recovery is not complete because real-
+device/store, challenge-blocked source monitoring, and human approval gates
+remain.
 
 The shipped App Store 1.0 binary was built from SDK 51 and contains the retired
 Supabase ref `fxrynmgaymslwcklfena`. That project is deleted, the ref is present
@@ -42,9 +44,8 @@ Environment truth:
 - Mobile builds: fresh iOS production version 1.0.1 build 7 is `FINISHED` from
   exact merged commit `e75f449` (EAS
   `765965d7-c7c1-432c-ac1d-302d2f0c5116`). Fresh Android production version
-  1.0.1 build 4 was started from the same commit (EAS
-  `28076f35-1495-466b-af77-97a9339c5ea2`) and needs a terminal result. Neither
-  was submitted.
+  1.0.1 build 4 is also `FINISHED` from the same commit (EAS
+  `28076f35-1495-466b-af77-97a9339c5ea2`). Neither was submitted.
 - GitHub: pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel
   checks, both fixed review threads were resolved, and it merged as `e75f449`.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
@@ -56,8 +57,8 @@ Environment truth:
   CAPTCHAs, `1` empty body). Production now has 43/53 baselines.
   `ALERT_WEBHOOK_URL` is unset.
 
-Remaining release gates include Android's terminal build result, real-device
-startup/PDF/privacy QA, store submission and review, reviewed alternate/manual
+Remaining release gates include real-device startup/PDF/privacy QA, store
+submission and review, reviewed alternate/manual
 monitoring for 11 failed source-row outcomes, a tested worker webhook, backup
 funding/restore drill, admin credential rotation, a
 monitored public mailbox/domain, correction of the live App Store privacy
@@ -422,10 +423,12 @@ deno test --config supabase/functions/support-ai/deno.json \
   including native exports, database/pgTAP, full API integration, support,
   audits, worker, web builds, and both Vercel deployments. Its review threads
   were resolved and it merged as `e75f449`.
+- Pull request #3 final head `3f063e9`: all 19 checks passed, its sole review
+  thread was fixed/resolved, and it merged as `d2db994`.
 - Fresh iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) is `FINISHED`
   from exact merged commit `e75f449`. Android build 4
-  (`28076f35-1495-466b-af77-97a9339c5ea2`) started from the same commit and
-  needs a terminal result. Neither was submitted.
+  (`28076f35-1495-466b-af77-97a9339c5ea2`) is also `FINISHED` from the same
+  commit. Neither was submitted.
 - No current real-device QA or store-submission result exists.
 
 ## Hosted environment state
@@ -462,8 +465,8 @@ deno test --config supabase/functions/support-ai/deno.json \
   relink or target `relo-go` explicitly for future deploys.
 - EAS project `@tamimorif/relogo` separates development/preview from production.
   Fresh iOS production 1.0.1 build 7 is `FINISHED` at EAS
-  `765965d7-c7c1-432c-ac1d-302d2f0c5116`; Android production 1.0.1 build 4 was
-  started at EAS `28076f35-1495-466b-af77-97a9339c5ea2`. Both use exact merged
+  `765965d7-c7c1-432c-ac1d-302d2f0c5116`; Android production 1.0.1 build 4 is
+  also `FINISHED` at EAS `28076f35-1495-466b-af77-97a9339c5ea2`. Both use exact merged
   commit `e75f449`. Production EAS variables pass the release contract and
   frozen iOS/Android signing credentials worked without a password request.
   Neither build was submitted. No iPhone is registered for internal preview
@@ -472,8 +475,8 @@ deno test --config supabase/functions/support-ai/deno.json \
 
 ## Known limits and next work
 
-1. Record Android build 4's terminal result. Use exact-commit iOS build 7 and a
-   successful exact-commit Android artifact for real-device startup, offline/
+1. Use exact-commit iOS build 7 and Android build 4 for real-device startup,
+   offline/
    recovery, PDF, deletion, and privacy QA. Do not submit either automatically.
 2. Review equivalent first-party URLs for the 11 RAMQ/Yukon/Nunavut/PEI
    challenge-blocked sources. Ship URL changes only through reviewed migration
@@ -510,8 +513,8 @@ decision.
 ## Operational facts
 
 - Old binary recovery is impossible. Fresh iOS 1.0.1 build 7 is `FINISHED`
-  from exact merged commit `e75f449`; Android 1.0.1 build 4 was started from
-  that commit and needs a terminal result. Both require real-device QA and
+  from exact merged commit `e75f449`; Android 1.0.1 build 4 is also `FINISHED`
+  from that commit. Both require real-device QA and
   store approval. OTA can be considered only for a released compatible
   runtime/channel, never for v1.0.
 - Mobile runtime configuration accepts only clean Supabase origins; production
