@@ -13,12 +13,11 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Record terminal results for the fresh iOS/Android builds created from merged `main`; do not submit a failed or mismatched artifact | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 2 | Complete real-device startup, offline/recovery, PDF, deletion, and privacy QA on the exact fresh artifacts | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 3 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 4 | QA Android and confirm an owner-controlled Google Play publication path; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 5 | Review first-party alternatives or assign manual monitoring for challenge-blocked sources; configure/test worker webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
-| 6 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
+| 1 | Reverify EAS metadata for iOS build 7 and Android build 4 identifies exact merged commit `e75f449`; reject any mismatched artifact, then complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 4 | Review first-party alternatives or assign manual monitoring for challenge-blocked sources; configure/test worker webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
+| 5 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
 
 **Configured cloud mapping:** separate Supabase preview and production projects
 use `ca-central-1`. Vercel project `relogo` maps to `landing/`; `relo-go` maps
@@ -26,16 +25,16 @@ to `admin/`. Development/preview variables target the preview backend and
 production variables target production in both Vercel and the registered EAS
 project. Values remain platform-managed and are not committed.
 
-Current hosted/repository truth (2026-08-03):
+Current hosted/repository truth (2026-08-04):
 
 | Target | State |
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
 | Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
-| Mobile | Local version 1.0.1 / SDK 55 gates pass. Fresh exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) finished successfully; Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) needs a terminal result. Real-device QA and submission remain |
+| Mobile | Local version 1.0.1 / SDK 55 gates pass. Fresh exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) and Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) finished successfully. Neither was submitted; real-device QA and approval remain |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; main run `30843906264` passed public web/auth/resolver checks with required backend probes |
 | Worker/uptime | Main run `30843904269` passed the `2.31.0` preflight and created 42 baselines. Hardened run `30845791036` fetched 50 unique URLs for 53 rows, completed 42 rows, added one baseline, and filed three PENDING alerts while 11 outcomes remained failed closed. Production now has 43/53 baselines; key rotation is not needed; `ALERT_WEBHOOK_URL` is unset |
-| GitHub | Pull request #2 final head `f34b64a` passed all 19 checks; both review threads were resolved and it merged to `main` as `e75f449` |
+| GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
 
 The worker's Ubuntu 22.04 runner and `supabase==2.31.0` exact-origin preflight
 are now on `main`. Run `30843904269` proved that the existing encrypted key and
@@ -279,13 +278,13 @@ attempt an `eas update` hotfix for that binary.
 The recovery app is 1.0.1 / SDK 55 and now has app-version-based runtime
 versioning, Expo Updates configuration, and a build-time release preflight.
 This helps future compatible releases; it does not retroactively update 1.0.
-Fresh production/store builds were created from exact merged `main` `e75f449`:
-iOS version 1.0.1 build 7 finished successfully, EAS
+Fresh production/store builds from exact merged `main` `e75f449` both finished
+successfully: iOS version 1.0.1 build 7, EAS
 `765965d7-c7c1-432c-ac1d-302d2f0c5116`, and Android version 1.0.1 build 4, EAS
 `28076f35-1495-466b-af77-97a9339c5ea2`. The registered production EAS values
 passed the release contract and existing remote signing credentials worked;
-no credential or password was requested. Record terminal build results before
-device QA. Neither build has been submitted, and cloud completion still cannot
+no credential or password was requested. Neither build has been submitted, and
+cloud completion still cannot
 replace real-device evidence or store approval.
 Prioritize the iOS recovery because broken 1.0 is publicly downloadable there.
 Google Play currently returns 404 for `com.relogo.app`; that proves only that it

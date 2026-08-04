@@ -1,6 +1,6 @@
 # ReloGo — canonical project plan
 
-_Last updated: 2026-08-03_
+_Last updated: 2026-08-04_
 
 This is the single source of truth for the product concept, implemented state,
 remaining work, phased roadmap, and definition of done. Operational commands
@@ -72,8 +72,8 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   the reviewed tree to `main` at `e75f449`. Fresh iOS production build 7
   (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) finished successfully from that
   exact commit. Fresh Android production build 4
-  (`28076f35-1495-466b-af77-97a9339c5ea2`) was started from the same commit and
-  still needs a terminal result. Neither artifact has been submitted. Apple
+  (`28076f35-1495-466b-af77-97a9339c5ea2`) also finished successfully from the
+  same commit. Neither artifact has been submitted. Apple
   metadata/real-device QA and a Google Play service-account key or reviewed
   manual Android path remain.
 - Startup no longer waits behind a static native splash for remote work.
@@ -267,15 +267,16 @@ Local evidence does not replace real-device or store-submission evidence.
 | Focused documentation-tree recheck (2026-08-03) | Mobile 116/116, TypeScript, release configuration, worker 77/77, Gemini transport 4/4, Python dependency consistency, uptime shell syntax, and `git diff --check` passed; code paths are unchanged from `2624ad3` |
 | Post-merge worker safeguards | Duplicate-URL fan-out, per-origin serialization/pacing, Cloudflare/Radware classification, task cleanup, baseline-safety reporting, compile, and 97/97 worker tests pass. Production run `30845791036` verified 50 unique fetches/3 reused outcomes and kept 11 failures visible; failure policy remains nonzero for any failed/stale source |
 | Pull request #2 / CI | Final head `f34b64a`; 19/19 GitHub and Vercel checks passed; both review threads resolved; merged to `main` as `e75f449` |
+| Pull request #3 / worker hardening | Final head `3f063e9`; 19/19 checks passed; sole review thread fixed/resolved; merged to `main` as `d2db994` |
 | iOS production store build | Fresh build 7 `FINISHED`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`, exact merged commit `e75f449`; real-device QA and submission remain |
-| Android production store build | Fresh build 4, EAS `28076f35-1495-466b-af77-97a9339c5ea2`, started from exact merged commit `e75f449`; terminal result, real-device QA, and publication decision remain |
+| Android production store build | Fresh build 4 `FINISHED`, EAS `28076f35-1495-466b-af77-97a9339c5ea2`, exact merged commit `e75f449`; real-device QA and publication decision remain |
 | Web/worker/uptime recovery | Admin recovery live; landing unchanged/live; main uptime run `30843906264` passed required backend probes. Hardened worker run `30845791036` passed preflight, fetched 50 unique URLs for 53 rows, completed 42 rows, and left 11 outcomes failed closed; 43/53 sources now have baselines, three new alerts are PENDING human review, key rotation is not needed, and the webhook is unset |
 | Backup/restore | Runbook corrected; funding/retention decision and a measured restore drill remain |
 
 The recovery database result was established locally, production carries the
 final schema/function, main uptime is backend-aware and green, and the reviewed
-tree is merged. The release still requires Android's terminal build result,
-real-device QA, approved store metadata, and store-submission evidence.
+tree is merged, and both exact-commit store builds finished. The release still
+requires real-device QA, approved store metadata, and store-submission evidence.
 
 ### iOS Simulator run (2026-07-21)
 
@@ -349,8 +350,8 @@ binaries, real-device QA, CI, or the remaining release phases below.
   required. Fresh iOS 1.0.1 build 7 is `FINISHED` from exact merged commit
   `e75f449` (EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`); Android build 4 was
   started from the same commit (EAS
-  `28076f35-1495-466b-af77-97a9339c5ea2`) and still needs a terminal result.
-  Both still require real-device QA and store approval. Automated Google Play
+  `28076f35-1495-466b-af77-97a9339c5ea2`) and also `FINISHED` successfully.
+  Both require real-device QA and store approval. Automated Google Play
   submission needs an
   owner-provided service-account key or reviewed manual submission path.
 - The production backend promotion is complete at exact 001–026/final function
@@ -436,8 +437,8 @@ admin build are live; main backend-aware uptime passed.
 - Close account, support, admin, waitlist logging, and worker race/security bugs.
 - Make the complete local verification matrix a CI contract.
 
-Exit now requires: finish the fresh Android build, complete real-device QA,
-approve and publish store metadata, release 1.0.1, resolve/manual-monitor the 11
+Exit now requires: complete real-device QA, approve and publish store metadata,
+release 1.0.1, resolve/manual-monitor the 11
 challenge-blocked sources, and test worker alert delivery. The merged preflight
 proved the current key works; do not rotate or share it.
 
@@ -499,13 +500,13 @@ work, and no worker path can modify live rules.
 
 ### Phase 3 — mobile preview and full end-to-end QA
 
-Status: **fresh final builds created/started; real-device QA not complete.**
+Status: **fresh final builds finished; real-device QA not complete.**
 
 - Fresh iOS production store build 7 is `FINISHED`: version 1.0.1, exact merged
   commit `e75f449`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`.
-- Fresh Android production store build 4 was started from exact merged commit
-  `e75f449`: version 1.0.1, EAS
-  `28076f35-1495-466b-af77-97a9339c5ea2`; record its terminal result.
+- Fresh Android production store build 4 is `FINISHED`: version 1.0.1, exact
+  merged commit `e75f449`, EAS
+  `28076f35-1495-466b-af77-97a9339c5ea2`.
 - Neither build was submitted. Build completion is not device or store
   evidence. If isolated preview QA is still required, resume preview and
   reconfirm exact 001–026/v3 before using it. Do not use the three old SDK 51
