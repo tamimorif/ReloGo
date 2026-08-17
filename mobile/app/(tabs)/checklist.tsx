@@ -3,8 +3,8 @@
  *
  * Builds the user's personalised relocation checklist by:
  * 1. Loading their profile (corridor + move date + vehicle/dependents flags)
- * 2. Fetching corridor_task_rules joined with global_tasks, using the
- *    'ANY' wildcard corridor match on both origin and destination
+ * 2. Calling the canonical corridor resolver (one exact/wildcard winner per
+ *    task, with its ordered public official-source metadata)
  * 3. Filtering out tasks that don't apply (no vehicle / no dependents)
  * 4. Overlaying user_task_progress (missing row = AVAILABLE)
  * 5. Computing absolute deadlines (move_date + days_deadline)
@@ -16,6 +16,7 @@ import { Fragment, useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -23,17 +24,18 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
-import { fillAndSharePDF, hasPDFTemplate } from "@/lib/pdfEngine";
+import { hasPDFTemplate } from "@/lib/pdfTemplates";
+import { safeOfficialUrl } from "@/lib/safeOfficialUrl";
+import { withAbortableTimeout } from "@/lib/startupTimeout";
 import {
   ChecklistTask,
-  CorridorTaskRule,
-  GlobalTask,
   PROVINCE_LABELS,
+  ResolvedCorridorRule,
   TaskStatus,
   UserTaskProgress,
 } from "@/types/database";
@@ -44,9 +46,6 @@ import {
   startOfToday,
   toISODate,
 } from "@/lib/dateHelpers";
-
-/** corridor_task_rules row with its embedded global_tasks parent. */
-type RuleWithTask = CorridorTaskRule & { global_tasks: GlobalTask };
 
 // ──────────────────────────────────────────────
 // Platform styling primitives
@@ -67,6 +66,7 @@ function iosPressOpacity({ pressed }: { pressed: boolean }) {
 
 const subtleRipple = { color: "rgba(15, 23, 42, 0.08)" };
 const brandRipple = { color: "rgba(37, 99, 235, 0.14)" };
+const CHECKLIST_QUERY_TIMEOUT_MS = 8_000;
 
 // ──────────────────────────────────────────────
 // Render-time list sectioning (order-preserving with the memoized sort:
@@ -247,7 +247,6 @@ function TaskCard({
   onShare,
 }: TaskCardProps) {
   const isCompleted = item.status === "COMPLETED";
-  const isLocked = item.status === "LOCKED";
   const deadline = item.deadlineDate ? parseISODate(item.deadlineDate) : null;
   const isOverdue = !!deadline && deadline < today && !isCompleted;
   // While one share runs, only the OTHER buttons drop to the dimmed style —
@@ -263,25 +262,18 @@ function TaskCard({
         {/* Checkbox — 44pt touch target wrapping a 28pt visual */}
         <Pressable
           onPress={onToggle}
-          disabled={isLocked}
           className="-ml-2 -mt-2 h-11 w-11 items-center justify-center"
           android_ripple={{ ...brandRipple, borderless: true, radius: 22 }}
           style={iosPressOpacity}
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: isCompleted, disabled: isLocked }}
-          accessibilityLabel={
-            isLocked
-              ? `"${item.title}" is locked`
-              : `Mark "${item.title}" as ${isCompleted ? "not done" : "done"}`
-          }
+          accessibilityState={{ checked: isCompleted }}
+          accessibilityLabel={`Mark "${item.title}" as ${isCompleted ? "not done" : "done"}`}
         >
           <View
             className={`h-7 w-7 items-center justify-center rounded-full border-2 ${
               isCompleted
                 ? "border-brand-600 bg-brand-600"
-                : isLocked
-                  ? "border-slate-200 bg-slate-100"
-                  : "border-slate-300 bg-white"
+                : "border-slate-300 bg-white"
             }`}
           >
             {isCompleted && (
@@ -289,13 +281,6 @@ function TaskCard({
                 name="checkmark"
                 size={16}
                 color="#ffffff"
-              />
-            )}
-            {isLocked && (
-              <Ionicons
-                name="lock-closed"
-                size={13}
-                color="#94a3b8"
               />
             )}
           </View>
@@ -316,9 +301,7 @@ function TaskCard({
               className={`flex-1 pr-2 text-base font-semibold ${
                 isCompleted
                   ? "text-slate-400 line-through"
-                  : isLocked
-                    ? "text-slate-500"
-                    : "text-slate-900"
+                  : "text-slate-900"
               }`}
             >
               {item.title}
@@ -340,7 +323,7 @@ function TaskCard({
                 className={`flex-row items-center rounded-full px-2.5 py-1 ${
                   isOverdue
                     ? "bg-red-50"
-                    : isCompleted || isLocked
+                    : isCompleted
                       ? "bg-slate-100"
                       : "bg-brand-50"
                 }`}
@@ -351,7 +334,7 @@ function TaskCard({
                   color={
                     isOverdue
                       ? "#b91c1c"
-                      : isCompleted || isLocked
+                      : isCompleted
                         ? "#64748b"
                         : "#2563eb"
                   }
@@ -360,7 +343,7 @@ function TaskCard({
                   className={`ml-1 text-xs font-semibold ${
                     isOverdue
                       ? "text-red-700"
-                      : isCompleted || isLocked
+                      : isCompleted
                         ? "text-slate-500"
                         : "text-brand-700"
                   }`}
@@ -386,17 +369,10 @@ function TaskCard({
                 </Text>
               </View>
             )}
-
-            {/* Locked badge */}
-            {isLocked && (
-              <View className="flex-row items-center rounded-full bg-slate-100 px-2.5 py-1">
-                <Ionicons
-                  name="lock-closed"
-                  size={11}
-                  color="#94a3b8"
-                />
-                <Text className="ml-1 text-xs font-medium text-slate-500">
-                  Locked
+            {!item.isMandatory && (
+              <View className="rounded-full bg-slate-100 px-2.5 py-1">
+                <Text className="text-xs font-semibold text-slate-600">
+                  Optional
                 </Text>
               </View>
             )}
@@ -410,6 +386,54 @@ function TaskCard({
           )}
         </Pressable>
       </View>
+
+      {isExpanded && (
+        <View className="ml-12 mt-3 border-t border-slate-100 pt-3">
+          <Text className="text-xs font-semibold uppercase text-slate-500">
+            Official {item.officialSources.length === 1 ? "source" : "sources"}
+          </Text>
+          {item.officialSources.map((source) => (
+            <Pressable
+              key={source.id}
+              onPress={() => {
+                const officialUrl = safeOfficialUrl(source.official_url);
+                if (!officialUrl) {
+                  Alert.alert(
+                    "Couldn't open the official website",
+                    "This official link is not available right now.",
+                  );
+                  return;
+                }
+                Linking.openURL(officialUrl).catch(() => {
+                  Alert.alert(
+                    "Couldn't open the official website",
+                    "Please try again in a moment.",
+                  );
+                });
+              }}
+              className="mt-2 min-h-11 flex-row items-center rounded-xl bg-slate-50 px-3 py-2"
+              android_ripple={subtleRipple}
+              style={iosPressOpacity}
+              accessibilityRole="link"
+              accessibilityLabel={`Open ${source.agency_name} official website`}
+            >
+              <Ionicons
+                name="open-outline"
+                size={16}
+                color="#2563eb"
+              />
+              <Text className="ml-2 flex-1 text-sm font-semibold text-brand-700">
+                {source.agency_name}
+              </Text>
+            </Pressable>
+          ))}
+          {item.officialSources.length === 0 && (
+            <Text className="mt-2 text-sm text-slate-500">
+              No official link is listed for this task yet.
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* Fill & Share PDF — only for tasks with a registered template
           (all buttons disabled while any share runs) */}
@@ -475,12 +499,23 @@ export default function ChecklistScreen() {
   const profileQuery = useQuery({
     queryKey: ["profile", userId],
     enabled: !!userId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("id", userId!)
-        .single();
+    // Startup seeds this exact row from get_policy_consent_state. Avoid an
+    // immediate duplicate cellular request; profile mutations explicitly
+    // invalidate this key.
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await withAbortableTimeout(
+        (requestSignal) =>
+          supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("id", userId!)
+            .abortSignal(requestSignal)
+            .single(),
+        CHECKLIST_QUERY_TIMEOUT_MS,
+        signal,
+      );
       if (error) throw error;
       return data;
     },
@@ -491,17 +526,24 @@ export default function ChecklistScreen() {
   const dest = profile?.dest_prov ?? null;
   const corridorReady = !!origin && !!dest;
 
-  // 2. Corridor rules + tasks (wildcard match via two AND-ed .or() filters)
+  // 2. Canonical corridor rules + task/source metadata ───────────────
   const rulesQuery = useQuery({
     queryKey: ["corridorRules", origin, dest],
     enabled: corridorReady,
-    queryFn: async (): Promise<RuleWithTask[]> => {
-      const { data, error } = await supabase
-        .from("corridor_task_rules")
-        .select("*, global_tasks(*)")
-        .or(`origin_province.eq.${origin},origin_province.eq.ANY`)
-        .or(`dest_province.eq.${dest},dest_province.eq.ANY`)
-        .returns<RuleWithTask[]>();
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: async ({ signal }): Promise<ResolvedCorridorRule[]> => {
+      const { data, error } = await withAbortableTimeout(
+        (requestSignal) =>
+          supabase
+            .rpc("resolve_corridor_rules", {
+              p_origin_province: origin!,
+              p_dest_province: dest!,
+            })
+            .abortSignal(requestSignal),
+        CHECKLIST_QUERY_TIMEOUT_MS,
+        signal,
+      );
       if (error) throw error;
       return data ?? [];
     },
@@ -511,11 +553,19 @@ export default function ChecklistScreen() {
   const progressQuery = useQuery({
     queryKey: ["taskProgress", userId],
     enabled: !!userId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_task_progress")
-        .select("*")
-        .eq("user_id", userId!);
+    staleTime: 30_000,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await withAbortableTimeout(
+        (requestSignal) =>
+          supabase
+            .from("user_task_progress")
+            .select("*")
+            .eq("user_id", userId!)
+            .abortSignal(requestSignal),
+        CHECKLIST_QUERY_TIMEOUT_MS,
+        signal,
+      );
       if (error) throw error;
       return data ?? [];
     },
@@ -534,9 +584,8 @@ export default function ChecklistScreen() {
       : null;
 
     const visible = rulesQuery.data.filter((rule) => {
-      const task = rule.global_tasks;
-      if (task.requires_vehicle && !profile.has_vehicle) return false;
-      if (task.requires_dependents && !profile.has_dependents) return false;
+      if (rule.requires_vehicle && !profile.has_vehicle) return false;
+      if (rule.requires_dependents && !profile.has_dependents) return false;
       return true;
     });
 
@@ -549,15 +598,16 @@ export default function ChecklistScreen() {
       return {
         taskRuleId: rule.id,
         taskId: rule.task_id,
-        taskKey: rule.global_tasks.task_key,
-        title: rule.global_tasks.title_en,
-        description: rule.global_tasks.base_description_en,
-        requiresVehicle: rule.global_tasks.requires_vehicle,
-        requiresDependents: rule.global_tasks.requires_dependents,
+        taskKey: rule.task_key,
+        title: rule.title_en,
+        description: rule.base_description_en,
+        requiresVehicle: rule.requires_vehicle,
+        requiresDependents: rule.requires_dependents,
         daysDeadline: rule.days_deadline,
         isMandatory: rule.is_mandatory,
         status: progressByRuleId.get(rule.id) ?? "AVAILABLE",
         deadlineDate: deadline ? toISODate(deadline) : null,
+        officialSources: rule.official_sources,
       };
     });
 
@@ -652,8 +702,7 @@ export default function ChecklistScreen() {
   // ── Handlers ─────────────────────────────────
 
   function handleToggle(item: ChecklistTask) {
-    // LOCKED rows are not actionable — the engine unlocks them.
-    if (!userId || item.status === "LOCKED") return;
+    if (!userId) return;
     const nextStatus: TaskStatus =
       item.status === "COMPLETED" ? "AVAILABLE" : "COMPLETED";
     toggleMutation.mutate({ taskRuleId: item.taskRuleId, nextStatus });
@@ -683,6 +732,9 @@ export default function ChecklistScreen() {
     }
     setSharingTaskKey(item.taskKey);
     try {
+      // PDF generation pulls in pdf-lib and native sharing/crypto modules.
+      // Load that heavy path only after an explicit user tap, never at launch.
+      const { fillAndSharePDF } = await import("@/lib/pdfEngine");
       await fillAndSharePDF(item.taskKey, dest);
     } catch {
       // The button only renders for registered templates, so this is a

@@ -24,7 +24,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(164);
+SELECT plan(167);
 
 -- ============================================================================
 -- Platform-baseline grants (see header). RLS remains the actual gate.
@@ -262,7 +262,7 @@ SELECT throws_ok(
 );
 
 -- ============================================================================
--- C2. official_sources — column-level grants (006)                    (2 tests)
+-- C2. official_sources — column-level grants (006/027)                (3 tests)
 -- ============================================================================
 SELECT lives_ok(
     $$SELECT agency_name, official_url FROM public.official_sources LIMIT 1$$,
@@ -273,6 +273,25 @@ SELECT throws_ok(
     $$SELECT last_content_text FROM public.official_sources LIMIT 1$$,
     '42501', NULL,
     'C2: anon cannot read scraped page bodies (column-level grant)'
+);
+
+SELECT ok(
+    (SELECT bool_and(
+        NOT has_column_privilege(
+            client.role_name,
+            'public.official_sources',
+            private.column_name,
+            'SELECT'
+        )
+    )
+       FROM (VALUES ('anon'), ('authenticated')) AS client(role_name)
+       CROSS JOIN (VALUES
+          ('monitor_url'),
+          ('monitoring_mode'),
+          ('manual_review_owner'),
+          ('manual_review_interval_days')
+       ) AS private(column_name)),
+    'C2: clients cannot read private source-monitoring configuration'
 );
 
 -- ============================================================================
@@ -1088,7 +1107,9 @@ SELECT ok(
           ('public.corridor_task_rules', 'dest_province'),
           ('public.corridor_task_rules', 'days_deadline'),
           ('public.corridor_task_rules', 'is_mandatory'),
+          ('public.corridor_task_rules', 'created_at'),
           ('public.global_tasks', 'id'),
+          ('public.global_tasks', 'task_key'),
           ('public.global_tasks', 'title_en'),
           ('public.global_tasks', 'base_description_en'),
           ('public.global_tasks', 'requires_vehicle'),
@@ -1168,10 +1189,10 @@ SELECT ok(
             ])
             WHEN 'corridor_task_rules' THEN column_name = ANY (ARRAY[
                 'id', 'task_id', 'origin_province', 'dest_province',
-                'days_deadline', 'is_mandatory'
+                'days_deadline', 'is_mandatory', 'created_at'
             ])
             WHEN 'global_tasks' THEN column_name = ANY (ARRAY[
-                'id', 'title_en', 'base_description_en',
+                'id', 'task_key', 'title_en', 'base_description_en',
                 'requires_vehicle', 'requires_dependents'
             ])
             ELSE FALSE
@@ -1189,8 +1210,8 @@ SELECT ok(
 );
 
 -- ============================================================================
--- K. shared service_role worker-path ACLs + atomic persistence (011)
---                                                                    (28 tests)
+-- K. shared service_role worker-path ACLs + atomic persistence (011/027)
+--                                                                    (30 tests)
 -- ============================================================================
 RESET ROLE;
 
@@ -1215,26 +1236,30 @@ SELECT ok(
         'service_role', 'public.official_sources', required.column_name, 'SELECT'))
        FROM (VALUES
           ('id'),
+          ('corridor_rule_id'),
           ('agency_name'),
           ('official_url'),
+          ('monitor_url'),
+          ('monitoring_mode'),
+          ('manual_review_owner'),
+          ('manual_review_interval_days'),
+          ('last_verified'),
           ('last_content_hash'),
           ('last_content_text')
        ) AS required(column_name)),
-    'K: worker can select every official-source column it requires'
+    'K: shared role can select every source column required by worker/resolver paths'
 );
 
 SELECT ok(
     NOT has_column_privilege(
-        'service_role', 'public.official_sources', 'corridor_rule_id', 'SELECT')
-    AND NOT has_column_privilege(
-        'service_role', 'public.official_sources', 'last_verified', 'SELECT')
+        'service_role', 'public.official_sources', 'created_at', 'SELECT')
     AND NOT has_table_privilege(
         'service_role', 'public.official_sources', 'INSERT')
     AND NOT has_table_privilege(
         'service_role', 'public.official_sources', 'UPDATE')
     AND NOT has_table_privilege(
         'service_role', 'public.official_sources', 'DELETE'),
-    'K: worker cannot read unneeded source columns or write baselines directly'
+    'K: shared role cannot read unneeded source columns or write baselines directly'
 );
 
 SELECT ok(
@@ -1542,6 +1567,50 @@ SELECT is(
 ALTER TABLE public.official_sources
     DROP CONSTRAINT pgtap_reject_atomic_worker_body;
 
+INSERT INTO public.official_sources (
+    id,
+    corridor_rule_id,
+    agency_name,
+    official_url,
+    monitoring_mode,
+    manual_review_owner,
+    manual_review_interval_days
+) VALUES (
+    '30000000-0000-0000-0000-000000000012',
+    '20000000-0000-0000-0000-000000000001',
+    'Manual Worker Test Agency',
+    'https://example.gc.ca/manual-worker-test',
+    'MANUAL',
+    'Test operations',
+    30
+);
+
+SET LOCAL ROLE service_role;
+SELECT throws_ok(
+    $$SELECT * FROM public.persist_official_source_scrape(
+        '30000000-0000-0000-0000-000000000012',
+        NULL,
+        '141c9b53a7fe331587ba2e9a0d7b8eb57e6a024068f30e89790fb4b7d8f094ce',
+        repeat('baseline content ', 20),
+        NULL)$$,
+    '55000', NULL,
+    'K: the persistence RPC rejects a manually monitored source'
+);
+
+RESET ROLE;
+SELECT ok(
+    (SELECT last_verified IS NULL
+            AND last_content_hash IS NULL
+            AND last_content_text IS NULL
+       FROM public.official_sources
+      WHERE id = '30000000-0000-0000-0000-000000000012')
+    AND (SELECT count(*) = 0
+           FROM public.rule_change_alerts
+          WHERE official_source_id =
+                '30000000-0000-0000-0000-000000000012'),
+    'K: a rejected manual-source write changes neither baseline nor alerts'
+);
+
 -- ============================================================================
 -- L. support-thread metadata privacy (migration 012)                  (2 tests)
 -- ============================================================================
@@ -1815,7 +1884,8 @@ SELECT is(
         'has_profile', true,
         'accepted_version', '1.1',
         'current_version', '2.0',
-        'has_current_consent', false
+        'has_current_consent', false,
+        'profile', NULL
     ),
     'O: an upgraded client can detect a stale profile and the server-current version'
 );

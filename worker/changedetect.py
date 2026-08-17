@@ -44,6 +44,7 @@ BLOCK_PAGE_MARKERS = (
     "access denied",
     "attention required",
     "checking your browser",
+    "verifying your browser",
     "verify you are human",
     "verify that you are human",
     "enable javascript and cookies",

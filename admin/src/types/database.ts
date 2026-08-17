@@ -29,15 +29,54 @@ export type Province =
 /** corridor_task_rules province columns also accept the wildcard. */
 export type ProvinceOrAny = Province | "ANY";
 
-export type TaskStatus = "LOCKED" | "AVAILABLE" | "COMPLETED";
+export type TaskStatus = "AVAILABLE" | "COMPLETED";
 
 export type AlertStatus = "PENDING" | "APPROVED" | "DISMISSED";
+
+export type MonitoringMode = "AUTOMATED" | "MANUAL";
+
+export interface BootstrapProfile {
+  id: string;
+  origin_prov: Province | null;
+  dest_prov: Province | null;
+  move_date: string | null;
+  has_vehicle: boolean;
+  has_dependents: boolean;
+  consent_version: string;
+  consent_timestamp: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface PolicyConsentState {
   has_profile: boolean;
   accepted_version: string | null;
   current_version: string;
   has_current_consent: boolean;
+  profile: BootstrapProfile | null;
+}
+
+export interface OfficialSourceLink {
+  id: string;
+  agency_name: string;
+  official_url: string;
+  last_verified: string | null;
+}
+
+export interface ResolvedCorridorRule {
+  id: string;
+  task_id: string;
+  origin_province: ProvinceOrAny;
+  dest_province: ProvinceOrAny;
+  days_deadline: number | null;
+  is_mandatory: boolean;
+  created_at: string;
+  task_key: string;
+  title_en: string;
+  base_description_en: string;
+  requires_vehicle: boolean;
+  requires_dependents: boolean;
+  official_sources: OfficialSourceLink[];
 }
 
 export type SupportThreadStatus =
@@ -81,7 +120,7 @@ export interface AdminUserTask {
   is_mandatory: boolean;
   status: TaskStatus;
   status_updated_at: string | null;
-  official_url: string | null;
+  official_sources: OfficialSourceLink[];
 }
 
 export interface AdminUserListRow {
@@ -185,6 +224,10 @@ export interface Database {
           corridor_rule_id: string;
           agency_name: string;
           official_url: string;
+          monitor_url: string | null;
+          monitoring_mode: MonitoringMode;
+          manual_review_owner: string | null;
+          manual_review_interval_days: number | null;
           last_verified: string | null;
           last_content_hash: string | null;
           last_content_text: string | null;
@@ -195,6 +238,10 @@ export interface Database {
           corridor_rule_id: string;
           agency_name: string;
           official_url: string;
+          monitor_url?: string | null;
+          monitoring_mode?: MonitoringMode;
+          manual_review_owner?: string | null;
+          manual_review_interval_days?: number | null;
           last_verified?: string | null;
           last_content_hash?: string | null;
           last_content_text?: string | null;
@@ -371,6 +418,13 @@ export interface Database {
       has_current_policy_consent: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      resolve_corridor_rules: {
+        Args: {
+          p_origin_province: Province;
+          p_dest_province: Province;
+        };
+        Returns: ResolvedCorridorRule[];
       };
       admin_get_user_detail: {
         Args: { p_user_id: string };

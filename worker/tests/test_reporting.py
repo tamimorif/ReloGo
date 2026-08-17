@@ -16,6 +16,7 @@ def _stats(**overrides):
         "changed": 1,
         "stale": 0,
         "failed": 0,
+        "manual": 0,
     }
     stats.update(overrides)
     return stats
@@ -56,6 +57,7 @@ def test_notification_reports_alerts_and_failures():
                 "kind": "source",
             }
         ],
+        [],
     )
 
     assert "FAILED" in text
@@ -67,14 +69,47 @@ def test_notification_reports_alerts_and_failures():
 
 
 def test_success_notification_has_no_failure_section():
-    text = build_notification_text(_stats(), [], [])
+    text = build_notification_text(_stats(), [], [], [])
 
     assert "SUCCEEDED" in text
     assert "Failures" not in text
 
 
+def test_reporting_distinguishes_managed_and_captcha_challenges():
+    failures = [
+        {
+            "agency": "Managed",
+            "url": "https://managed.example/page",
+            "error": "HTTP 403 managed anti-bot challenge",
+            "kind": "source",
+            "category": "managed_challenge",
+        },
+        {
+            "agency": "Captcha",
+            "url": "https://captcha.example/page",
+            "error": "CAPTCHA challenge returned instead of source content",
+            "kind": "source",
+            "category": "captcha",
+        },
+    ]
+
+    text = build_notification_text(
+        _stats(scraped=1, failed=2), [], failures, []
+    )
+    summary = build_step_summary(
+        _stats(scraped=1, failed=2), [], failures, []
+    )
+
+    assert "1 managed anti-bot, 1 CAPTCHA" in text
+    assert "still failed closed" in text
+    assert "### Access challenges" in summary
+    assert "Managed anti-bot challenges: **1**" in summary
+    assert "CAPTCHA challenges: **1**" in summary
+    assert "did not replace any last-known-good baseline" in summary
+
+
 def test_stale_notification_explains_incomplete_no_write_outcome():
-    text = build_notification_text(_stats(stale=1), [], [])
+    text = build_notification_text(_stats(stale=1), [], [], [])
 
     assert "FAILED" in text
     assert "Stale CAS outcomes (1) wrote nothing" in text
@@ -93,18 +128,19 @@ def test_step_summary_explains_partial_failure_policy():
                 "kind": "source",
             }
         ],
+        [],
     )
 
-    assert "❌ Incomplete" in summary
+    assert "Automatic checks incomplete" in summary
     assert "### Failures" in summary
-    assert "All configured sources were attempted" in summary
+    assert "All automatic sources were attempted" in summary
     assert "exits non-zero" in summary
 
 
 def test_step_summary_explains_stale_cas_is_incomplete():
-    summary = build_step_summary(_stats(stale=1, failed=0), [], [])
+    summary = build_step_summary(_stats(stale=1, failed=0), [], [], [])
 
-    assert "❌ Incomplete" in summary
+    assert "Automatic checks incomplete" in summary
     assert "### Stale CAS outcomes" in summary
     assert "wrote nothing" in summary
     assert "exits non-zero" in summary
@@ -122,10 +158,34 @@ def test_step_summary_does_not_claim_sources_were_attempted_on_setup_failure():
                 "kind": "runtime",
             }
         ],
+        [],
     )
 
     assert "stopped during setup/runtime" in summary
-    assert "All configured sources were attempted" not in summary
+    assert "All automatic sources were attempted" not in summary
+
+
+def test_manual_assignments_stay_visible_without_failing_healthy_automation():
+    manual_sources = [
+        {
+            "agency": "Government of Yukon",
+            "url": "https://yukon.ca/example",
+            "owner": "ReloGo operations",
+            "interval_days": 30,
+        }
+    ]
+    stats = _stats(manual=1)
+
+    assert run_should_fail(stats) is False
+    text = build_notification_text(stats, [], [], manual_sources)
+    summary = build_step_summary(stats, [], [], manual_sources)
+
+    assert "1 manual" in text
+    assert "not automatic coverage" in text
+    assert "Manual monitoring assignments" in summary
+    assert "Automatic checks complete" in summary
+    assert "ReloGo operations" in summary
+    assert "interval is an assignment, not proof" in summary
 
 
 class TestSendRunWebhook:
@@ -151,6 +211,7 @@ class TestSendRunWebhook:
             _stats(stale=1),
             [],
             [],
+            [],
             opener=opener,
         )
 
@@ -166,6 +227,7 @@ class TestSendRunWebhook:
             "https://hooks.example.test/services/redacted",
             _stats(),
             [{}],
+            [],
             [],
             opener=lambda *_args, **_kwargs: self.Response(),
         )
@@ -183,6 +245,7 @@ class TestSendRunWebhook:
             _stats(),
             [],
             [{"agency": "A", "url": "https://gov/a", "error": "timeout"}],
+            [],
             opener=opener,
         )
 

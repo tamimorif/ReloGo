@@ -1,7 +1,7 @@
 import {
-  SUPPORT_QUESTIONS,
   hasOnlyAllowedUserQuestions,
   isSupportQuestion,
+  SUPPORT_QUESTIONS,
 } from "./supportQuestions.ts";
 
 function assert(condition: boolean, message: string): void {
@@ -11,7 +11,10 @@ function assert(condition: boolean, message: string): void {
 Deno.test("all fixed support questions are accepted", () => {
   assert(SUPPORT_QUESTIONS.length === 6, "expected six support questions");
   for (const question of SUPPORT_QUESTIONS) {
-    assert(isSupportQuestion(question), `rejected approved question: ${question}`);
+    assert(
+      isSupportQuestion(question),
+      `rejected approved question: ${question}`,
+    );
   }
 });
 
@@ -27,7 +30,10 @@ Deno.test("arbitrary and PII-like user text is rejected exactly", () => {
   ];
 
   for (const value of rejected) {
-    assert(!isSupportQuestion(value), `accepted unsafe value: ${String(value)}`);
+    assert(
+      !isSupportQuestion(value),
+      `accepted unsafe value: ${String(value)}`,
+    );
   }
 });
 

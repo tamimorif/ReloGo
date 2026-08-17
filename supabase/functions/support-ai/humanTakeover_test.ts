@@ -32,6 +32,9 @@ Deno.test("non-AI or missing/malformed marker state fails closed", () => {
   ];
 
   for (const thread of rejected) {
-    assert(!isAiEligibleThread(thread), `accepted unsafe state: ${JSON.stringify(thread)}`);
+    assert(
+      !isAiEligibleThread(thread),
+      `accepted unsafe state: ${JSON.stringify(thread)}`,
+    );
   }
 });

@@ -27,6 +27,7 @@ def test_policy_72_no_profile_state_and_app_data_gate(new_user):
         "accepted_version": None,
         "current_version": CURRENT_CONSENT_VERSION,
         "has_current_consent": False,
+        "profile": None,
     }
 
     with pytest.raises(APIError) as exc_info:
@@ -41,12 +42,29 @@ def test_policy_73_current_profile_reports_current_consent(consented_user):
     client = consented_user["client"]
 
     state = client.rpc("get_policy_consent_state").execute().data
+    profile = state.pop("profile")
     assert state == {
         "has_profile": True,
         "accepted_version": CURRENT_CONSENT_VERSION,
         "current_version": CURRENT_CONSENT_VERSION,
         "has_current_consent": True,
     }
+    assert set(profile) == {
+        "id",
+        "origin_prov",
+        "dest_prov",
+        "move_date",
+        "has_vehicle",
+        "has_dependents",
+        "consent_version",
+        "consent_timestamp",
+        "created_at",
+        "updated_at",
+    }
+    assert profile["id"] == consented_user["id"]
+    assert profile["origin_prov"] == "ON"
+    assert profile["dest_prov"] == "AB"
+    assert profile["consent_version"] == CURRENT_CONSENT_VERSION
 
     profile = client.table("user_profiles").select("id, consent_version").execute().data
     assert profile == [{

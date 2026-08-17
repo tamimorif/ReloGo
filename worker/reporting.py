@@ -10,13 +10,26 @@ import json
 import urllib.request
 
 
+def challenge_counts(failed_sources: list[dict]) -> tuple[int, int]:
+    """Return managed-challenge and CAPTCHA failure counts."""
+
+    managed = sum(
+        failure.get("category") == "managed_challenge"
+        for failure in failed_sources
+    )
+    captcha = sum(failure.get("category") == "captcha" for failure in failed_sources)
+    return managed, captcha
+
+
 def run_should_fail(stats: dict[str, int]) -> bool:
     """Return whether a completed run must exit non-zero.
 
     Every configured source is attempted before this policy is evaluated. A
-    single failed source or stale compare-and-swap result is still an incomplete
-    monitoring run and must be visible as a failed scheduled job. A zero-scrape
-    run also fails, covering empty source sets and fatal setup errors.
+    single failed automatic source or stale compare-and-swap result is still an
+    incomplete monitoring run and must be visible as a failed scheduled job.
+    Explicitly owned manual sources are listed separately and do not pretend to
+    be automatic failures. A zero-scrape run still fails, covering empty source
+    sets and fatal setup errors.
     """
 
     return (
@@ -30,6 +43,7 @@ def build_notification_text(
     stats: dict[str, int],
     filed_alerts: list[dict],
     failed_sources: list[dict],
+    manual_sources: list[dict],
 ) -> str:
     """Build the Slack-compatible plain-text run notification."""
 
@@ -38,7 +52,7 @@ def build_notification_text(
         f"ReloGo worker {outcome}: {stats['scraped']} source(s) scraped, "
         f"{stats['baseline']} baselined, {stats['unchanged']} unchanged, "
         f"{stats['changed']} changed, {stats['stale']} stale, "
-        f"{stats['failed']} failed."
+        f"{stats['failed']} failed, {stats.get('manual', 0)} manual."
     ]
 
     if filed_alerts:
@@ -52,6 +66,17 @@ def build_notification_text(
             )
         lines.append("Review alerts in the admin dashboard before any rule update.")
 
+    if manual_sources:
+        lines.append(
+            f"Manual monitoring assignments ({len(manual_sources)}; not "
+            "automatic coverage):"
+        )
+        for source in manual_sources:
+            lines.append(
+                f"• {source['agency']}: {source['url']} — owner "
+                f"{source['owner']}, every {source['interval_days']} day(s)"
+            )
+
     if stats["stale"] > 0:
         lines.append(
             f"Stale CAS outcomes ({stats['stale']}) wrote nothing; this run is "
@@ -59,10 +84,23 @@ def build_notification_text(
         )
 
     if failed_sources:
+        managed, captcha = challenge_counts(failed_sources)
+        if managed or captcha:
+            lines.append(
+                "Access challenges (still failed closed): "
+                f"{managed} managed anti-bot, {captcha} CAPTCHA."
+            )
         lines.append(f"Failures ({len(failed_sources)}):")
         for failure in failed_sources:
+            monitor_url = failure.get("monitor_url")
+            target = (
+                f" (monitor target: {monitor_url})"
+                if monitor_url and monitor_url != failure["url"]
+                else ""
+            )
             lines.append(
-                f"• {failure['agency']}: {failure['url']} — {failure['error']}"
+                f"• {failure['agency']}: {failure['url']}{target} — "
+                f"{failure['error']}"
             )
         lines.append("Inspect the GitHub Actions run for recovery details.")
 
@@ -74,6 +112,7 @@ def send_run_webhook(
     stats: dict[str, int],
     filed_alerts: list[dict],
     failed_sources: list[dict],
+    manual_sources: list[dict],
     opener=None,
 ) -> tuple[bool, str]:
     """Build and send one webhook without ever raising to the worker.
@@ -84,7 +123,9 @@ def send_run_webhook(
     """
 
     try:
-        text = build_notification_text(stats, filed_alerts, failed_sources)
+        text = build_notification_text(
+            stats, filed_alerts, failed_sources, manual_sources
+        )
         payload = json.dumps({"text": text}).encode("utf-8")
         request = urllib.request.Request(
             webhook_url,
@@ -104,6 +145,7 @@ def build_step_summary(
     stats: dict[str, int],
     filed_alerts: list[dict],
     failed_sources: list[dict],
+    manual_sources: list[dict],
 ) -> str:
     """Build the Markdown appended to ``GITHUB_STEP_SUMMARY``."""
 
@@ -111,12 +153,14 @@ def build_step_summary(
     lines = [
         "## ReloGo worker run",
         "",
-        f"**Outcome:** {'❌ Incomplete' if failed else '✅ Complete'}",
+        f"**Outcome:** "
+        f"{'❌ Automatic checks incomplete' if failed else '✅ Automatic checks complete'}",
         "",
-        "| Scraped | Baselined | Unchanged | Changed | Stale | Failed |",
-        "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scraped | Baselined | Unchanged | Changed | Stale | Failed | Manual |",
+        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         f"| {stats['scraped']} | {stats['baseline']} | {stats['unchanged']} "
-        f"| {stats['changed']} | {stats['stale']} | {stats['failed']} |",
+        f"| {stats['changed']} | {stats['stale']} | {stats['failed']} "
+        f"| {stats.get('manual', 0)} |",
     ]
 
     if filed_alerts:
@@ -125,6 +169,23 @@ def build_step_summary(
             lines.append(
                 f"- **{alert['agency']}** — {alert['url']} "
                 f"(diff: {alert['diff_chars']} chars)"
+            )
+
+    if manual_sources:
+        lines += [
+            "",
+            "### Manual monitoring assignments",
+            "",
+            "These sources are intentionally excluded from automatic fetching. "
+            "They remain visible here and must be reviewed by the named owner; "
+            "the interval is an assignment, not proof that a review occurred.",
+            "",
+        ]
+        for source in manual_sources:
+            lines.append(
+                f"- **{source['agency']}** — {source['url']} — owner: "
+                f"{source['owner']}; cadence: every "
+                f"{source['interval_days']} day(s)"
             )
 
     if stats["stale"] > 0:
@@ -138,10 +199,27 @@ def build_step_summary(
         ]
 
     if failed_sources:
+        managed, captcha = challenge_counts(failed_sources)
+        if managed or captcha:
+            lines += [
+                "",
+                "### Access challenges",
+                "",
+                f"- Managed anti-bot challenges: **{managed}**",
+                f"- CAPTCHA challenges: **{captcha}**",
+                "- These responses were rejected and did not replace any "
+                "last-known-good baseline.",
+            ]
         lines += ["", "### Failures", ""]
         for failure in failed_sources:
+            monitor_url = failure.get("monitor_url")
+            target = (
+                f" (monitor target: {monitor_url})"
+                if monitor_url and monitor_url != failure["url"]
+                else ""
+            )
             lines.append(
-                f"- **{failure['agency']}** — {failure['url']} — "
+                f"- **{failure['agency']}** — {failure['url']}{target} — "
                 f"{failure['error']}"
             )
         lines.append("")
@@ -152,8 +230,9 @@ def build_step_summary(
             )
         else:
             lines.append(
-                "All configured sources were attempted. Failed sources kept their "
-                "last known-good baseline, and this run exits non-zero."
+                "All automatic sources were attempted. Failed sources kept their "
+                "last known-good baseline, manual assignments remain listed "
+                "separately, and this run exits non-zero."
             )
 
     return "\n".join(lines) + "\n"
