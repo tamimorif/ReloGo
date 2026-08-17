@@ -1,12 +1,16 @@
 # ReloGo App Store Metadata
 
-> **Draft only (2026-08-04):** App Store version 1.0 has been live since
+> **Draft only (2026-08-17):** App Store version 1.0 has been live since
 > 2026-06-23 (Apple ID `6781947478`, bundle ID `com.relogo.app`) and still
 > points to the deleted backend; 1.0.1 has not shipped. This repository text is
-> not evidence that App Store Connect or Google Play forms were updated. Fresh
-> iOS build 7 and Android build 4 both finished from exact merged commit
-> `e75f449`. Neither has been submitted, and build completion is
-> not real-device evidence. Before the 1.0.1 recovery submission, the account
+> not evidence that App Store Connect or Google Play forms were updated.
+> Historical iOS build 7 and Android build 4 both finished from exact commit
+> `e75f449`. iOS build 7 is already `VALID`/`IN_BETA_TESTING` in internal
+> TestFlight but has not been submitted for App Review; Android build 4 has not
+> been uploaded to Google Play. Both predate the current `tamim` startup and
+> dependency fixes and are not current release candidates; fresh exact-commit
+> artifacts are required. Build/TestFlight processing is not real-device
+> evidence. Before the 1.0.1 recovery submission, the account
 > owner and legal reviewer must
 > confirm the binary's behavior, anonymous account-linked data, Gemini
 > processing, device-only PII claims, screenshots, and monitored Support URL.

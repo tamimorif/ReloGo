@@ -22,6 +22,7 @@ import { sweepTemporaryPDFs } from "@/lib/pdfCleanup";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { installGlobalErrorHandler } from "@/lib/errorReporting";
 import { withStartupTimeout } from "@/lib/startupTimeout";
+import { prefetchChecklistQueries } from "@/lib/checklistQueries";
 
 // Route uncaught (async/global) errors through the privacy-safe sanitizer as
 // early as possible, before any screen renders.
@@ -218,9 +219,16 @@ function RootLayoutInner() {
       setHasCurrentConsent(data.has_current_consent);
       if (data.has_current_consent && data.profile) {
         // Seed the checklist/profile query with the profile already returned
-        // by the consent gate. Rules and progress can now start together,
-        // removing one cellular-network round trip from a warm launch.
+        // by the consent gate, avoiding a duplicate cellular profile request.
         queryClient.setQueryData(["profile", userId], data.profile);
+        // Consent is now authoritative, so start rules and progress while the
+        // state update and route transition render. The checklist subscribes
+        // to these exact keys and reuses the in-flight requests.
+        void prefetchChecklistQueries(queryClient, {
+          userId,
+          origin: data.profile.origin_prov,
+          destination: data.profile.dest_prov,
+        }).catch(() => undefined);
       } else {
         queryClient.removeQueries({ queryKey: ["profile", userId] });
       }

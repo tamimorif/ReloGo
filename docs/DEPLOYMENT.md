@@ -13,10 +13,10 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Reverify EAS metadata for iOS build 7 and Android build 4 identifies exact merged commit `e75f449`; reject any mismatched artifact, then complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 1 | Build fresh iOS/Android production artifacts from the final `tamim` commit, verify their exact EAS commit metadata, then complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 4 | Review migration 027, apply it before the coordinated worker, obtain a healthy live rerun with manual assignments visible, and configure/test worker webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
+| 4 | Review migration 027, ensure the coordinated worker—not the old default-branch worker—is the next scheduled/manual implementation, then apply 027 before that worker run; obtain a healthy live result with manual assignments visible and configure/test webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
 | 5 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
 
 **Configured cloud mapping:** separate Supabase preview and production projects
@@ -25,13 +25,13 @@ to `admin/`. Development/preview variables target the preview backend and
 production variables target production in both Vercel and the registered EAS
 project. Values remain platform-managed and are not committed.
 
-Current hosted/repository truth (2026-08-11):
+Current hosted/repository truth (2026-08-17):
 
 | Target | State |
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
 | Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
-| Mobile | Local version 1.0.1 / SDK 55 gates pass. Fresh exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) and Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) finished successfully. Neither was submitted; real-device QA and approval remain |
+| Mobile | Local version 1.0.1 / SDK 55 gates pass. Earlier exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) and Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) finished successfully. iOS build 7 is `VALID`/`IN_BETA_TESTING` in internal TestFlight but not in App Review; Android has not been uploaded to Google Play. Both predate current `tamim` fixes, so fresh exact-commit artifacts, real-device QA, and approval remain |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; main run `30843906264` passed public web/auth/resolver checks with required backend probes |
 | Worker/uptime | Main run `30843904269` passed the `2.31.0` preflight and created 42 baselines. Hardened run `30845791036` fetched 50 unique URLs for 53 rows, completed 42 rows, added one baseline, and filed three PENDING alerts while 11 rows/10 URLs failed closed. Production remains at 43/53 baselines. Local migration 027 maps nine rows to validated worker-only first-party targets and two Yukon rows to visible 30-day ReloGo operations assignments; it is pending review, hosted rollout, and live rerun. Key rotation is not needed; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
@@ -289,27 +289,39 @@ attempt an `eas update` hotfix for that binary.
 The recovery app is 1.0.1 / SDK 55 and now has app-version-based runtime
 versioning, Expo Updates configuration, and a build-time release preflight.
 This helps future compatible releases; it does not retroactively update 1.0.
-Fresh production/store builds from exact merged `main` `e75f449` both finished
-successfully: iOS version 1.0.1 build 7, EAS
+Earlier production/store builds from exact merged `main` `e75f449` both
+finished successfully: iOS version 1.0.1 build 7, EAS
 `765965d7-c7c1-432c-ac1d-302d2f0c5116`, and Android version 1.0.1 build 4, EAS
 `28076f35-1495-466b-af77-97a9339c5ea2`. The registered production EAS values
 passed the release contract and existing remote signing credentials worked;
-no credential or password was requested. Neither build has been submitted, and
-cloud completion still cannot
-replace real-device evidence or store approval.
+no credential or password was requested. iOS build 7 was successfully uploaded
+on 2026-08-04 and is `VALID`/`IN_BETA_TESTING` in internal TestFlight; it has
+not been submitted for App Review. Android build 4 has not been uploaded to
+Google Play. Both artifacts predate the current `tamim` startup and dependency
+fixes, so they are historical evidence rather than current release candidates.
+Fresh exact-commit artifacts are required. Cloud/TestFlight processing still
+cannot replace real-device evidence or store approval.
 Prioritize the iOS recovery because broken 1.0 is publicly downloadable there.
 Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
-The production dependency audit reports 0 vulnerabilities after an exact
-`xcode@3.0.1` override pins the CommonJS-compatible `uuid@11.1.1`; keep that
-override narrow and remove it when fixed upstream.
+The mobile production audit patches `js-yaml`, `nanoid`, and `postcss` and uses
+a fail-closed wrapper for two exact `image-size@1.2.1` denial-of-service
+advisories propagated through Metro build tooling. There is no patched
+`image-size` release or compatible npm remedy; the reviewed exception is
+limited to repository-controlled build assets and every other high/critical
+finding fails. The exact `xcode@3.0.1` override still pins the CommonJS-
+compatible `uuid@11.1.1`; keep it narrow and remove it when fixed upstream.
 The final current-tree local mobile gates pass: release configuration,
-TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
-modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
-bytecode, and audit 0. Cloud build completion does not replace real-device QA
+TypeScript, lint, 13 Jest suites with 133/133 tests, iOS export at 1,753
+modules/5.8 MB Hermes bytecode, Android export at 1,774 modules/5.9 MB Hermes
+bytecode, and the fail-closed production audit. Cloud build completion does
+not replace real-device QA
 or store-submission evidence. Once fresh builds exist for the exact merged
 candidate, do not start duplicates merely to reproduce their status.
-Before internal iOS QA, the account owner must register a test iPhone. Before
+For internal iOS QA, first build and—only with explicit owner authorization—
+upload the final exact-`tamim` iOS candidate to TestFlight, then install it with
+an App Store Connect internal tester. EAS device registration is not required.
+Before
 automated Android submission, the owner must provide/review a Google Play
 service-account key; otherwise use a documented owner-controlled manual path.
 
@@ -321,7 +333,7 @@ npx expo install --check
 npm run lint
 npm run typecheck
 npm test -- --runInBand
-npm audit --omit=dev
+npm run audit:production
 npx expo start                                  # local development
 
 npm install -g eas-cli                          # or: npx eas-cli ...
@@ -329,9 +341,14 @@ eas login
 eas env:list --environment preview
 eas build --profile preview --platform all      # first: internal distribution
 
-# Only after preview/device/legal/store/production gates all pass:
+# Create exact production artifacts after repository gates pass. This does not
+# upload them to a store or submit them for review:
 eas env:list --environment production
-eas build --profile production --platform all
+eas build --profile production --platform all --non-interactive \
+  --freeze-credentials --no-wait --json
+
+# Only after device/legal/store/production gates all pass and the owner gives
+# explicit upload/submission authorization:
 eas submit --profile production --platform all
 ```
 `mobile/eas.json` explicitly selects the EAS `development`, `preview`, and
@@ -357,7 +374,9 @@ a build pass.
 The startup recovery removes network work from the static splash path, bounds
 session restore at 3 seconds and consent/profile bootstrap at 5 seconds, avoids
 duplicate initial-session requests, reuses the bootstrap profile, and defers the
-heavy PDF engine until an explicit tap. Checklist profile/rules/progress reads
+heavy PDF engine until an explicit tap. After current consent is confirmed it
+prefetches corridor rules and progress during route rendering; the checklist
+reuses those exact in-flight queries. Checklist profile/rules/progress reads
 abort after 8 seconds and use `retry: false`. Onboarding writes only minimal
 non-PII profile fields, then `get_policy_consent_state()` returns the
 authoritative allowlisted profile that is cached before checklist navigation.
@@ -411,7 +430,12 @@ Chromium for Playwright).
 
 Migrations 011 and 023 must be applied first; both are now present in
 production. Local migration 027 must also be applied before the coordinated
-worker changes are run; it is not yet hosted. The service role can read the
+worker changes are run; it is not yet hosted. Do not apply 027 while the daily
+schedule still executes the older default-branch worker: that implementation
+ignores `monitor_url` and could repopulate the nine cleared automatic baselines
+from canonical blocked pages. First schedule the coordinated worker, or
+explicitly pause the old schedule and run the reviewed `tamim` workflow
+manually. The service role can read the
 narrow source columns and execute
 `persist_official_source_scrape()` but cannot directly edit source baselines or
 alert rows. The RPC atomically files a PENDING alert and advances its baseline;
@@ -565,8 +589,8 @@ usage/context, and atomically persists a reply only if the same user turn is
 still latest and the thread remains AI-owned.
 
 Current state: preview v3 was authenticated-smoke-tested before being paused.
-Production v4 is ACTIVE with JWT verification and returns 401 unauthenticated;
-its public resolver smoke passed. v4 grounds through
+Production v5 is ACTIVE with JWT verification and returns 401 unauthenticated;
+its public resolver smoke passed. v5 grounds through
 `resolve_corridor_rules()`, validates/bounds HTTPS sources, uses current
 reviewed Gemini model IDs, applies a 12-second provider deadline across both
 response headers and the full response-body read, caps output, and returns

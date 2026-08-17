@@ -273,11 +273,13 @@ jobs:
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
       - name: Install dependencies
         run: npm ci
-      # Runtime dependencies only: dev/build tooling never ships to a user.
-      # The gate is high/critical. Mobile carries known moderate advisories in
-      # Expo build-tool transitives whose only npm-offered remedy is a breaking
-      # forced downgrade; failing on moderate would block every run for a
-      # finding the project has reviewed and accepted. High or critical in a
-      # shipped dependency must break the build.
+      # Keep high/critical as the release gate. Expo declares Metro build tools
+      # in its production dependency graph, so mobile uses a fail-closed wrapper
+      # that accepts only two exact, reviewed image-size advisories affecting
+      # repository-controlled build assets. All other findings still fail.
       - name: Audit production dependencies
+        if: matrix.app != 'mobile'
         run: npm audit --omit=dev --audit-level=high
+      - name: Audit mobile production dependencies
+        if: matrix.app == 'mobile'
+        run: npm run audit:production
