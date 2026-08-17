@@ -1,6 +1,6 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-08-04_
+_Current as of 2026-08-11_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
@@ -17,7 +17,7 @@ thread was fixed/resolved, and worker hardening merged as `d2db994`. The final
 production Edge Function v5, reviewed admin recovery, landing site, and
 backend-aware main uptime are live. The App Store still distributes the broken
 1.0 binary; 1.0.1 has not shipped. Recovery is not complete because real-
-device/store, challenge-blocked source monitoring, and human approval gates
+device/store, hosted rollout of the local source-monitoring fix, and human approval gates
 remain.
 
 The shipped App Store 1.0 binary was built from SDK 51 and contains the retired
@@ -28,11 +28,13 @@ redirected. Recovery requires a new 1.0.1 store binary.
 
 Environment truth:
 
-- Local schema: migrations 001–026.
+- Repository schema: migrations 001–027. Migration 027 and its coordinated
+  worker changes are local and pending review; they are not hosted or live.
 - Preview `uwfblgllkibbupqyofkl`: migrations 001–026 and JWT-protected
   `support-ai` v3; live smoke passed, then the project was deliberately paused.
 - Production `yskknolxbxfxakgvrcmg`: active, currently linked locally,
-  exact migrations 001–026 and JWT-protected `support-ai` v5. Dry run is clean,
+  exact migrations 001–026 and JWT-protected `support-ai` v5. Its last pre-027
+  dry run was clean,
   anonymous auth is enabled, unauthenticated function invocation returns 401,
   and the self-cleaning smoke passed anonymous auth, resolver output with five
   tasks/five HTTPS sources, a minimal onboarding profile insert, authoritative
@@ -55,11 +57,20 @@ Environment truth:
   completed 42 rows, added one baseline, and filed three PENDING human-review
   alerts while 11 outcomes remained failed (`8` managed challenges, `2`
   CAPTCHAs, `1` empty body). Production now has 43/53 baselines.
-  `ALERT_WEBHOOK_URL` is unset.
+  Those 11 rows represented 10 unique URLs. Local migration 027 retains each
+  canonical public `official_url`, assigns nine rows a worker-only validated
+  first-party monitor target, and makes Yukon driver-licence and vehicle-
+  registration monitoring MANUAL under `ReloGo operations` every 30 days.
+  Every Actions summary lists the manual assignments; that cadence is an
+  assignment, not proof of review or overdue tracking. All nine automatic
+  targets passed worker-equivalent local reachability checks. Challenge gates
+  remain fail-closed. Migration 027 has not been applied to preview or
+  production, and the updated worker has not had a live Actions rerun.
+  `ALERT_WEBHOOK_URL` is unset; key rotation is not needed.
 
 Remaining release gates include real-device startup/PDF/privacy QA, store
-submission and review, reviewed alternate/manual
-monitoring for 11 failed source-row outcomes, a tested worker webhook, backup
+submission and review, reviewed migration-first rollout and live verification
+of the migration 027 source-monitoring fix, a tested worker webhook, backup
 funding/restore drill, admin credential rotation, a
 monitored public mailbox/domain, correction of the live App Store privacy
 answer, and human legal/content/store approval.
@@ -130,9 +141,10 @@ Deletion also removes the server account and local session.
 
 ### Migrations and types
 
-- `supabase/migrations/001_*.sql` through `026_*.sql` are the ordered local
-  schema source of truth. Preview and production both have 001–026. The next
-  migration is 027. Never rewrite a deployed migration.
+- `supabase/migrations/001_*.sql` through `027_*.sql` are the ordered repository
+  schema source of truth. Preview and production both remain at exact 001–026;
+  migration 027 is local and pending review. Never rewrite a deployed migration
+  or treat the presence of 027 in Git as hosted evidence.
 - `supabase/seed.sql` is local-only. It reproduces hosted baseline
   table/sequence grants before reapplying migration-defined restrictions;
   `supabase db push` never applies it. Read its header before changing grants.
@@ -163,6 +175,14 @@ Deletion also removes the server account and local session.
 - Migration 026 adds `NOT VALID` origin/destination inequality constraints to
   profiles and waitlist. Existing legacy rows survive, but new/updated invalid
   rows are rejected.
+- Migration 027 adds private `monitor_url`/monitoring metadata for the worker,
+  preserves canonical public resolver links, and resets baselines only for its
+  11 mapped rows. Nine rows remain automatic through validated first-party
+  targets; Yukon driver-licence and vehicle-registration rows are manual,
+  assigned to ReloGo operations every 30 days. The interval is not evidence of
+  a completed review and no overdue-review state exists. The migration also
+  blocks the persistence RPC from writing manual rows. Review and apply it
+  before running the coordinated worker; it has not been hosted.
 - The extracted `Database` interface must remain byte-identical in
   `mobile/types/database.ts` and `admin/src/types/database.ts`; app-specific
   helper types outside that interface may differ.
@@ -281,16 +301,23 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
    performs fast read-only key, schema, and canonical-resolver checks before
    installing Chromium. It rejects preview, lookalike hosts, credentials,
    ports, paths, query strings, and fragments. Do not broaden it into writes.
-2. Worker fetches narrow source metadata and scrapes every source with bounded
-   concurrency and isolated pages/downloads. HTML/PDF content has sanity and
-   size gates.
+2. Worker fetches narrow source metadata, partitions AUTOMATED from MANUAL
+   sources, and scrapes every automatic source with bounded concurrency and
+   isolated pages/downloads. An automatic source may use a worker-only
+   first-party `monitor_url`; the canonical `official_url` remains the public
+   link. HTML/PDF content has fail-closed sanity and size gates.
 3. Results are processed in stable source-ID order.
 4. `persist_official_source_scrape()` uses a row lock and expected-hash
    compare-and-swap. It records BASELINE/UNCHANGED or creates PENDING and
    advances CHANGED; stale work writes nothing.
-5. Source failures/stale outcomes remain visible in logs, webhook/job summary,
-   and a non-zero exit without preventing other source attempts.
-6. Admin approval/dismissal is row-locked and RPC-only. Worker grants do not
+5. Automatic source failures/stale outcomes remain visible in logs,
+   webhook/job summary, and a non-zero exit without preventing other automatic
+   source attempts.
+6. Every job summary separately lists the Yukon driver-licence and vehicle-
+   registration manual assignments, their ReloGo operations owner, and 30-day
+   cadence. Manual rows do not make an otherwise healthy automatic run fail;
+   the cadence is assignment metadata, not completion or overdue evidence.
+7. Admin approval/dismissal is row-locked and RPC-only. Worker grants do not
    permit live-rule changes.
 
 ## Important schema/RPC inventory
@@ -391,12 +418,25 @@ deno test --config supabase/functions/support-ai/deno.json \
 
 ### Latest established results
 
-- Current recovery database slice: fresh reset 001–026, public lint clean,
+- Established recovery database baseline: fresh reset 001–026, public lint clean,
   pgTAP 198/198, focused resolver/integrity API E2E 5/5.
+- Local migration 027 source-monitoring fix: all nine replacement automatic
+  first-party targets passed worker-equivalent reachability checks; the two
+  remaining Yukon rows are explicit manual assignments. This is target
+  reachability evidence only: Quebec coverage is high-level, the Nunavut
+  vehicle target is a general driver manual, PEI school coverage is the English
+  Public Schools Branch, and the Yukon school policy omits some registration
+  steps/authorities. A green run proves configured automatic checks, not full
+  semantic coverage. Review, hosted migration, and a live Actions rerun remain.
+  Fresh local reset through 027, public-schema lint, and pgTAP 207/207 pass;
+  worker compile/tests pass 106/106; database type sync, mobile TypeScript, and
+  the admin production build pass. The API E2E run passed 247/248 before a
+  stopped local Edge Runtime returned 503; after restart, that exact anonymous-
+  function test passed in isolation.
 - Preview: exact 001–026 ledger and hosted smoke passed, including anonymous
   auth, resolver/HTTPS sources, consent gate, authenticated non-fallback AI,
   and cleanup, before deliberate pause.
-- Production: exact 001–026 ledger, clean dry run, anonymous auth enabled,
+- Production: exact 001–026 ledger, clean pre-027 dry run, anonymous auth enabled,
   self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources,
   minimal onboarding profile insert, authoritative consent/profile
   confirmation, authenticated non-fallback AI, and cleanup; final `support-ai`
@@ -438,7 +478,7 @@ deno test --config supabase/functions/support-ai/deno.json \
   `support-ai` v3 ACTIVE with JWT verification, and a passing live smoke.
 - Production: `ReloGo Production`, `yskknolxbxfxakgvrcmg`, `ca-central-1`,
   ACTIVE_HEALTHY and currently linked locally. Remote ledger is exact 001–026;
-  dry run is clean; final `support-ai` v5 is ACTIVE with JWT verification and returns
+  the last pre-027 dry run was clean; final `support-ai` v5 is ACTIVE with JWT verification and returns
   401 unauthenticated. The self-cleaning smoke passed anonymous auth, resolver
   output with five tasks/five HTTPS sources, a minimal onboarding profile
   insert, authoritative consent/profile confirmation, authenticated
@@ -478,17 +518,19 @@ deno test --config supabase/functions/support-ai/deno.json \
 1. Use exact-commit iOS build 7 and Android build 4 for real-device startup,
    offline/
    recovery, PDF, deletion, and privacy QA. Do not submit either automatically.
-2. Review equivalent first-party URLs for the 11 RAMQ/Yukon/Nunavut/PEI
-   challenge-blocked sources. Ship URL changes only through reviewed migration
-   027, or model explicit manual monitoring when no equivalent accessible
-   official source exists. Never bypass CAPTCHAs or baseline challenge text.
+2. Review local migration 027 and its coordinated worker changes. It maps the
+   11 failed rows/10 URLs to nine validated automatic first-party targets plus
+   two owned Yukon manual assignments without changing public `official_url`
+   values. Apply the migration to an explicitly targeted environment before
+   running the new worker, then obtain a live Actions result. Never bypass
+   CAPTCHAs or baseline challenge text.
 3. Configure and test `ALERT_WEBHOOK_URL`, assign worker/uptime alert owners,
    and require failed/manual sources to remain visible. The existing worker key
    passed preflight and must not be rotated or requested again.
 4. Archive the production ledger/dry-run/smoke and final build evidence. Run
    final production lint, pgTAP, advisors, and authenticated AI smoke if they
-   are not already captured. Future hosted changes start at migration 027 and
-   still need explicit approval.
+   are not already captured. The next hosted change is pending migration 027
+   and still needs explicit approval.
 5. Configure a monitored public support/privacy mailbox and domain, then
    establish recurring schedule and notification ownership; one passing uptime
    run does not prove either.
@@ -521,8 +563,8 @@ decision.
   release preflight accepts only
   `https://yskknolxbxfxakgvrcmg.supabase.co` (with an optional trailing slash).
 - Local Supabase link points to production. Use explicit refs and leave
-  production at exact 001–026/v5; future changes begin at 027 and still require
-  explicit approval.
+  production at exact 001–026/v5. Migration 027 exists only locally; its
+  migration-first rollout still requires explicit approval.
 - Preview is paused after successful verification; resume deliberately and
   account for the project's live plan and pausing behavior.
 - Pull request #2 final head `f34b64a` passed all 19 checks, its fixed review
@@ -530,8 +572,10 @@ decision.
 - Main worker run `30843904269` passed the `2.31.0` preflight and created 42
   baselines. Hardened run `30845791036` added one baseline and filed three
   PENDING alerts while 11 outcomes remained failed; 43/53 sources now have
-  baselines. Keep the nonzero failure visible until reviewed first-party
-  alternatives or explicit manual monitoring exist. Key rotation is not
+  baselines. Those 11 rows/10 URLs were anti-bot, CAPTCHA, or empty-content
+  failures. The local 027 treatment uses nine automatic worker-only first-party
+  targets and two visible, owned manual assignments, but it is not hosted and
+  has no live rerun. Keep challenge gates fail-closed. Key rotation is not
   needed; the webhook is absent.
 - The worker preflight and backend-aware uptime probe fail closed unless
   `SUPABASE_URL` is the exact production origin

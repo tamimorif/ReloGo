@@ -33,6 +33,8 @@ export type TaskStatus = "AVAILABLE" | "COMPLETED";
 
 export type AlertStatus = "PENDING" | "APPROVED" | "DISMISSED";
 
+export type MonitoringMode = "AUTOMATED" | "MANUAL";
+
 export interface BootstrapProfile {
   id: string;
   origin_prov: Province | null;
@@ -222,6 +224,10 @@ export interface Database {
           corridor_rule_id: string;
           agency_name: string;
           official_url: string;
+          monitor_url: string | null;
+          monitoring_mode: MonitoringMode;
+          manual_review_owner: string | null;
+          manual_review_interval_days: number | null;
           last_verified: string | null;
           last_content_hash: string | null;
           last_content_text: string | null;
@@ -232,6 +238,10 @@ export interface Database {
           corridor_rule_id: string;
           agency_name: string;
           official_url: string;
+          monitor_url?: string | null;
+          monitoring_mode?: MonitoringMode;
+          manual_review_owner?: string | null;
+          manual_review_interval_days?: number | null;
           last_verified?: string | null;
           last_content_hash?: string | null;
           last_content_text?: string | null;

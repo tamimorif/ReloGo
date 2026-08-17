@@ -6,14 +6,93 @@ import pytest
 import main as worker
 
 
-def _source(source_id: str, url: str, agency: str = "Agency") -> dict:
+def _source(
+    source_id: str,
+    url: str,
+    agency: str = "Agency",
+    *,
+    monitor_url: str | None = None,
+) -> dict:
     return {
         "id": source_id,
         "agency_name": agency,
         "official_url": url,
+        "monitor_url": monitor_url,
+        "monitoring_mode": worker.AUTOMATED_MONITORING_MODE,
+        "manual_review_owner": None,
+        "manual_review_interval_days": None,
         "last_content_hash": None,
         "last_content_text": None,
     }
+
+
+def test_source_monitor_url_prefers_private_target_and_falls_back_to_public_url():
+    public_url = "https://example.gov/public"
+    monitor_url = "https://static.example.gov/rules.pdf"
+
+    assert worker.source_monitor_url(_source("1", public_url)) == public_url
+    assert (
+        worker.source_monitor_url(
+            _source("2", public_url, monitor_url=monitor_url)
+        )
+        == monitor_url
+    )
+
+
+def test_partition_sources_keeps_owned_manual_assignments_visible():
+    automatic = _source("1", "https://example.gov/automatic")
+    manual = _source("2", "https://example.gov/manual", "Manual agency")
+    manual.update(
+        {
+            "monitoring_mode": worker.MANUAL_MONITORING_MODE,
+            "manual_review_owner": "ReloGo operations",
+            "manual_review_interval_days": 30,
+        }
+    )
+
+    automatic_sources, manual_sources = worker.partition_sources(
+        [automatic, manual]
+    )
+
+    assert automatic_sources == [automatic]
+    assert manual_sources == [
+        {
+            "agency": "Manual agency",
+            "url": "https://example.gov/manual",
+            "owner": "ReloGo operations",
+            "interval_days": 30,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"monitoring_mode": "UNKNOWN"},
+        {
+            "monitoring_mode": worker.MANUAL_MONITORING_MODE,
+            "manual_review_owner": "",
+            "manual_review_interval_days": 30,
+        },
+        {
+            "monitoring_mode": worker.MANUAL_MONITORING_MODE,
+            "manual_review_owner": "ReloGo operations",
+            "manual_review_interval_days": 0,
+        },
+        {
+            "monitoring_mode": worker.MANUAL_MONITORING_MODE,
+            "manual_review_owner": "ReloGo operations",
+            "manual_review_interval_days": 30,
+            "monitor_url": "https://example.gov/automatic",
+        },
+    ],
+)
+def test_partition_sources_rejects_invalid_manual_configuration(updates):
+    source = _source("1", "https://example.gov/manual")
+    source.update(updates)
+
+    with pytest.raises(worker.WorkerConfigurationError):
+        worker.partition_sources([source])
 
 
 def test_scrape_origin_normalizes_host_case_and_default_port():
@@ -70,6 +149,33 @@ def test_missing_url_fails_before_request_gate():
     assert outcome.body_text is None
     assert outcome.error == "official source URL is missing"
     assert outcome.failure_category == "configuration"
+
+
+def test_scrape_source_fetches_private_monitor_target(monkeypatch):
+    fetched = []
+
+    async def fake_scrape_html(_context, url):
+        fetched.append(url)
+        return "Official government source content. " * 20
+
+    monkeypatch.setattr(worker, "scrape_html_url", fake_scrape_html)
+    source = _source(
+        "1",
+        "https://example.gov/public",
+        monitor_url="https://static.example.gov/monitor",
+    )
+
+    outcome = asyncio.run(
+        worker.scrape_source(
+            None,
+            source,
+            asyncio.Semaphore(1),
+            worker.OriginRequestGate(0, 0),
+        )
+    )
+
+    assert fetched == ["https://static.example.gov/monitor"]
+    assert outcome.error is None
 
 
 def test_managed_challenge_header_gets_distinct_non_retryable_error():
@@ -208,6 +314,36 @@ def test_duplicate_url_is_fetched_once_and_failure_fans_out(monkeypatch):
         "Agency two",
     ]
     assert all(failure["category"] == "managed_challenge" for failure in failures)
+
+
+def test_shared_monitor_target_is_fetched_once_for_distinct_public_urls(monkeypatch):
+    calls = []
+
+    async def fake_scrape_source(_context, source, _semaphore, _origin_gate):
+        calls.append(source["id"])
+        return worker.ScrapeOutcome(
+            source=source,
+            body_text="Official government source content. " * 20,
+        )
+
+    monkeypatch.setattr(worker, "scrape_source", fake_scrape_source)
+    shared_monitor_url = "https://static.example.gov/shared.pdf"
+    first = _source(
+        "1",
+        "https://example.gov/driver",
+        monitor_url=shared_monitor_url,
+    )
+    second = _source(
+        "2",
+        "https://example.gov/vehicle",
+        monitor_url=shared_monitor_url,
+    )
+
+    outcomes = asyncio.run(worker.scrape_all_sources(None, [first, second]))
+
+    assert calls == ["1"]
+    assert [outcome.source["id"] for outcome in outcomes] == ["1", "2"]
+    assert all(outcome.error is None for outcome in outcomes)
 
 
 def test_duplicate_url_success_persists_each_source_row(monkeypatch):

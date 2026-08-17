@@ -1,6 +1,6 @@
 # ReloGo — canonical project plan
 
-_Last updated: 2026-08-04_
+_Last updated: 2026-08-11_
 
 This is the single source of truth for the product concept, implemented state,
 remaining work, phased roadmap, and definition of done. Operational commands
@@ -29,7 +29,7 @@ Supabase, sent to Gemini, logged, or exposed to the admin dashboard.
 | `landing/` | Marketing, legal, support, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
-| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Local migrations 001–026, Deno Edge Function |
+| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Repository migrations 001–027 (027 pending review), Deno Edge Function |
 
 There is no monorepo build layer. Each JavaScript app has an independent
 lockfile and environment. Supabase migrations are the schema source of truth;
@@ -53,8 +53,11 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
    generated locally and shared only after an explicit action.
 6. Support uses six fixed general questions. Database policy enforces the exact
    allowlist; unsafe legacy history is re-escalated without reaching Gemini.
-7. The worker monitors official HTML/PDF sources with bounded concurrency and
-   atomically records each result. Changes create PENDING alerts.
+7. The worker monitors automatic official HTML/PDF sources with bounded
+   concurrency and atomically records each result. A private first-party
+   monitor target may differ from the canonical public `official_url`.
+   Explicitly owned manual sources are skipped by automation but listed in
+   every Actions summary. Changes create PENDING alerts.
 8. Admins review source diffs. Approval/dismissal is RPC-only, row-locked, and
    never performed by the worker.
 
@@ -166,13 +169,26 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 - Stable source ordering and sequential database effects.
 - Row-locked compare-and-swap persistence prevents duplicate alerts, stale
   diffs, and baseline regression during overlapping work.
-- Every source is attempted; any source failure is visible and exits non-zero.
+- Every automatic source is attempted; any automatic source failure is visible
+  and exits non-zero, while manual assignments remain visible separately.
 - Webhook and GitHub job summaries include alerts/failures without controlling
   the run; live corridor rules remain human-controlled.
+- Migration 027 and coordinated worker changes are implemented locally and
+  pending review. They retain each canonical public `official_url`, give nine
+  of the 11 previously failed rows validated worker-only first-party monitor
+  targets, and mark the Yukon driver-licence and vehicle-registration rows
+  MANUAL with owner `ReloGo operations` and a 30-day assignment. Every Actions
+  summary lists those two manual rows; the cadence is not proof that a review
+  happened and does not implement overdue tracking. Challenge/content gates
+  remain fail-closed. All nine automatic targets passed worker-equivalent local
+  reachability checks; this does not prove full semantic coverage, especially
+  for high-level Quebec guidance, the general Nunavut vehicle manual, English-
+  branch-only PEI school guidance, and Yukon policy that omits some registration
+  steps/authorities. No hosted migration or live Actions rerun has occurred.
 
 ### Backend and CI
 
-- Ordered local migrations 001–026 cover schema, seed data, RLS, deletion,
+- Ordered repository migrations 001–027 cover schema, seed data, RLS, deletion,
   admin authorization, admin bootstrap, consent/re-consent, support, waitlist,
   worker state, atomic workflows, conservative content corrections,
   server-side admin pagination (021), and enumeration-safe waitlist signup
@@ -190,6 +206,10 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   Migration 025 removes the unused `LOCKED` progress state. Migration 026
   rejects new/updated same-origin-and-destination profile/waitlist rows while
   preserving legacy rows through `NOT VALID` constraints.
+- Migration 027 adds worker-private automatic monitor targets and explicit
+  owned manual assignments without changing public resolver links or live
+  corridor rules. It is local and pending review; preview and production remain
+  at exact migrations 001–026.
 - Support timestamps are server-authored; AI persistence is atomic and
   service-only; human involvement is permanently marked; client write columns
   are narrow.
@@ -228,8 +248,8 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   paused and is currently inactive.
 - Production (`yskknolxbxfxakgvrcmg`) is active and currently linked locally at
   exact migrations 001–026 with final JWT-protected `support-ai` v5. The
-  post-push
-  dry run is clean; unauthenticated function invocation returns 401; anonymous
+  last pre-027 post-push dry run was clean; unauthenticated function invocation
+  returns 401; anonymous
   auth is enabled; and the self-cleaning hosted smoke passed anonymous auth,
   resolver output with five tasks/five HTTPS official sources, a minimal
   onboarding profile insert, authoritative consent/profile confirmation,
@@ -258,9 +278,10 @@ Local evidence does not replace real-device or store-submission evidence.
 
 | Scope | Latest established evidence |
 | --- | --- |
-| Current recovery database work | Fresh local reset applies 001–026; public-schema lint clean; pgTAP 198/198; focused resolver/integrity API E2E 5/5 |
+| Current recovery database baseline | Fresh local reset applies 001–026; public-schema lint clean; pgTAP 198/198; focused resolver/integrity API E2E 5/5 |
+| Local migration 027 monitoring fix | Eleven failed rows across 10 unique URLs were mapped without weakening challenge gates: nine worker-only first-party automatic targets passed worker-equivalent reachability checks; two Yukon rows are explicit 30-day ReloGo operations assignments. Fresh reset through 027, lint, pgTAP 207/207, worker 106/106, type sync/mobile TypeScript, and admin build pass. API E2E passed 247/248 before the stopped local Edge Runtime returned 503; the exact remaining test passed after restart. This records target reachability only; the migration and coordinated worker remain pending review, hosted rollout, and a live Actions rerun |
 | Hosted preview recovery | Exact ledger 001–026; JWT-protected `support-ai` v3; hosted smoke passed before preview was deliberately paused |
-| Production backend | Active at exact ledger 001–026; dry run clean; final `support-ai` v5 ACTIVE/JWT-protected; unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, authenticated non-fallback AI, and cleanup |
+| Production backend | Active at exact ledger 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected; unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, authenticated non-fallback AI, and cleanup |
 | Mobile dependency audit | 0 vulnerabilities with exact `xcode@3.0.1` → `uuid@11.1.1` override; clean install and iOS project generation verified |
 | Prior committed `tamim` baseline (2026-07-21) | Mobile 85/85, worker 69/69, support helpers 9/9, pgTAP 164/164, API E2E 243/243, both native Hermes exports and web/admin builds passed |
 | Latest full code matrix at `2624ad3` (2026-08-01) | Mobile release configuration, TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export 1,752 modules/5.8 MB Hermes bytecode, Android export 1,773 modules/5.9 MB Hermes bytecode, and production audit 0; admin and landing lint/build; Deno format/lint/type checks and tests 16/16; worker compile and tests 77/77; contract sync, workflow YAML, shell syntax, and diff checks passed |
@@ -363,9 +384,11 @@ binaries, real-device QA, CI, or the remaining release phases below.
   Hardened run `30845791036` added one baseline and completed 42 rows while
   preserving 11 failures, so 43/53 sources now have baselines. Ten failures
   were explicit managed/CAPTCHA challenges and one PEI source returned an empty
-  body; keep them visible
-  until an equivalent first-party source is reviewed or explicit manual
-  monitoring is modeled. The worker webhook is still unset.
+  body. Those 11 rows represented 10 unique URLs. Local migration 027 now
+  models nine validated worker-only first-party automatic targets and two
+  explicit Yukon manual assignments while retaining canonical public links,
+  but it still needs review, migration-first hosted rollout, and a live Actions
+  rerun. The worker webhook is still unset.
 - No complete live pass has exercised the new mobile binary, Gemini, database,
   admin, landing, and worker together against the intended production stack.
 - The Supabase backup plan/retention/PITR decision is not approved or funded,
@@ -377,7 +400,9 @@ binaries, real-device QA, CI, or the remaining release phases below.
   before release.
 - The reviewed admin recovery build is live, landing is unchanged/live, and
   main backend-aware uptime passed. Worker authentication and 43 baselines are
-  established, but 11 failed source-row outcomes and webhook ownership remain.
+  established, but the local migration 027 treatment of the 11 failed source-
+  row outcomes still needs review, hosted rollout, and a live rerun; webhook
+  ownership also remains.
   `relogo.app` does not resolve and no monitored public support/privacy mailbox
   exists.
 - The BC government PDF workflow now runs end to end on SDK 55 in the iOS
@@ -386,8 +411,9 @@ binaries, real-device QA, CI, or the remaining release phases below.
   device, or on Android — where the ten-minute share-target cache grace and the
   chooser-cancellation path remain unobserved.
 - The initial independent content audit covered all 53 source URLs and all 24
-  seeded numeric deadlines, but 15 sources did not yield usable content to the
-  automated probe and origin-specific, qualitative, school, and exception-heavy
+  seeded numeric deadlines. Its historical probe had 15 unusable results; the
+  later worker incident was the distinct 11-row/10-URL set now treated locally
+  by migration 027. Origin-specific, qualitative, school, and exception-heavy
   content still needs human/legal review before promotion.
 - `docs/STORE.md` contains conservative draft disclosures (anonymous user ID
   linked to non-PII move/progress/support data and Gemini processing; device PII
@@ -410,7 +436,8 @@ binaries, real-device QA, CI, or the remaining release phases below.
 - The default branch now contains `supabase==2.31.0` and the read-only exact-
   origin preflight. Hardened run `30845791036` authenticated, left 43/53
   baselines, and safely rejected 10 access challenges plus one empty response;
-  source review/manual monitoring and webhook delivery remain unresolved.
+  the local migration 027 source-monitoring treatment remains pending review,
+  hosted rollout, and a live Actions rerun. Webhook delivery remains unresolved.
   `ALERT_WEBHOOK_URL` is unset.
 - Mobile's audit is clean after the exact `xcode@3.0.1` → `uuid@11.1.1`
   override. It is intentionally narrow because UUID 12 removes CommonJS;
@@ -438,9 +465,10 @@ admin build are live; main backend-aware uptime passed.
 - Make the complete local verification matrix a CI contract.
 
 Exit now requires: complete real-device QA, approve and publish store metadata,
-release 1.0.1, resolve/manual-monitor the 11
-challenge-blocked sources, and test worker alert delivery. The merged preflight
-proved the current key works; do not rotate or share it.
+release 1.0.1, review and roll out migration 027 before the coordinated worker,
+obtain a healthy live rerun with its two manual assignments still visible, and
+test worker alert delivery. The merged preflight proved the current key works;
+do not rotate or share it.
 
 ### Phase 1 — provision isolated environments
 
@@ -451,7 +479,7 @@ Status: **backend environments recovered; operational gates incomplete.**
 - Completed: preview migrations 001–026, JWT-protected `support-ai` v3,
   hosted verification, and recovery smoke; preview is deliberately paused.
 - Completed: production is active at exact migrations 001–026 with final
-  JWT-protected `support-ai` v5, clean dry run, and unauthenticated 401. Its
+  JWT-protected `support-ai` v5, a clean pre-027 dry run, and unauthenticated 401. Its
   self-cleaning smoke passed anonymous auth, resolver output with five
   tasks/five HTTPS sources, minimal onboarding profile insert, authoritative
   consent/profile confirmation, and cleanup. Profile, waitlist, support, and
@@ -462,8 +490,10 @@ Status: **backend environments recovered; operational gates incomplete.**
   review threads were resolved, and it merged as `e75f449`.
 - Completed: deployed final function v5 and passed authenticated non-fallback
   production smoke plus unauthenticated 401.
-- Remaining: preserve explicit targeting for every future hosted change; the
-  next migration is 027.
+- Remaining: preserve explicit targeting for every future hosted change.
+  Migration 027 exists locally and is pending review; preview and production
+  remain at 001–026, so apply 027 before its coordinated worker code only after
+  explicit approval.
 - Remaining: choose/fund a backup posture and complete a measured restore drill.
 - Remaining: rotate/revoke the exposed bootstrap admin credentials and complete
   a reviewed Git-history remediation decision.
@@ -489,10 +519,15 @@ Status: **in progress.**
   dedupe/pacing, added one baseline, and filed three PENDING alerts while 11
   outcomes failed closed; 43/53 sources now have baselines. The encrypted key
   works and must not be rotated merely because official sites block automation.
-- Remaining: Review equivalent first-party URLs or assign explicit manual
-  monitoring for 10 access-challenge outcomes plus the empty PEI driver page;
-  never baseline challenge pages or bypass CAPTCHAs. Configure/test webhook
-  delivery.
+- Completed locally, pending review: migration 027 retains public canonical
+  links, assigns nine of those rows validated worker-only first-party targets,
+  and makes Yukon driver-licence and vehicle-registration monitoring explicit
+  30-day assignments owned by ReloGo operations. The updated summary always
+  lists manual assignments, but the cadence does not prove completion or track
+  overdue reviews. No live rule is auto-changed.
+- Remaining: Apply migration 027 before deploying/running the coordinated
+  worker, then obtain a healthy live Actions run without weakening CAPTCHA or
+  content gates. Configure/test webhook delivery; `ALERT_WEBHOOK_URL` is unset.
 - Remaining: Verify waitlist signup → admin visibility and source change → PENDING alert → human approval/dismissal.
 
 Exit: both web apps are live, one complete worker run is healthy, notifications
@@ -558,8 +593,9 @@ Status: **in progress.**
   submission.
 - Recommended: Start content work with AB↔ON, then ON↔BC and AB↔BC, using
   waitlist demand before final commercial ranking.
-- Remaining: Resolve inaccessible/blocked sources, deepen origin and
-  destination rules, and obtain human/legal approval for conditional content.
+- Remaining: Review, apply, and live-verify migration 027's automatic/manual
+  source-monitoring treatment; deepen origin and destination rules; and obtain
+  human/legal approval for conditional content.
 - Remaining: release the reviewed web/mobile recovery only after preview/device
   gates; then test policy re-consent, resolver sources, and the BC PDF on SDK 55
   EAS builds and real devices against the now-current production backend.

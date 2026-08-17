@@ -49,7 +49,11 @@ def main() -> int:
         client = create_client(url.rstrip("/"), key)
         sources = (
             client.table("official_sources")
-            .select("id", count="exact")
+            .select(
+                "id, monitor_url, monitoring_mode, manual_review_owner, "
+                "manual_review_interval_days",
+                count="exact",
+            )
             .limit(1)
             .execute()
         )

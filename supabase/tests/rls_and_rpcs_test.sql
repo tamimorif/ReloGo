@@ -24,7 +24,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(164);
+SELECT plan(167);
 
 -- ============================================================================
 -- Platform-baseline grants (see header). RLS remains the actual gate.
@@ -262,7 +262,7 @@ SELECT throws_ok(
 );
 
 -- ============================================================================
--- C2. official_sources — column-level grants (006)                    (2 tests)
+-- C2. official_sources — column-level grants (006/027)                (3 tests)
 -- ============================================================================
 SELECT lives_ok(
     $$SELECT agency_name, official_url FROM public.official_sources LIMIT 1$$,
@@ -273,6 +273,25 @@ SELECT throws_ok(
     $$SELECT last_content_text FROM public.official_sources LIMIT 1$$,
     '42501', NULL,
     'C2: anon cannot read scraped page bodies (column-level grant)'
+);
+
+SELECT ok(
+    (SELECT bool_and(
+        NOT has_column_privilege(
+            client.role_name,
+            'public.official_sources',
+            private.column_name,
+            'SELECT'
+        )
+    )
+       FROM (VALUES ('anon'), ('authenticated')) AS client(role_name)
+       CROSS JOIN (VALUES
+          ('monitor_url'),
+          ('monitoring_mode'),
+          ('manual_review_owner'),
+          ('manual_review_interval_days')
+       ) AS private(column_name)),
+    'C2: clients cannot read private source-monitoring configuration'
 );
 
 -- ============================================================================
@@ -1191,8 +1210,8 @@ SELECT ok(
 );
 
 -- ============================================================================
--- K. shared service_role worker-path ACLs + atomic persistence (011)
---                                                                    (28 tests)
+-- K. shared service_role worker-path ACLs + atomic persistence (011/027)
+--                                                                    (30 tests)
 -- ============================================================================
 RESET ROLE;
 
@@ -1220,6 +1239,10 @@ SELECT ok(
           ('corridor_rule_id'),
           ('agency_name'),
           ('official_url'),
+          ('monitor_url'),
+          ('monitoring_mode'),
+          ('manual_review_owner'),
+          ('manual_review_interval_days'),
           ('last_verified'),
           ('last_content_hash'),
           ('last_content_text')
@@ -1543,6 +1566,50 @@ SELECT is(
 
 ALTER TABLE public.official_sources
     DROP CONSTRAINT pgtap_reject_atomic_worker_body;
+
+INSERT INTO public.official_sources (
+    id,
+    corridor_rule_id,
+    agency_name,
+    official_url,
+    monitoring_mode,
+    manual_review_owner,
+    manual_review_interval_days
+) VALUES (
+    '30000000-0000-0000-0000-000000000012',
+    '20000000-0000-0000-0000-000000000001',
+    'Manual Worker Test Agency',
+    'https://example.gc.ca/manual-worker-test',
+    'MANUAL',
+    'Test operations',
+    30
+);
+
+SET LOCAL ROLE service_role;
+SELECT throws_ok(
+    $$SELECT * FROM public.persist_official_source_scrape(
+        '30000000-0000-0000-0000-000000000012',
+        NULL,
+        '141c9b53a7fe331587ba2e9a0d7b8eb57e6a024068f30e89790fb4b7d8f094ce',
+        repeat('baseline content ', 20),
+        NULL)$$,
+    '55000', NULL,
+    'K: the persistence RPC rejects a manually monitored source'
+);
+
+RESET ROLE;
+SELECT ok(
+    (SELECT last_verified IS NULL
+            AND last_content_hash IS NULL
+            AND last_content_text IS NULL
+       FROM public.official_sources
+      WHERE id = '30000000-0000-0000-0000-000000000012')
+    AND (SELECT count(*) = 0
+           FROM public.rule_change_alerts
+          WHERE official_source_id =
+                '30000000-0000-0000-0000-000000000012'),
+    'K: a rejected manual-source write changes neither baseline nor alerts'
+);
 
 -- ============================================================================
 -- L. support-thread metadata privacy (migration 012)                  (2 tests)
