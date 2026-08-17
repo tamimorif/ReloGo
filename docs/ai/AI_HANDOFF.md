@@ -1,6 +1,6 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-08-04_
+_Current as of 2026-08-17_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
@@ -17,7 +17,7 @@ thread was fixed/resolved, and worker hardening merged as `d2db994`. The final
 production Edge Function v5, reviewed admin recovery, landing site, and
 backend-aware main uptime are live. The App Store still distributes the broken
 1.0 binary; 1.0.1 has not shipped. Recovery is not complete because real-
-device/store, challenge-blocked source monitoring, and human approval gates
+device/store, hosted rollout of the local source-monitoring fix, and human approval gates
 remain.
 
 The shipped App Store 1.0 binary was built from SDK 51 and contains the retired
@@ -28,11 +28,13 @@ redirected. Recovery requires a new 1.0.1 store binary.
 
 Environment truth:
 
-- Local schema: migrations 001–026.
+- Repository schema: migrations 001–027. Migration 027 and its coordinated
+  worker changes are local and pending review; they are not hosted or live.
 - Preview `uwfblgllkibbupqyofkl`: migrations 001–026 and JWT-protected
   `support-ai` v3; live smoke passed, then the project was deliberately paused.
 - Production `yskknolxbxfxakgvrcmg`: active, currently linked locally,
-  exact migrations 001–026 and JWT-protected `support-ai` v5. Dry run is clean,
+  exact migrations 001–026 and JWT-protected `support-ai` v5. Its last pre-027
+  dry run was clean,
   anonymous auth is enabled, unauthenticated function invocation returns 401,
   and the self-cleaning smoke passed anonymous auth, resolver output with five
   tasks/five HTTPS sources, a minimal onboarding profile insert, authoritative
@@ -41,11 +43,21 @@ Environment truth:
   landing site is unchanged/live, and main uptime run `30843906264` passed the
   public web, production anonymous-auth, and canonical-resolver checks with
   backend probes required.
-- Mobile builds: fresh iOS production version 1.0.1 build 7 is `FINISHED` from
+- Mobile builds: earlier iOS production version 1.0.1 build 7 is `FINISHED` from
   exact merged commit `e75f449` (EAS
-  `765965d7-c7c1-432c-ac1d-302d2f0c5116`). Fresh Android production version
+  `765965d7-c7c1-432c-ac1d-302d2f0c5116`). Earlier Android production version
   1.0.1 build 4 is also `FINISHED` from the same commit (EAS
-  `28076f35-1495-466b-af77-97a9339c5ea2`). Neither was submitted.
+  `28076f35-1495-466b-af77-97a9339c5ea2`). iOS build 7 was successfully
+  uploaded to App Store Connect on 2026-08-04 and is `VALID`/`IN_BETA_TESTING`
+  in internal TestFlight; it has not been submitted for App Review. Android
+  build 4 has not been uploaded to Google Play. Both artifacts predate the
+  current `tamim` startup-prefetch and dependency-audit fixes and must not be
+  treated as current release candidates. Current replacements were built from
+  exact green commit `cd3a87c`: iOS 1.0.1 build 8 (EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive identity and
+  integrity pass; neither current artifact was uploaded or submitted to a
+  store.
 - GitHub: pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel
   checks, both fixed review threads were resolved, and it merged as `e75f449`.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
@@ -55,11 +67,25 @@ Environment truth:
   completed 42 rows, added one baseline, and filed three PENDING human-review
   alerts while 11 outcomes remained failed (`8` managed challenges, `2`
   CAPTCHAs, `1` empty body). Production now has 43/53 baselines.
-  `ALERT_WEBHOOK_URL` is unset.
+  Those 11 rows represented 10 unique URLs. Local migration 027 retains each
+  canonical public `official_url`, assigns nine rows a worker-only validated
+  first-party monitor target, and makes Yukon driver-licence and vehicle-
+  registration monitoring MANUAL under `ReloGo operations` every 30 days.
+  Every Actions summary lists the manual assignments; that cadence is an
+  assignment, not proof of review or overdue tracking. All nine automatic
+  targets passed worker-equivalent local reachability checks. Challenge gates
+  remain fail-closed. Migration 027 has not been applied to preview or
+  production, and the updated worker has not had a live Actions rerun.
+  Do not apply 027 while the scheduled workflow still runs the older worker
+  from default branch `main`: that worker ignores `monitor_url` and could
+  repopulate cleared automatic baselines from the wrong URL. First make the
+  coordinated worker the scheduled version, or explicitly pause the old
+  schedule and run the reviewed `tamim` workflow manually.
+  `ALERT_WEBHOOK_URL` is unset; key rotation is not needed.
 
 Remaining release gates include real-device startup/PDF/privacy QA, store
-submission and review, reviewed alternate/manual
-monitoring for 11 failed source-row outcomes, a tested worker webhook, backup
+submission and review, reviewed migration-first rollout and live verification
+of the migration 027 source-monitoring fix, a tested worker webhook, backup
 funding/restore drill, admin credential rotation, a
 monitored public mailbox/domain, correction of the live App Store privacy
 answer, and human legal/content/store approval.
@@ -130,9 +156,10 @@ Deletion also removes the server account and local session.
 
 ### Migrations and types
 
-- `supabase/migrations/001_*.sql` through `026_*.sql` are the ordered local
-  schema source of truth. Preview and production both have 001–026. The next
-  migration is 027. Never rewrite a deployed migration.
+- `supabase/migrations/001_*.sql` through `027_*.sql` are the ordered repository
+  schema source of truth. Preview and production both remain at exact 001–026;
+  migration 027 is local and pending review. Never rewrite a deployed migration
+  or treat the presence of 027 in Git as hosted evidence.
 - `supabase/seed.sql` is local-only. It reproduces hosted baseline
   table/sequence grants before reapplying migration-defined restrictions;
   `supabase db push` never applies it. Read its header before changing grants.
@@ -163,6 +190,14 @@ Deletion also removes the server account and local session.
 - Migration 026 adds `NOT VALID` origin/destination inequality constraints to
   profiles and waitlist. Existing legacy rows survive, but new/updated invalid
   rows are rejected.
+- Migration 027 adds private `monitor_url`/monitoring metadata for the worker,
+  preserves canonical public resolver links, and resets baselines only for its
+  11 mapped rows. Nine rows remain automatic through validated first-party
+  targets; Yukon driver-licence and vehicle-registration rows are manual,
+  assigned to ReloGo operations every 30 days. The interval is not evidence of
+  a completed review and no overdue-review state exists. The migration also
+  blocks the persistence RPC from writing manual rows. Review and apply it
+  before running the coordinated worker; it has not been hosted.
 - The extracted `Database` interface must remain byte-identical in
   `mobile/types/database.ts` and `admin/src/types/database.ts`; app-specific
   helper types outside that interface may differ.
@@ -225,8 +260,10 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
    The auth subscription ignores duplicate `INITIAL_SESSION` startup work.
 4. The consent RPC returns server-current state plus an allowlisted profile only
    when current. Root seeds React Query with that profile, avoiding a duplicate
-   profile round trip. Checklist profile/rule/progress reads have bounded stale
-   times, an 8-second abort deadline, and `retry: false`.
+   profile round trip, then immediately prefetches corridor rules and progress
+   while the route renders. The checklist subscribes to the same keys, so it
+   reuses in-flight work. Checklist profile/rule/progress reads have bounded
+   stale times, an 8-second abort deadline, and `retry: false`.
 5. Onboarding requires legal consent, signs in anonymously, and INSERTs only
    minimal non-PII move metadata, falling back to UPDATE where appropriate. It
    then calls `get_policy_consent_state()`; the RPC's authoritative allowlisted
@@ -249,7 +286,7 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
    before reading PII, validates mapped fields, and fills on-device.
 4. The BC health-coverage form passes local unit/Unicode round-trip and an
    historical iOS Simulator share flow. It has not passed real-device
-   Android/iOS QA on the current 1.0.1 production artifacts.
+   Android/iOS QA on current production artifacts for the 1.0.1 candidate.
 5. iOS deletes a filled PDF after sharing. Android retains the exact file for a
    ten-minute asynchronous share-target grace and retries safe cleanup. Start,
    sign-out, and deletion paths preserve the documented privacy behavior.
@@ -260,7 +297,7 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
 2. The user selects one of six fixed questions; the database blocks other user
    bodies and free-text metadata.
 3. While status is `AI`, mobile invokes `support-ai` with only `thread_id`.
-4. Function v4 authenticates ownership, rejects durable human involvement,
+4. Function v5 authenticates ownership, rejects durable human involvement,
    validates every user turn, bounds context/output, and applies one provider
    deadline across both response headers and the full response-body read. It
    grounds through the canonical corridor resolver and validated official
@@ -270,7 +307,7 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
 6. Human takeover/admin reply permanently disqualifies AI even after
    resolve/reopen. Provider/query/model failures expose generic PII-safe errors
    and fail closed to human support.
-7. Preview v3 remains paused after authenticated smoke. Production v4 is ACTIVE
+7. Preview v3 remains paused after authenticated smoke. Production v5 is ACTIVE
    with JWT verification, rejects unauthenticated invocation with 401, and has
    a passing public resolver smoke. Keep a production authenticated support
    check in release QA.
@@ -281,16 +318,23 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
    performs fast read-only key, schema, and canonical-resolver checks before
    installing Chromium. It rejects preview, lookalike hosts, credentials,
    ports, paths, query strings, and fragments. Do not broaden it into writes.
-2. Worker fetches narrow source metadata and scrapes every source with bounded
-   concurrency and isolated pages/downloads. HTML/PDF content has sanity and
-   size gates.
+2. Worker fetches narrow source metadata, partitions AUTOMATED from MANUAL
+   sources, and scrapes every automatic source with bounded concurrency and
+   isolated pages/downloads. An automatic source may use a worker-only
+   first-party `monitor_url`; the canonical `official_url` remains the public
+   link. HTML/PDF content has fail-closed sanity and size gates.
 3. Results are processed in stable source-ID order.
 4. `persist_official_source_scrape()` uses a row lock and expected-hash
    compare-and-swap. It records BASELINE/UNCHANGED or creates PENDING and
    advances CHANGED; stale work writes nothing.
-5. Source failures/stale outcomes remain visible in logs, webhook/job summary,
-   and a non-zero exit without preventing other source attempts.
-6. Admin approval/dismissal is row-locked and RPC-only. Worker grants do not
+5. Automatic source failures/stale outcomes remain visible in logs,
+   webhook/job summary, and a non-zero exit without preventing other automatic
+   source attempts.
+6. Every job summary separately lists the Yukon driver-licence and vehicle-
+   registration manual assignments, their ReloGo operations owner, and 30-day
+   cadence. Manual rows do not make an otherwise healthy automatic run fail;
+   the cadence is assignment metadata, not completion or overdue evidence.
+7. Admin approval/dismissal is row-locked and RPC-only. Worker grants do not
    permit live-rule changes.
 
 ## Important schema/RPC inventory
@@ -333,6 +377,7 @@ npx expo install --check
 npm run lint
 npm run typecheck
 npm test -- --runInBand
+npm run audit:production
 npx expo export --platform ios --output-dir /tmp/relogo-ios-check --clear
 npx expo export --platform android --output-dir /tmp/relogo-android-check --clear
 
@@ -391,19 +436,44 @@ deno test --config supabase/functions/support-ai/deno.json \
 
 ### Latest established results
 
-- Current recovery database slice: fresh reset 001–026, public lint clean,
+- Current `tamim` recovery recheck (2026-08-17): Node 22 clean installs pass;
+  mobile release/dependency checks, TypeScript, lint, 13 Jest suites with
+  133/133 tests, and both 1,753-module iOS/1,774-module Android Hermes exports
+  pass; admin/landing lint and production builds pass; worker compile and
+  106/106 tests pass; Deno format/lint/check and 16/16 tests pass; contract
+  checks and production-backed public uptime pass. Fresh local reset through
+  027, public lint, pgTAP 207/207, and API E2E 248/248 pass.
+- Established recovery database baseline: fresh reset 001–026, public lint clean,
   pgTAP 198/198, focused resolver/integrity API E2E 5/5.
+- Local migration 027 source-monitoring fix: all nine replacement automatic
+  first-party targets passed worker-equivalent reachability checks; the two
+  remaining Yukon rows are explicit manual assignments. This is target
+  reachability evidence only: Quebec coverage is high-level, the Nunavut
+  vehicle target is a general driver manual, PEI school coverage is the English
+  Public Schools Branch, and the Yukon school policy omits some registration
+  steps/authorities. A green run proves configured automatic checks, not full
+  semantic coverage. Review, hosted migration, and a live Actions rerun remain.
+  Fresh local reset through 027, public-schema lint, and pgTAP 207/207 pass;
+  worker compile/tests pass 106/106; database type sync, mobile TypeScript, and
+  the admin production build pass. After restarting the stopped local Edge
+  Runtime, the full API E2E suite passed 248/248 in one run.
 - Preview: exact 001–026 ledger and hosted smoke passed, including anonymous
   auth, resolver/HTTPS sources, consent gate, authenticated non-fallback AI,
   and cleanup, before deliberate pause.
-- Production: exact 001–026 ledger, clean dry run, anonymous auth enabled,
+- Production: exact 001–026 ledger, clean pre-027 dry run, anonymous auth enabled,
   self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources,
   minimal onboarding profile insert, authoritative consent/profile
   confirmation, authenticated non-fallback AI, and cleanup; final `support-ai`
   v5 is ACTIVE with JWT verification, and unauthenticated invocation is
   rejected with 401.
-- Mobile production dependency audit: 0 vulnerabilities after exact
-  `xcode@3.0.1` → `uuid@11.1.1`; clean install and iOS project generation pass.
+- Mobile production dependency audit: patched `js-yaml`, `nanoid`, and
+  `postcss` transitives are pinned. npm still propagates two high-severity
+  `image-size@1.2.1` denial-of-service advisories through ten Expo/Metro build-
+  tool paths; there is no patched release or compatible npm remedy. The
+  fail-closed `audit:production` gate accepts only those exact two advisory
+  URLs at that exact version because Metro processes only repository-controlled
+  assets, and rejects every other high/critical finding. Landing and admin
+  production audits report zero vulnerabilities.
 - Latest full code matrix at `2624ad3` (2026-08-01): mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
   modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
@@ -425,11 +495,17 @@ deno test --config supabase/functions/support-ai/deno.json \
   were resolved and it merged as `e75f449`.
 - Pull request #3 final head `3f063e9`: all 19 checks passed, its sole review
   thread was fixed/resolved, and it merged as `d2db994`.
-- Fresh iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) is `FINISHED`
+- Earlier iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) is `FINISHED`
   from exact merged commit `e75f449`. Android build 4
   (`28076f35-1495-466b-af77-97a9339c5ea2`) is also `FINISHED` from the same
-  commit. Neither was submitted.
-- No current real-device QA or store-submission result exists.
+  commit. iOS build 7 is valid and active in internal TestFlight, but has not
+  been submitted for App Review. Android build 4 has no Google Play submission.
+  Both predate the current `tamim` changes and are not current candidates.
+- Current iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android
+  build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) are `FINISHED` from exact
+  green commit `cd3a87c`; both archives and embedded production metadata pass
+  verification. Neither was uploaded or submitted to a store.
+- No current real-device QA or App Review submission result exists.
 
 ## Hosted environment state
 
@@ -438,7 +514,7 @@ deno test --config supabase/functions/support-ai/deno.json \
   `support-ai` v3 ACTIVE with JWT verification, and a passing live smoke.
 - Production: `ReloGo Production`, `yskknolxbxfxakgvrcmg`, `ca-central-1`,
   ACTIVE_HEALTHY and currently linked locally. Remote ledger is exact 001–026;
-  dry run is clean; final `support-ai` v5 is ACTIVE with JWT verification and returns
+  the last pre-027 dry run was clean; final `support-ai` v5 is ACTIVE with JWT verification and returns
   401 unauthenticated. The self-cleaning smoke passed anonymous auth, resolver
   output with five tasks/five HTTPS sources, a minimal onboarding profile
   insert, authoritative consent/profile confirmation, authenticated
@@ -464,31 +540,44 @@ deno test --config supabase/functions/support-ai/deno.json \
   mailbox exists. The ignored `admin/.vercel` link names project `admin`;
   relink or target `relo-go` explicitly for future deploys.
 - EAS project `@tamimorif/relogo` separates development/preview from production.
-  Fresh iOS production 1.0.1 build 7 is `FINISHED` at EAS
+  Current production replacements are iOS 1.0.1 build 8 at EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858` and Android 1.0.1 build 5 at EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`; both `FINISHED` from exact green
+  commit `cd3a87c`, using production channel/runtime 1.0.1 and existing frozen
+  credentials. Archive checks pass. Neither was uploaded or submitted.
+  Earlier iOS production 1.0.1 build 7 is `FINISHED` at EAS
   `765965d7-c7c1-432c-ac1d-302d2f0c5116`; Android production 1.0.1 build 4 is
   also `FINISHED` at EAS `28076f35-1495-466b-af77-97a9339c5ea2`. Both use exact merged
   commit `e75f449`. Production EAS variables pass the release contract and
   frozen iOS/Android signing credentials worked without a password request.
-  Neither build was submitted. No iPhone is registered for internal preview
-  installation, and automated Android submission has no Google Play
-  service-account key.
+  iOS build 7 is already in internal TestFlight (`VALID`, `IN_BETA_TESTING`),
+  so EAS device registration is not required; no physical iPhone was connected
+  during the 2026-08-17 audit. It is not in App Review. Android build 4 has not
+  been submitted, and automated Android submission has no Google Play service-
+  account key. Those earlier artifacts predate the current `tamim` fixes.
 
 ## Known limits and next work
 
-1. Use exact-commit iOS build 7 and Android build 4 for real-device startup,
+1. Do not upload or submit the current artifacts automatically. After explicit
+   owner authorization, upload exact-`cd3a87c` iOS build 8 to TestFlight and
+   use exact-`cd3a87c` Android build 5 for real-device startup,
    offline/
    recovery, PDF, deletion, and privacy QA. Do not submit either automatically.
-2. Review equivalent first-party URLs for the 11 RAMQ/Yukon/Nunavut/PEI
-   challenge-blocked sources. Ship URL changes only through reviewed migration
-   027, or model explicit manual monitoring when no equivalent accessible
-   official source exists. Never bypass CAPTCHAs or baseline challenge text.
+2. Review local migration 027 and its coordinated worker changes. It maps the
+   11 failed rows/10 URLs to nine validated automatic first-party targets plus
+   two owned Yukon manual assignments without changing public `official_url`
+   values. Do not host it while the scheduled default-branch worker is still
+   the pre-027 implementation. First promote the coordinated worker or pause
+   that schedule; then apply 027 to an explicitly targeted environment before
+   running the new worker and obtain a live Actions result. Never bypass
+   CAPTCHAs or baseline challenge text.
 3. Configure and test `ALERT_WEBHOOK_URL`, assign worker/uptime alert owners,
    and require failed/manual sources to remain visible. The existing worker key
    passed preflight and must not be rotated or requested again.
 4. Archive the production ledger/dry-run/smoke and final build evidence. Run
    final production lint, pgTAP, advisors, and authenticated AI smoke if they
-   are not already captured. Future hosted changes start at migration 027 and
-   still need explicit approval.
+   are not already captured. The next hosted change is pending migration 027
+   and still needs explicit approval.
 5. Configure a monitored public support/privacy mailbox and domain, then
    establish recurring schedule and notification ownership; one passing uptime
    run does not prove either.
@@ -512,17 +601,19 @@ decision.
 
 ## Operational facts
 
-- Old binary recovery is impossible. Fresh iOS 1.0.1 build 7 is `FINISHED`
+- Old binary recovery is impossible. Historical iOS 1.0.1 build 7 is `FINISHED`
   from exact merged commit `e75f449`; Android 1.0.1 build 4 is also `FINISHED`
-  from that commit. Both require real-device QA and
-  store approval. OTA can be considered only for a released compatible
+  from that commit. Both predate the current `tamim` fixes. Current exact-
+  `cd3a87c` iOS build 8 and Android build 5 are `FINISHED` with verified
+  archives but still require real-device QA and store approval. OTA can be
+  considered only for a released compatible
   runtime/channel, never for v1.0.
 - Mobile runtime configuration accepts only clean Supabase origins; production
   release preflight accepts only
   `https://yskknolxbxfxakgvrcmg.supabase.co` (with an optional trailing slash).
 - Local Supabase link points to production. Use explicit refs and leave
-  production at exact 001–026/v5; future changes begin at 027 and still require
-  explicit approval.
+  production at exact 001–026/v5. Migration 027 exists only locally; its
+  migration-first rollout still requires explicit approval.
 - Preview is paused after successful verification; resume deliberately and
   account for the project's live plan and pausing behavior.
 - Pull request #2 final head `f34b64a` passed all 19 checks, its fixed review
@@ -530,8 +621,10 @@ decision.
 - Main worker run `30843904269` passed the `2.31.0` preflight and created 42
   baselines. Hardened run `30845791036` added one baseline and filed three
   PENDING alerts while 11 outcomes remained failed; 43/53 sources now have
-  baselines. Keep the nonzero failure visible until reviewed first-party
-  alternatives or explicit manual monitoring exist. Key rotation is not
+  baselines. Those 11 rows/10 URLs were anti-bot, CAPTCHA, or empty-content
+  failures. The local 027 treatment uses nine automatic worker-only first-party
+  targets and two visible, owned manual assignments, but it is not hosted and
+  has no live rerun. Keep challenge gates fail-closed. Key rotation is not
   needed; the webhook is absent.
 - The worker preflight and backend-aware uptime probe fail closed unless
   `SUPABASE_URL` is the exact production origin

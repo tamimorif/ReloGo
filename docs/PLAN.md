@@ -1,6 +1,6 @@
 # ReloGo — canonical project plan
 
-_Last updated: 2026-08-04_
+_Last updated: 2026-08-17_
 
 This is the single source of truth for the product concept, implemented state,
 remaining work, phased roadmap, and definition of done. Operational commands
@@ -29,7 +29,7 @@ Supabase, sent to Gemini, logged, or exposed to the admin dashboard.
 | `landing/` | Marketing, legal, support, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
-| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Local migrations 001–026, Deno Edge Function |
+| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Repository migrations 001–027 (027 pending review), Deno Edge Function |
 
 There is no monorepo build layer. Each JavaScript app has an independent
 lockfile and environment. Supabase migrations are the schema source of truth;
@@ -53,8 +53,11 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
    generated locally and shared only after an explicit action.
 6. Support uses six fixed general questions. Database policy enforces the exact
    allowlist; unsafe legacy history is re-escalated without reaching Gemini.
-7. The worker monitors official HTML/PDF sources with bounded concurrency and
-   atomically records each result. Changes create PENDING alerts.
+7. The worker monitors automatic official HTML/PDF sources with bounded
+   concurrency and atomically records each result. A private first-party
+   monitor target may differ from the canonical public `official_url`.
+   Explicitly owned manual sources are skipped by automation but listed in
+   every Actions summary. Changes create PENDING alerts.
 8. Admins review source diffs. Approval/dismissal is RPC-only, row-locked, and
    never performed by the worker.
 
@@ -69,21 +72,30 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   therefore broken in the currently downloadable release; 1.0.1 has not
   shipped.
 - The recovery release is version 1.0.1 on Expo SDK 55. Pull request #2 merged
-  the reviewed tree to `main` at `e75f449`. Fresh iOS production build 7
+  the reviewed tree to `main` at `e75f449`. Earlier iOS production build 7
   (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) finished successfully from that
-  exact commit. Fresh Android production build 4
+  exact commit. Earlier Android production build 4
   (`28076f35-1495-466b-af77-97a9339c5ea2`) also finished successfully from the
-  same commit. Neither artifact has been submitted. Apple
-  metadata/real-device QA and a Google Play service-account key or reviewed
-  manual Android path remain.
+  same commit. iOS build 7 was uploaded successfully on 2026-08-04 and is
+  `VALID`/`IN_BETA_TESTING` in internal TestFlight, but it has not entered App
+  Review. Android build 4 has not been uploaded to Google Play. Apple metadata/
+  real-device QA and a Google Play service-account key or reviewed manual
+  Android path remain. Both artifacts predate the current `tamim` startup-
+  prefetch and dependency-audit fixes, so neither is the current release
+  candidate. Current replacements were built from exact green commit
+  `cd3a87c`: iOS 1.0.1 build 8 (EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Neither current
+  artifact was uploaded or submitted to a store.
 - Startup no longer waits behind a static native splash for remote work.
   Session storage reads the encrypted value and key concurrently; session
   restore is bounded at 3 seconds and consent/profile bootstrap at 5 seconds,
   with a retryable recovery screen instead of an indefinite spinner. Duplicate
   `INITIAL_SESSION` work is ignored, the bootstrap profile seeds React Query,
-  and checklist profile/rules/progress reads use bounded stale times, abort
-  after 8 seconds, and disable automatic retries so an offline request reaches
-  visible recovery UI promptly.
+  and current consent now starts corridor-rule/progress prefetch while routing
+  so the checklist reuses the same in-flight requests. Checklist profile/rules/
+  progress reads use bounded stale times, abort after 8 seconds, and disable
+  automatic retries so an offline request reaches visible recovery UI promptly.
 - Missing or invalid Supabase release configuration now renders a controlled
   recovery state rather than throwing during module evaluation. Runtime public
   URLs must be clean origins, and the production build preflight accepts only
@@ -120,9 +132,13 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 - Realtime support transcript, fixed questions, AI replies, human takeover,
   resolve/reopen behavior, and local fallback escalation.
 - Expo SDK 55 dependencies aligned; native iOS/Android Hermes exports pass.
-- The production dependency audit reports 0 vulnerabilities after a narrow
-  `xcode@3.0.1` override pins its CommonJS-compatible `uuid` dependency to
-  11.1.1. Keep the override exact and remove it when Expo/xcode fixes upstream.
+- Patched `js-yaml`, `nanoid`, and `postcss` transitives are pinned. npm still
+  reports two high-severity `image-size@1.2.1` denial-of-service advisories
+  through Expo/Metro build-tool paths, with no patched release or compatible
+  npm fix. A fail-closed mobile audit accepts only those exact advisories at
+  that exact version because Metro sees only repository-controlled build
+  assets; any other high/critical finding fails CI. The exact
+  `xcode@3.0.1` → `uuid@11.1.1` override remains in place.
 - A top-level PII-safe crash boundary (`AppErrorBoundary`) and global error
   handler capture only redacted, non-PII diagnostics on-device and never
   transmit them; redaction is unit-tested.
@@ -166,13 +182,26 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 - Stable source ordering and sequential database effects.
 - Row-locked compare-and-swap persistence prevents duplicate alerts, stale
   diffs, and baseline regression during overlapping work.
-- Every source is attempted; any source failure is visible and exits non-zero.
+- Every automatic source is attempted; any automatic source failure is visible
+  and exits non-zero, while manual assignments remain visible separately.
 - Webhook and GitHub job summaries include alerts/failures without controlling
   the run; live corridor rules remain human-controlled.
+- Migration 027 and coordinated worker changes are implemented locally and
+  pending review. They retain each canonical public `official_url`, give nine
+  of the 11 previously failed rows validated worker-only first-party monitor
+  targets, and mark the Yukon driver-licence and vehicle-registration rows
+  MANUAL with owner `ReloGo operations` and a 30-day assignment. Every Actions
+  summary lists those two manual rows; the cadence is not proof that a review
+  happened and does not implement overdue tracking. Challenge/content gates
+  remain fail-closed. All nine automatic targets passed worker-equivalent local
+  reachability checks; this does not prove full semantic coverage, especially
+  for high-level Quebec guidance, the general Nunavut vehicle manual, English-
+  branch-only PEI school guidance, and Yukon policy that omits some registration
+  steps/authorities. No hosted migration or live Actions rerun has occurred.
 
 ### Backend and CI
 
-- Ordered local migrations 001–026 cover schema, seed data, RLS, deletion,
+- Ordered repository migrations 001–027 cover schema, seed data, RLS, deletion,
   admin authorization, admin bootstrap, consent/re-consent, support, waitlist,
   worker state, atomic workflows, conservative content corrections,
   server-side admin pagination (021), and enumeration-safe waitlist signup
@@ -190,6 +219,10 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   Migration 025 removes the unused `LOCKED` progress state. Migration 026
   rejects new/updated same-origin-and-destination profile/waitlist rows while
   preserving legacy rows through `NOT VALID` constraints.
+- Migration 027 adds worker-private automatic monitor targets and explicit
+  owned manual assignments without changing public resolver links or live
+  corridor rules. It is local and pending review; preview and production remain
+  at exact migrations 001–026.
 - Support timestamps are server-authored; AI persistence is atomic and
   service-only; human involvement is permanently marked; client write columns
   are narrow.
@@ -211,10 +244,11 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   exact production origin. Pull request #2 final head `f34b64a` passed all 19
   GitHub/Vercel checks and merged to `main` as `e75f449` after its two fixed
   review threads were resolved.
-- The dependency audit gates on high/critical. Mobile currently reports 0
-  vulnerabilities after the exact `xcode@3.0.1` → `uuid@11.1.1` override;
-  clean install and iOS project-generation checks cover that temporary
-  out-of-range transitive pin.
+- The dependency audit gates on high/critical. Landing/admin production audits
+  report zero. Mobile's `audit:production` wrapper fails closed except for the
+  two exact, reviewed upstream Metro/image-size build-time advisories; clean
+  install and both native exports cover the patched transitive overrides and
+  the temporary `xcode@3.0.1` → `uuid@11.1.1` pin.
 
 ### Cloud foundation
 
@@ -228,8 +262,8 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   paused and is currently inactive.
 - Production (`yskknolxbxfxakgvrcmg`) is active and currently linked locally at
   exact migrations 001–026 with final JWT-protected `support-ai` v5. The
-  post-push
-  dry run is clean; unauthenticated function invocation returns 401; anonymous
+  last pre-027 post-push dry run was clean; unauthenticated function invocation
+  returns 401; anonymous
   auth is enabled; and the self-cleaning hosted smoke passed anonymous auth,
   resolver output with five tasks/five HTTPS official sources, a minimal
   onboarding profile insert, authoritative consent/profile confirmation,
@@ -258,25 +292,31 @@ Local evidence does not replace real-device or store-submission evidence.
 
 | Scope | Latest established evidence |
 | --- | --- |
-| Current recovery database work | Fresh local reset applies 001–026; public-schema lint clean; pgTAP 198/198; focused resolver/integrity API E2E 5/5 |
+| Current `tamim` recovery recheck (2026-08-17) | Node 22 clean installs; mobile release/dependency checks, TypeScript, lint, 13 Jest suites with 133/133 tests, and 1,753-module iOS/1,774-module Android exports pass; admin/landing lint/build pass; worker 106/106 and Deno 16/16 pass; fresh reset through 027, public lint, pgTAP 207/207, API E2E 248/248, contracts, and production-backed public uptime pass. Push CI run `32050117854` passed the full matrix from `cd3a87c` |
+| Current recovery database baseline | Fresh local reset applies 001–026; public-schema lint clean; pgTAP 198/198; focused resolver/integrity API E2E 5/5 |
+| Local migration 027 monitoring fix | Eleven failed rows across 10 unique URLs were mapped without weakening challenge gates: nine worker-only first-party automatic targets passed worker-equivalent reachability checks; two Yukon rows are explicit 30-day ReloGo operations assignments. Fresh reset through 027, lint, pgTAP 207/207, API E2E 248/248, worker 106/106, type sync/mobile TypeScript, and admin build pass. This records target reachability only; the migration and coordinated worker remain pending review, hosted rollout, and a live Actions rerun |
 | Hosted preview recovery | Exact ledger 001–026; JWT-protected `support-ai` v3; hosted smoke passed before preview was deliberately paused |
-| Production backend | Active at exact ledger 001–026; dry run clean; final `support-ai` v5 ACTIVE/JWT-protected; unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, authenticated non-fallback AI, and cleanup |
-| Mobile dependency audit | 0 vulnerabilities with exact `xcode@3.0.1` → `uuid@11.1.1` override; clean install and iOS project generation verified |
+| Production backend | Active at exact ledger 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected; unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, authenticated non-fallback AI, and cleanup |
+| Mobile dependency audit | `js-yaml`, `nanoid`, and `postcss` advisories patched; fail-closed gate accepts only two exact upstream Metro/image-size build-time advisories at reviewed `image-size@1.2.1`; landing/admin production audits report zero |
 | Prior committed `tamim` baseline (2026-07-21) | Mobile 85/85, worker 69/69, support helpers 9/9, pgTAP 164/164, API E2E 243/243, both native Hermes exports and web/admin builds passed |
 | Latest full code matrix at `2624ad3` (2026-08-01) | Mobile release configuration, TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export 1,752 modules/5.8 MB Hermes bytecode, Android export 1,773 modules/5.9 MB Hermes bytecode, and production audit 0; admin and landing lint/build; Deno format/lint/type checks and tests 16/16; worker compile and tests 77/77; contract sync, workflow YAML, shell syntax, and diff checks passed |
 | Focused documentation-tree recheck (2026-08-03) | Mobile 116/116, TypeScript, release configuration, worker 77/77, Gemini transport 4/4, Python dependency consistency, uptime shell syntax, and `git diff --check` passed; code paths are unchanged from `2624ad3` |
 | Post-merge worker safeguards | Duplicate-URL fan-out, per-origin serialization/pacing, Cloudflare/Radware classification, task cleanup, baseline-safety reporting, compile, and 97/97 worker tests pass. Production run `30845791036` verified 50 unique fetches/3 reused outcomes and kept 11 failures visible; failure policy remains nonzero for any failed/stale source |
 | Pull request #2 / CI | Final head `f34b64a`; 19/19 GitHub and Vercel checks passed; both review threads resolved; merged to `main` as `e75f449` |
 | Pull request #3 / worker hardening | Final head `3f063e9`; 19/19 checks passed; sole review thread fixed/resolved; merged to `main` as `d2db994` |
-| iOS production store build | Fresh build 7 `FINISHED`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`, exact merged commit `e75f449`; real-device QA and submission remain |
-| Android production store build | Fresh build 4 `FINISHED`, EAS `28076f35-1495-466b-af77-97a9339c5ea2`, exact merged commit `e75f449`; real-device QA and publication decision remain |
+| Current iOS store artifact | Version 1.0.1 build 8 `FINISHED`, EAS `daa8e42a-c12d-4365-b6ca-ff36732cd858`, exact green commit `cd3a87c`; IPA 19,516,089 bytes, SHA-256 `22514a7ee6672aa2b27942994b21a10a9a64b23a24eba17b7a845afd518d7bfc`; archive/bundle/channel/runtime verified; not uploaded to TestFlight or submitted |
+| Current Android store artifact | Version 1.0.1 build 5 `FINISHED`, EAS `f839dede-1f83-4c6a-a928-de258597e6d0`, exact green commit `cd3a87c`; AAB 68,966,684 bytes, SHA-256 `afad9d7cd505c2f0c0e516a1f7eddb02ef71748de2e21d0125b735e4b1a15343`; archive/package/ABI/runtime verified; not uploaded or submitted |
+| Earlier iOS store artifact | Build 7 `FINISHED`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`, exact `e75f449`; uploaded and `VALID`/`IN_BETA_TESTING` in internal TestFlight, but predates the current `tamim` changes and is not the current candidate |
+| Earlier Android store artifact | Build 4 `FINISHED`, EAS `28076f35-1495-466b-af77-97a9339c5ea2`, exact `e75f449`; predates the current `tamim` changes and is not the current candidate |
 | Web/worker/uptime recovery | Admin recovery live; landing unchanged/live; main uptime run `30843906264` passed required backend probes. Hardened worker run `30845791036` passed preflight, fetched 50 unique URLs for 53 rows, completed 42 rows, and left 11 outcomes failed closed; 43/53 sources now have baselines, three new alerts are PENDING human review, key rotation is not needed, and the webhook is unset |
 | Backup/restore | Runbook corrected; funding/retention decision and a measured restore drill remain |
 
 The recovery database result was established locally, production carries the
-final schema/function, main uptime is backend-aware and green, and the reviewed
-tree is merged, and both exact-commit store builds finished. The release still
-requires real-device QA, approved store metadata, and store-submission evidence.
+final schema/function, main uptime is backend-aware and green, the reviewed
+tree is merged, and current exact-`cd3a87c` iOS build 8/Android build 5 both
+finished. The release still requires current-artifact real-device QA, approved
+store metadata, an explicitly authorized TestFlight/store upload, and App
+Review submission evidence.
 
 ### iOS Simulator run (2026-07-21)
 
@@ -347,11 +387,14 @@ binaries, real-device QA, CI, or the remaining release phases below.
 - The shipped App Store 1.0 / SDK 51 binary contains a deleted Supabase project
   reference and has no compatible Expo Updates runtime. The old backend and
   binary cannot be recovered or redirected; a new tested 1.0.1 store binary is
-  required. Fresh iOS 1.0.1 build 7 is `FINISHED` from exact merged commit
+  required. Historical iOS 1.0.1 build 7 is `FINISHED` from exact merged commit
   `e75f449` (EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`); Android build 4 was
   started from the same commit (EAS
   `28076f35-1495-466b-af77-97a9339c5ea2`) and also `FINISHED` successfully.
-  Both require real-device QA and store approval. Automated Google Play
+  Those two artifacts predate the current `tamim` startup/dependency changes
+  and are not current release candidates. Current exact-`cd3a87c` iOS build 8
+  and Android build 5 both `FINISHED` successfully with verified archives, but
+  real-device QA and store approval remain. Automated Google Play
   submission needs an
   owner-provided service-account key or reviewed manual submission path.
 - The production backend promotion is complete at exact 001–026/final function
@@ -363,9 +406,11 @@ binaries, real-device QA, CI, or the remaining release phases below.
   Hardened run `30845791036` added one baseline and completed 42 rows while
   preserving 11 failures, so 43/53 sources now have baselines. Ten failures
   were explicit managed/CAPTCHA challenges and one PEI source returned an empty
-  body; keep them visible
-  until an equivalent first-party source is reviewed or explicit manual
-  monitoring is modeled. The worker webhook is still unset.
+  body. Those 11 rows represented 10 unique URLs. Local migration 027 now
+  models nine validated worker-only first-party automatic targets and two
+  explicit Yukon manual assignments while retaining canonical public links,
+  but it still needs review, migration-first hosted rollout, and a live Actions
+  rerun. The worker webhook is still unset.
 - No complete live pass has exercised the new mobile binary, Gemini, database,
   admin, landing, and worker together against the intended production stack.
 - The Supabase backup plan/retention/PITR decision is not approved or funded,
@@ -377,7 +422,9 @@ binaries, real-device QA, CI, or the remaining release phases below.
   before release.
 - The reviewed admin recovery build is live, landing is unchanged/live, and
   main backend-aware uptime passed. Worker authentication and 43 baselines are
-  established, but 11 failed source-row outcomes and webhook ownership remain.
+  established, but the local migration 027 treatment of the 11 failed source-
+  row outcomes still needs review, hosted rollout, and a live rerun; webhook
+  ownership also remains.
   `relogo.app` does not resolve and no monitored public support/privacy mailbox
   exists.
 - The BC government PDF workflow now runs end to end on SDK 55 in the iOS
@@ -386,8 +433,9 @@ binaries, real-device QA, CI, or the remaining release phases below.
   device, or on Android — where the ten-minute share-target cache grace and the
   chooser-cancellation path remain unobserved.
 - The initial independent content audit covered all 53 source URLs and all 24
-  seeded numeric deadlines, but 15 sources did not yield usable content to the
-  automated probe and origin-specific, qualitative, school, and exception-heavy
+  seeded numeric deadlines. Its historical probe had 15 unusable results; the
+  later worker incident was the distinct 11-row/10-URL set now treated locally
+  by migration 027. Origin-specific, qualitative, school, and exception-heavy
   content still needs human/legal review before promotion.
 - `docs/STORE.md` contains conservative draft disclosures (anonymous user ID
   linked to non-PII move/progress/support data and Gemini processing; device PII
@@ -410,7 +458,8 @@ binaries, real-device QA, CI, or the remaining release phases below.
 - The default branch now contains `supabase==2.31.0` and the read-only exact-
   origin preflight. Hardened run `30845791036` authenticated, left 43/53
   baselines, and safely rejected 10 access challenges plus one empty response;
-  source review/manual monitoring and webhook delivery remain unresolved.
+  the local migration 027 source-monitoring treatment remains pending review,
+  hosted rollout, and a live Actions rerun. Webhook delivery remains unresolved.
   `ALERT_WEBHOOK_URL` is unset.
 - Mobile's audit is clean after the exact `xcode@3.0.1` → `uuid@11.1.1`
   override. It is intentionally narrow because UUID 12 removes CommonJS;
@@ -438,9 +487,10 @@ admin build are live; main backend-aware uptime passed.
 - Make the complete local verification matrix a CI contract.
 
 Exit now requires: complete real-device QA, approve and publish store metadata,
-release 1.0.1, resolve/manual-monitor the 11
-challenge-blocked sources, and test worker alert delivery. The merged preflight
-proved the current key works; do not rotate or share it.
+release 1.0.1, review and roll out migration 027 before the coordinated worker,
+obtain a healthy live rerun with its two manual assignments still visible, and
+test worker alert delivery. The merged preflight proved the current key works;
+do not rotate or share it.
 
 ### Phase 1 — provision isolated environments
 
@@ -451,7 +501,7 @@ Status: **backend environments recovered; operational gates incomplete.**
 - Completed: preview migrations 001–026, JWT-protected `support-ai` v3,
   hosted verification, and recovery smoke; preview is deliberately paused.
 - Completed: production is active at exact migrations 001–026 with final
-  JWT-protected `support-ai` v5, clean dry run, and unauthenticated 401. Its
+  JWT-protected `support-ai` v5, a clean pre-027 dry run, and unauthenticated 401. Its
   self-cleaning smoke passed anonymous auth, resolver output with five
   tasks/five HTTPS sources, minimal onboarding profile insert, authoritative
   consent/profile confirmation, and cleanup. Profile, waitlist, support, and
@@ -462,8 +512,10 @@ Status: **backend environments recovered; operational gates incomplete.**
   review threads were resolved, and it merged as `e75f449`.
 - Completed: deployed final function v5 and passed authenticated non-fallback
   production smoke plus unauthenticated 401.
-- Remaining: preserve explicit targeting for every future hosted change; the
-  next migration is 027.
+- Remaining: preserve explicit targeting for every future hosted change.
+  Migration 027 exists locally and is pending review; preview and production
+  remain at 001–026, so apply 027 before its coordinated worker code only after
+  explicit approval.
 - Remaining: choose/fund a backup posture and complete a measured restore drill.
 - Remaining: rotate/revoke the exposed bootstrap admin credentials and complete
   a reviewed Git-history remediation decision.
@@ -489,10 +541,20 @@ Status: **in progress.**
   dedupe/pacing, added one baseline, and filed three PENDING alerts while 11
   outcomes failed closed; 43/53 sources now have baselines. The encrypted key
   works and must not be rotated merely because official sites block automation.
-- Remaining: Review equivalent first-party URLs or assign explicit manual
-  monitoring for 10 access-challenge outcomes plus the empty PEI driver page;
-  never baseline challenge pages or bypass CAPTCHAs. Configure/test webhook
-  delivery.
+- Completed locally, pending review: migration 027 retains public canonical
+  links, assigns nine of those rows validated worker-only first-party targets,
+  and makes Yukon driver-licence and vehicle-registration monitoring explicit
+  30-day assignments owned by ReloGo operations. The updated summary always
+  lists manual assignments, but the cadence does not prove completion or track
+  overdue reviews. No live rule is auto-changed.
+- Remaining: Apply migration 027 before deploying/running the coordinated
+  worker, then obtain a healthy live Actions run without weakening CAPTCHA or
+  content gates. The existing default-branch schedule still runs the older
+  worker, which ignores `monitor_url` and could repopulate cleared automatic
+  baselines from the wrong URL. Do not apply 027 until the coordinated worker
+  is scheduled, or the old schedule is explicitly paused and the reviewed
+  `tamim` workflow will be run manually. Configure/test webhook delivery;
+  `ALERT_WEBHOOK_URL` is unset.
 - Remaining: Verify waitlist signup → admin visibility and source change → PENDING alert → human approval/dismissal.
 
 Exit: both web apps are live, one complete worker run is healthy, notifications
@@ -500,23 +562,40 @@ work, and no worker path can modify live rules.
 
 ### Phase 3 — mobile preview and full end-to-end QA
 
-Status: **fresh final builds finished; real-device QA not complete.**
+Status: **current-tree store artifacts finished; real-device QA not complete.**
 
-- Fresh iOS production store build 7 is `FINISHED`: version 1.0.1, exact merged
-  commit `e75f449`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`.
-- Fresh Android production store build 4 is `FINISHED`: version 1.0.1, exact
+- Current iOS production store build 8 is `FINISHED`: version/runtime 1.0.1,
+  exact green commit `cd3a87c`, EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`. Archive identity and integrity pass;
+  it has not been uploaded to TestFlight or submitted for App Review.
+- Current Android production store build 5 is `FINISHED`: version/runtime
+  1.0.1, exact green commit `cd3a87c`, EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`. Archive identity and integrity pass;
+  it has not been uploaded or submitted to Google Play.
+
+- Earlier iOS production store build 7 is `FINISHED`: version 1.0.1, exact
+  commit `e75f449`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`. It is already
+  `VALID` and `IN_BETA_TESTING` in internal TestFlight; it has not been
+  submitted for App Review.
+- Earlier Android production store build 4 is `FINISHED`: version 1.0.1, exact
   merged commit `e75f449`, EAS
   `28076f35-1495-466b-af77-97a9339c5ea2`.
-- Neither build was submitted. Build completion is not device or store
-  evidence. If isolated preview QA is still required, resume preview and
+- These artifacts predate the current `tamim` startup and dependency fixes and
+  must not be used as current release candidates. Android build 4 has not been
+  submitted to Google Play. Build/TestFlight
+  processing is not device or App Review evidence. If isolated preview QA is
+  still required, resume preview and
   reconfirm exact 001–026/v3 before using it. Do not use the three old SDK 51
   artifacts as evidence.
 - Prioritize the iOS build/device/release path because broken version 1.0 is
   publicly downloadable there. Google Play does not currently expose
   `com.relogo.app`; Android recovery work can run in parallel or immediately
   afterward, but a public-store 404 alone does not prove publication history.
-- Register an approved test iPhone before the internal iOS build. Keep device
-  enrollment and Apple 2FA with the account owner.
+- After receiving explicit owner authorization, upload current iOS build 8 to
+  App Store Connect/TestFlight and install that exact build with an internal
+  tester Apple ID.
+  EAS device registration is not required for TestFlight; keep Apple
+  account/2FA actions with the owner.
 - Measure cold and warm startup on representative phones and slow networks;
   confirm the static splash releases promptly, timeout/retry states work, and
   deferred PDF code does not inflate startup work.
@@ -558,8 +637,9 @@ Status: **in progress.**
   submission.
 - Recommended: Start content work with AB↔ON, then ON↔BC and AB↔BC, using
   waitlist demand before final commercial ranking.
-- Remaining: Resolve inaccessible/blocked sources, deepen origin and
-  destination rules, and obtain human/legal approval for conditional content.
+- Remaining: Review, apply, and live-verify migration 027's automatic/manual
+  source-monitoring treatment; deepen origin and destination rules; and obtain
+  human/legal approval for conditional content.
 - Remaining: release the reviewed web/mobile recovery only after preview/device
   gates; then test policy re-consent, resolver sources, and the BC PDF on SDK 55
   EAS builds and real devices against the now-current production backend.

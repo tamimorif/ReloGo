@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(34);
+SELECT plan(40);
 
 CREATE FUNCTION pg_temp.login_as(uid UUID) RETURNS VOID AS $$
 BEGIN
@@ -433,6 +433,193 @@ SELECT lives_ok(
     $$INSERT INTO public.waitlist (email, origin_province, dest_province)
       VALUES ('unknown-corridor@test.local', NULL, NULL)$$,
     '026: a waitlist row may still omit an unknown corridor'
+);
+
+CREATE TEMP TABLE expected_worker_source_monitoring (
+    task_key TEXT NOT NULL,
+    destination VARCHAR(2) NOT NULL,
+    official_url TEXT NOT NULL,
+    monitor_url TEXT,
+    monitoring_mode VARCHAR(20) NOT NULL,
+    manual_review_owner TEXT,
+    manual_review_interval_days SMALLINT,
+    PRIMARY KEY (task_key, destination, official_url)
+) ON COMMIT DROP;
+
+INSERT INTO expected_worker_source_monitoring VALUES
+    (
+        'EXCHANGE_DRIVERS_LICENCE', 'NU',
+        'https://www.gov.nu.ca/en/service-nunavut/apply-drivers-licence',
+        'https://www.gov.nu.ca/sites/default/files/documents/2022-12/driversmanual_eng.pdf',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'EXCHANGE_DRIVERS_LICENCE', 'PE',
+        'https://www.princeedwardisland.ca/en/information/transportation-and-infrastructure/driving-with-an-out-of-province-license',
+        'https://www.princeedwardisland.ca/sites/default/files/publications/drivers_handbook.pdf',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'EXCHANGE_DRIVERS_LICENCE', 'YT',
+        'https://yukon.ca/en/driving-and-transportation/driver-licensing/transfer-your-drivers-licence-jurisdiction-outside-yukon',
+        NULL, 'MANUAL', 'ReloGo operations', 30
+    ),
+    (
+        'UPDATE_HEALTH_CARD', 'NU',
+        'https://www.gov.nu.ca/en/health/applying-health-care',
+        'https://www.gov.nu.ca/sites/default/files/forms/2022-02/new_to_nunavut_health_care_coverage%20_appli_eng.pdf',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'UPDATE_HEALTH_CARD', 'PE',
+        'https://www.princeedwardisland.ca/en/service/apply-for-pei-health-card-new-residents',
+        'https://www.princeedwardisland.ca/sites/default/files/forms/pei_health_card_application_form.pdf',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'UPDATE_HEALTH_CARD', 'QC',
+        'https://www.ramq.gouv.qc.ca/en/citizens/health-insurance/registration-information',
+        'https://www.quebec.ca/en/immigration/settle-and-integrate-in-quebec',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'REGISTER_VEHICLE', 'NU',
+        'https://www.gov.nu.ca/en/service-nunavut/private-vehicle-registration-nunavut',
+        'https://www.gov.nu.ca/sites/default/files/documents/2022-12/driversmanual_eng.pdf',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'REGISTER_VEHICLE', 'YT',
+        'https://yukon.ca/en/driving-and-transportation/driver-licensing/transfer-your-drivers-licence-jurisdiction-outside-yukon',
+        NULL, 'MANUAL', 'ReloGo operations', 30
+    ),
+    (
+        'REGISTER_CHILDREN_SCHOOL', 'NU',
+        'https://www.gov.nu.ca/en/education-and-schools/k-12-school-calendars-map-and-registration',
+        'https://www.gov.nu.ca/sites/default/files/publications/2024-12/Student_Registration_Guidelines_for_Kindergarten_to_Grade_12_2023.pdf',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'REGISTER_CHILDREN_SCHOOL', 'PE',
+        'https://www.princeedwardisland.ca/en/information/education-and-lifelong-learning/register-your-child-for-school',
+        'https://psb.edu.pe.ca/schools/registering-your-child-for-school',
+        'AUTOMATED', NULL, NULL
+    ),
+    (
+        'REGISTER_CHILDREN_SCHOOL', 'YT',
+        'https://yukon.ca/en/education-and-schools/plan-elementary-and-high-school/register-your-child-school',
+        'https://open.yukon.ca/information/d29fd0f4-dd63-4444-94ca-7a1476b76583/resource/49e90760-acb7-40c9-b4a0-4741296a72e0/download/edu-policy-enrolment-students-yukon-schools-2026.pdf',
+        'AUTOMATED', NULL, NULL
+    );
+
+CREATE TEMP VIEW actual_worker_source_monitoring AS
+SELECT
+    expected.*,
+    source.id AS source_id,
+    source.monitor_url AS actual_monitor_url,
+    source.monitoring_mode AS actual_monitoring_mode,
+    source.manual_review_owner AS actual_manual_review_owner,
+    source.manual_review_interval_days AS actual_manual_review_interval_days,
+    source.last_verified,
+    source.last_content_hash,
+    source.last_content_text
+FROM expected_worker_source_monitoring AS expected
+LEFT JOIN public.global_tasks AS task
+  ON task.task_key = expected.task_key
+LEFT JOIN public.corridor_task_rules AS rule
+  ON rule.task_id = task.id
+ AND rule.origin_province = 'ANY'
+ AND rule.dest_province = expected.destination
+LEFT JOIN public.official_sources AS source
+  ON source.corridor_rule_id = rule.id
+ AND source.official_url = expected.official_url;
+
+SELECT ok(
+    (SELECT count(*) = 11
+            AND count(source_id) = 11
+            AND count(*) FILTER (
+                WHERE actual_monitoring_mode = 'AUTOMATED') = 9
+            AND count(*) FILTER (
+                WHERE actual_monitoring_mode = 'MANUAL') = 2
+       FROM actual_worker_source_monitoring)
+    AND (SELECT count(*) = 53
+           FROM public.official_sources AS source
+           JOIN public.corridor_task_rules AS rule
+             ON rule.id = source.corridor_rule_id
+           JOIN public.global_tasks AS task
+             ON task.id = rule.task_id
+          WHERE task.task_key IN (
+              'EXCHANGE_DRIVERS_LICENCE',
+              'UPDATE_HEALTH_CARD',
+              'REGISTER_VEHICLE',
+              'REGISTER_CHILDREN_SCHOOL',
+              'UPDATE_CRA_ADDRESS'
+          )),
+    '027: all 53 sources remain, with nine targets automated and two manual'
+);
+
+SELECT ok(
+    (SELECT bool_and(
+        actual_monitor_url IS NOT DISTINCT FROM monitor_url
+        AND actual_monitoring_mode = monitoring_mode
+        AND actual_manual_review_owner IS NOT DISTINCT FROM manual_review_owner
+        AND actual_manual_review_interval_days IS NOT DISTINCT FROM
+            manual_review_interval_days
+    ) FROM actual_worker_source_monitoring),
+    '027: every exact task/destination/source tuple has its reviewed configuration'
+);
+
+SELECT ok(
+    (SELECT bool_and(
+        (
+            monitoring_mode = 'AUTOMATED'
+            AND manual_review_owner IS NULL
+            AND manual_review_interval_days IS NULL
+        ) OR (
+            monitoring_mode = 'MANUAL'
+            AND monitor_url IS NULL
+            AND NULLIF(BTRIM(manual_review_owner), '') IS NOT NULL
+            AND manual_review_interval_days BETWEEN 1 AND 365
+        )
+    ) FROM public.official_sources),
+    '027: seeded source-monitoring modes satisfy their metadata invariants'
+);
+
+SELECT ok(
+    (SELECT bool_and(
+        last_verified IS NULL
+        AND last_content_hash IS NULL
+        AND last_content_text IS NULL
+    ) FROM actual_worker_source_monitoring),
+    '027: every switched source starts with a cleared baseline'
+);
+
+SELECT throws_ok(
+    $$INSERT INTO public.official_sources (
+          id, corridor_rule_id, agency_name, official_url, monitor_url)
+      VALUES (
+          'fa300000-0000-0000-0000-000000000027',
+          'fa200000-0000-0000-0000-000000000001',
+          'Invalid HTTP Monitor',
+          'https://example.gc.ca/canonical',
+          'http://example.gc.ca/monitor')$$,
+    '23514', NULL,
+    '027: an insecure HTTP monitor target is rejected'
+);
+
+SELECT throws_ok(
+    $$INSERT INTO public.official_sources (
+          id, corridor_rule_id, agency_name, official_url, monitor_url,
+          monitoring_mode, manual_review_owner, manual_review_interval_days)
+      VALUES (
+          'fa300000-0000-0000-0000-000000000028',
+          'fa200000-0000-0000-0000-000000000001',
+          'Invalid Manual Monitor',
+          'https://example.gc.ca/manual',
+          'https://example.gc.ca/automatic',
+          'MANUAL', '', 0)$$,
+    '23514', NULL,
+    '027: a malformed manual-monitoring assignment is rejected'
 );
 
 CREATE OR REPLACE FUNCTION public.current_policy_version()

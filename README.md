@@ -33,11 +33,13 @@ and live. The App Store still distributes the broken 1.0 release, so real-
 device QA, approved store metadata, and release of 1.0.1 remain the user-facing
 outage gate.
 
-- The local schema is migrations 001–026. Preview was migrated to 001–026,
-  passed the hosted smoke checks (including authenticated AI support), and was
-  then deliberately paused. Production is active at exact migrations 001–026
-  with `support-ai` version 5 ACTIVE/JWT-protected; unauthenticated invocation
-  returns 401. Its post-promotion dry run is clean. A self-cleaning production
+- The repository now contains migrations 001–027, but migration 027 and its
+  coordinated worker changes are local and pending review. Preview was migrated
+  to 001–026, passed the hosted smoke checks (including authenticated AI
+  support), and was then deliberately paused. Production remains active at
+  exact migrations 001–026 with `support-ai` version 5 ACTIVE/JWT-protected;
+  unauthenticated invocation returns 401. Its last pre-027 post-promotion dry
+  run was clean. A self-cleaning production
   smoke against the final function passed anonymous auth, resolver output with
   five tasks/five HTTPS official sources, a minimal onboarding profile insert,
   authoritative consent/profile confirmation, authenticated non-fallback AI,
@@ -52,7 +54,8 @@ outage gate.
 - The local 1.0.1 / SDK 55 app no longer holds the native splash screen on a
   network request, restores its encrypted session with bounded timeouts,
   avoids duplicate startup fetches, caches the profile/bootstrap result, and
-  loads the PDF engine only when the user asks to fill a form. Public Supabase
+  starts rules/progress prefetch after authoritative consent while the route
+  renders. It loads the PDF engine only when the user asks to fill a form. Public Supabase
   runtime configuration accepts only a clean origin, and production release
   checks require the exact production origin and a trimmed, nonblank public
   key. Checklist profile, rules, and progress reads abort after 8 seconds with
@@ -62,8 +65,9 @@ outage gate.
   profile insert/update, and confirmation waits are each bounded at 10 seconds.
   Real-device QA is still required to measure and approve startup performance;
   a successful cloud build is not device evidence. Its production dependency
-  audit is now clean: a narrow `xcode@3.0.1` override pins `uuid` 11.1.1, with
-  0 reported vulnerabilities.
+  audit now patches `js-yaml`, `nanoid`, and `postcss`; a fail-closed wrapper
+  accepts only two exact upstream Metro/image-size build-time advisories with
+  no patched release. A narrow `xcode@3.0.1` override still pins `uuid` 11.1.1.
 - The latest full code matrix at `2624ad3` passed mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export (1,752 modules,
   5.8 MB Hermes bytecode), Android export (1,773 modules, 5.9 MB Hermes
@@ -75,12 +79,22 @@ outage gate.
   consistency, uptime-script syntax, and whitespace checks.
   Worker and backend-aware uptime preflights now reject every Supabase URL
   except the exact production project origin.
-- Fresh iOS production/store build 7 `FINISHED` successfully from exact merged
+- Earlier iOS production/store build 7 `FINISHED` successfully from exact
   `main` `e75f449` (version 1.0.1, EAS
   `765965d7-c7c1-432c-ac1d-302d2f0c5116`). Android production/store build 4
   also `FINISHED` successfully from the same commit (version 1.0.1, EAS
-  `28076f35-1495-466b-af77-97a9339c5ea2`). Neither has been submitted; both
-  still require real-device QA and owner/legal/store approval.
+  `28076f35-1495-466b-af77-97a9339c5ea2`). iOS build 7 is valid and active in
+  internal TestFlight but has not entered App Review; Android build 4 has not
+  reached Google Play. Those artifacts predate the current `tamim` startup and
+  dependency fixes and are historical evidence, not current release
+  candidates.
+- Current production artifacts were created from exact green `tamim` commit
+  `cd3a87c`: iOS 1.0.1 build 8 (EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive integrity,
+  bundle/package identity, production channel, and runtime 1.0.1 were verified.
+  Neither artifact was uploaded or submitted to a store; real-device QA and
+  owner/legal/store approval remain.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
   unchanged and live at `https://relogo-two.vercel.app`. Main-branch uptime run
   `30843906264` passed every public route plus production anonymous-auth and
@@ -92,9 +106,10 @@ outage gate.
   thread was fixed/resolved, and it merged as `d2db994`.
 - Main-branch worker run `30843904269` installed `supabase==2.31.0`; its exact-
   origin key/schema preflight passed, proving that secret rotation is not
-  needed. The full run persisted 42 of 53 baselines. Eleven sources remain
-  failed because RAMQ, Yukon, and Nunavut returned managed HTTP 403 challenges
-  and PEI returned browser-verification pages. These failures must stay visible:
+  needed. The full run persisted 42 of 53 baselines. The follow-up run's 11
+  failed source rows represented 10 unique URLs and were anti-bot, CAPTCHA, or
+  empty-content rejections—not an authentication or Python crash. These
+  failures must stay visible:
   do not baseline challenge content or bypass CAPTCHAs. Replace a source only
   after review of an equivalent first-party URL, otherwise assign explicit
   manual monitoring. The post-merge worker follow-up fetches duplicate URLs
@@ -105,7 +120,21 @@ outage gate.
   rows (`1` new baseline, `38` unchanged, `3` changed) while keeping 11 blocked
   outcomes failed. Production now has 43/53 source baselines; the three changes
   are PENDING human-review alerts, not live-rule edits. `ALERT_WEBHOOK_URL` is
-  still unset.
+  still unset. A local, pending migration 027 keeps every canonical
+  `official_url` public while assigning nine affected rows a separately stored,
+  worker-only first-party monitor target. Yukon driver-licence and vehicle-
+  registration rows are instead assigned to MANUAL review by ReloGo operations
+  every 30 days and appear in every Actions summary. That cadence is an
+  assignment, not proof of review or overdue tracking. All nine automatic
+  targets passed worker-equivalent local reachability checks; migration 027 has
+  not been applied to a hosted project and the updated worker has not had a live
+  Actions rerun. Challenge and content gates remain fail-closed.
+  Reachability is not semantic equivalence: the Quebec target is high-level
+  RAMQ guidance, the Nunavut vehicle target is a general driver manual, the PEI
+  school target covers the English Public Schools Branch, and the Yukon school
+  policy does not cover every registration step or school authority. A green
+  run will prove only that configured automatic checks completed; those content
+  gaps remain human-review gates.
 
 The backend promotion does not release the rest of the product. See the
 [deployment guide](docs/DEPLOYMENT.md) for the remaining guarded release order
@@ -128,9 +157,10 @@ Mobile ── auth/checklist/progress ── Supabase ── protected Admin das
   `is_admin()`; there is no client email allowlist.
 - Mobile support accepts six fixed general questions. The database enforces the
   same allowlist, and the Edge Function fails closed on legacy/unsafe history.
-- The worker scrapes official HTML/PDF sources concurrently, then records each
-  result through a row-locked compare-and-swap RPC. A changed source creates a
-  PENDING alert; only a human admin can approve a live rule change.
+- The worker scrapes automatic official HTML/PDF sources concurrently, then
+  records each result through a row-locked compare-and-swap RPC. Explicit manual
+  assignments remain visible in every Actions summary. A changed source creates
+  a PENDING alert; only a human admin can approve a live rule change.
 - The first production template is British Columbia's official Application for
   Health and Drug Coverage. ReloGo downloads the blank form from the government
   source only after an explicit tap, verifies its audited SHA-256 before reading
@@ -140,8 +170,9 @@ Mobile ── auth/checklist/progress ── Supabase ── protected Admin das
 
 ## Database migrations
 
-`supabase/migrations/` is the schema source of truth. Apply every migration in
-order; do not edit the hosted schema by hand.
+`supabase/migrations/` is the schema source of truth. Apply approved migrations
+in order; do not edit the hosted schema by hand or treat local migration 027 as
+deployed evidence.
 
 | Migration | Purpose |
 | --- | --- |
@@ -171,6 +202,7 @@ order; do not edit the hosted schema by hand.
 | `024_consent_state_profile_payload.sql` | Returns the current consent state and allowlisted non-PII startup profile in one RPC |
 | `025_available_only_progress.sql` | Removes the unused `LOCKED` state; progress is `AVAILABLE` or `COMPLETED` |
 | `026_distinct_move_provinces.sql` | Rejects new or updated profiles/waitlist rows whose origin equals destination |
+| `027_worker_source_monitoring.sql` | Adds private automatic monitor targets and explicit owned manual assignments; local and pending review/deployment |
 
 ## Quick start
 
@@ -229,9 +261,10 @@ when rotating them or creating another EAS project.
 
 The production backend is recovered, but the App Store still serves broken
 version 1.0 and the 1.0.1 recovery release is incomplete. Real-device QA,
-store submission/metadata, reviewed monitoring for the
-11 failed source-row outcomes, a tested worker webhook, funded backup/restore
-with a drill, a monitored public mailbox/custom domain, final government
+store submission/metadata, migration-first review and hosted rollout of 027 for
+the 11 previously failed source-row outcomes, a successful live worker rerun,
+a tested worker webhook, funded backup/restore with a drill, a monitored public
+mailbox/custom domain, final government
 content/legal review, and correction of the live App Store privacy answer
 remain.
 The disclosure text in `docs/STORE.md` is a conservative draft; the account

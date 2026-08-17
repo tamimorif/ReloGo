@@ -33,9 +33,15 @@ import { hasPDFTemplate } from "@/lib/pdfTemplates";
 import { safeOfficialUrl } from "@/lib/safeOfficialUrl";
 import { withAbortableTimeout } from "@/lib/startupTimeout";
 import {
+  CHECKLIST_QUERY_TIMEOUT_MS,
+  CORRIDOR_RULES_QUERY_KEY,
+  corridorRulesQueryOptions,
+  taskProgressQueryKey,
+  taskProgressQueryOptions,
+} from "@/lib/checklistQueries";
+import {
   ChecklistTask,
   PROVINCE_LABELS,
-  ResolvedCorridorRule,
   TaskStatus,
   UserTaskProgress,
 } from "@/types/database";
@@ -66,7 +72,6 @@ function iosPressOpacity({ pressed }: { pressed: boolean }) {
 
 const subtleRipple = { color: "rgba(15, 23, 42, 0.08)" };
 const brandRipple = { color: "rgba(37, 99, 235, 0.14)" };
-const CHECKLIST_QUERY_TIMEOUT_MS = 8_000;
 
 // ──────────────────────────────────────────────
 // Render-time list sectioning (order-preserving with the memoized sort:
@@ -527,49 +532,10 @@ export default function ChecklistScreen() {
   const corridorReady = !!origin && !!dest;
 
   // 2. Canonical corridor rules + task/source metadata ───────────────
-  const rulesQuery = useQuery({
-    queryKey: ["corridorRules", origin, dest],
-    enabled: corridorReady,
-    staleTime: 5 * 60_000,
-    retry: false,
-    queryFn: async ({ signal }): Promise<ResolvedCorridorRule[]> => {
-      const { data, error } = await withAbortableTimeout(
-        (requestSignal) =>
-          supabase
-            .rpc("resolve_corridor_rules", {
-              p_origin_province: origin!,
-              p_dest_province: dest!,
-            })
-            .abortSignal(requestSignal),
-        CHECKLIST_QUERY_TIMEOUT_MS,
-        signal,
-      );
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const rulesQuery = useQuery(corridorRulesQueryOptions(origin, dest));
 
   // 3. Progress rows ───────────────────────────
-  const progressQuery = useQuery({
-    queryKey: ["taskProgress", userId],
-    enabled: !!userId,
-    staleTime: 30_000,
-    retry: false,
-    queryFn: async ({ signal }) => {
-      const { data, error } = await withAbortableTimeout(
-        (requestSignal) =>
-          supabase
-            .from("user_task_progress")
-            .select("*")
-            .eq("user_id", userId!)
-            .abortSignal(requestSignal),
-        CHECKLIST_QUERY_TIMEOUT_MS,
-        signal,
-      );
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const progressQuery = useQuery(taskProgressQueryOptions(userId));
 
   // 4. Derived checklist items ─────────────────
   const items: ChecklistTask[] = useMemo(() => {
@@ -648,12 +614,13 @@ export default function ChecklistScreen() {
 
       // Snapshot only this task's row — restoring the whole array on error
       // would clobber other toggles' in-flight optimistic state.
+      const progressKey = taskProgressQueryKey(userId);
       const previousRow = queryClient
-        .getQueryData<UserTaskProgress[]>(["taskProgress", userId])
+        .getQueryData<UserTaskProgress[]>(progressKey)
         ?.find((row) => row.task_rule_id === vars.taskRuleId);
 
       queryClient.setQueryData<UserTaskProgress[]>(
-        ["taskProgress", userId],
+        progressKey,
         (old) => {
           const rows = old ?? [];
           const optimistic: UserTaskProgress = {
@@ -677,7 +644,7 @@ export default function ChecklistScreen() {
     },
     onError: (_error, vars, context) => {
       queryClient.setQueryData<UserTaskProgress[]>(
-        ["taskProgress", userId],
+        taskProgressQueryKey(userId),
         (old) => {
           const rows = old ?? [];
           if (context?.previousRow) {
@@ -695,7 +662,7 @@ export default function ChecklistScreen() {
       );
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["taskProgress", userId] });
+      queryClient.invalidateQueries({ queryKey: taskProgressQueryKey(userId) });
     },
   });
 
@@ -777,8 +744,8 @@ export default function ChecklistScreen() {
     try {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["profile", userId] }),
-        queryClient.invalidateQueries({ queryKey: ["corridorRules"] }),
-        queryClient.invalidateQueries({ queryKey: ["taskProgress", userId] }),
+        queryClient.invalidateQueries({ queryKey: CORRIDOR_RULES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: taskProgressQueryKey(userId) }),
       ]);
     } finally {
       setRefreshing(false);

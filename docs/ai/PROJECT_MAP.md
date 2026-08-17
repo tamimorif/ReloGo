@@ -127,10 +127,11 @@ admin/
 
 ```
 worker/
-├── main.py                     ← bounded scraping → atomic CAS baseline/alert RPC
+├── main.py                     ← automatic monitor targets + manual partition → atomic CAS baseline/alert RPC
 ├── changedetect.py             ← pure hashes, PDF records, diffs, and content sanity gates
-├── reporting.py                ← pure exit policy + webhook/job-summary rendering
-├── tests/                      ← 69 pytest cases for change detection, PDF records, and reporting
+├── reporting.py                ← fail-closed exit policy + webhook/job summaries, including manual assignments
+├── preflight.py                ← exact-origin key/schema/resolver checks before Chromium installation
+├── tests/                      ← pytest coverage for scraping, monitoring modes, PDF records, and reporting
 ├── conftest.py                 ← puts worker/ on sys.path for tests
 ├── requirements.txt            ← pinned runtime deps (tenacity, supabase, playwright)
 ├── requirements-dev.txt        ← test-only deps (pytest)
@@ -164,7 +165,12 @@ supabase/
 │   ├── 019_policy_reconsent.sql ← server-current consent RPCs, trigger, and RLS gates
 │   ├── 020_content_audit_corrections.sql ← conservative deadline/crawl-state corrections
 │   ├── 021_admin_user_pagination.sql ← server-side LIMIT/OFFSET admin_list_users + total_count
-│   └── 022_waitlist_signup_feedback.sql ← enumeration-safe accepted/throttled signup status
+│   ├── 022_waitlist_signup_feedback.sql ← enumeration-safe accepted/throttled signup status
+│   ├── 023_corridor_rule_resolver.sql ← canonical exact/ANY resolver + public HTTPS sources
+│   ├── 024_consent_state_profile_payload.sql ← allowlisted startup profile in consent response
+│   ├── 025_available_only_progress.sql ← removes unused LOCKED progress state
+│   ├── 026_distinct_move_provinces.sql ← rejects new/updated same-origin/destination moves
+│   └── 027_worker_source_monitoring.sql ← local/pending private monitor targets + owned manual assignments
 ├── functions/support-ai/       ← Deno/Gemini Edge Function and pure helpers
 │   ├── index.ts, grounding.ts, humanTakeover.ts, supportQuestions.ts, deno.lock
 ├── tests/rls_and_rpcs_test.sql ← adversarial pgTAP security/RPC suite

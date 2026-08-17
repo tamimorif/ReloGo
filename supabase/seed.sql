@@ -35,8 +35,8 @@
 -- migrations have already run, so the baseline is granted first and every
 -- migration-defined restriction is then re-applied, mirroring that order.
 --
--- Keep the restrictions below in sync with migrations 006, 008, 009, 011, 015
--- and 023. `supabase/tests/rls_and_rpcs_test.sql` models the same ordering and its
+-- Keep the restrictions below in sync with migrations 006, 008, 009, 011, 015,
+-- 023, and 027. `supabase/tests/rls_and_rpcs_test.sql` models the same ordering and its
 -- privilege assertions are the guard against this file drifting.
 -- ============================================================================
 
@@ -95,6 +95,10 @@ GRANT SELECT (
     id,
     agency_name,
     official_url,
+    monitor_url,
+    monitoring_mode,
+    manual_review_owner,
+    manual_review_interval_days,
     last_content_hash,
     last_content_text
 )

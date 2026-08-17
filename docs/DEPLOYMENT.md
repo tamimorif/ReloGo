@@ -13,10 +13,10 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Reverify EAS metadata for iOS build 7 and Android build 4 identifies exact merged commit `e75f449`; reject any mismatched artifact, then complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 1 | Verify that current iOS build 8 and Android build 5 identify exact green commit `cd3a87c`, then—after explicit upload authorization—complete real-device startup, offline/recovery, PDF, deletion, and privacy QA on those exact artifacts | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 4 | Review first-party alternatives or assign manual monitoring for challenge-blocked sources; configure/test worker webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
+| 4 | Review migration 027, ensure the coordinated worker—not the old default-branch worker—is the next scheduled/manual implementation, then apply 027 before that worker run; obtain a healthy live result with manual assignments visible and configure/test webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
 | 5 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
 
 **Configured cloud mapping:** separate Supabase preview and production projects
@@ -25,32 +25,33 @@ to `admin/`. Development/preview variables target the preview backend and
 production variables target production in both Vercel and the registered EAS
 project. Values remain platform-managed and are not committed.
 
-Current hosted/repository truth (2026-08-04):
+Current hosted/repository truth (2026-08-17):
 
 | Target | State |
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
-| Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
-| Mobile | Local version 1.0.1 / SDK 55 gates pass. Fresh exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) and Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) finished successfully. Neither was submitted; real-device QA and approval remain |
+| Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
+| Mobile | Local version 1.0.1 / SDK 55 gates and push CI run `32050117854` pass. Current exact-`cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives. Neither was uploaded or submitted to a store; real-device QA and approval remain. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; main run `30843906264` passed public web/auth/resolver checks with required backend probes |
-| Worker/uptime | Main run `30843904269` passed the `2.31.0` preflight and created 42 baselines. Hardened run `30845791036` fetched 50 unique URLs for 53 rows, completed 42 rows, added one baseline, and filed three PENDING alerts while 11 outcomes remained failed closed. Production now has 43/53 baselines; key rotation is not needed; `ALERT_WEBHOOK_URL` is unset |
+| Worker/uptime | Main run `30843904269` passed the `2.31.0` preflight and created 42 baselines. Hardened run `30845791036` fetched 50 unique URLs for 53 rows, completed 42 rows, added one baseline, and filed three PENDING alerts while 11 rows/10 URLs failed closed. Production remains at 43/53 baselines. Local migration 027 maps nine rows to validated worker-only first-party targets and two Yukon rows to visible 30-day ReloGo operations assignments; it is pending review, hosted rollout, and live rerun. Key rotation is not needed; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
 
 The worker's Ubuntu 22.04 runner and `supabase==2.31.0` exact-origin preflight
 are now on `main`. Run `30843904269` proved that the existing encrypted key and
 schema access work, so do not rotate or request another credential. Its 11
-remaining failures are official-site managed challenges, not authentication.
+failed rows/10 URLs were official-site anti-bot, CAPTCHA, or empty-content
+rejections, not authentication.
 
 ## 1. Supabase (database)
 
 Migrations live in `supabase/migrations/` and are the single schema source of
-truth (`001_init.sql` through `026_distinct_move_provinces.sql`). Never edit a
-hosted schema by hand or rewrite a deployed migration. The next migration is
-027.
+truth (`001_init.sql` through local `027_worker_source_monitoring.sql`). Never
+edit a hosted schema by hand or rewrite a deployed migration. Migration 027 is
+pending review and has not been applied to any hosted project.
 
 Preview and production both have exact migrations 001–026. Preview was verified
-and deliberately paused. Production's post-push dry run is clean; anonymous auth
-is enabled; the self-cleaning smoke passed anonymous auth, resolver output with
+and deliberately paused. Production's last pre-027 post-push dry run was clean;
+anonymous auth is enabled; the self-cleaning smoke passed anonymous auth, resolver output with
 five tasks/five HTTPS sources, a minimal onboarding profile insert,
 authoritative consent/profile confirmation, and cleanup; and profile, waitlist,
 support, and progress tables contain zero rows. Recovery migrations add:
@@ -58,8 +59,12 @@ support, and progress tables contain zero rows. Recovery migrations add:
 - 023: canonical exact/`ANY` corridor rule resolution plus ordered HTTPS
   official sources, reused by mobile/admin/AI;
 - 024: one consent/bootstrap response with profile only for current consent;
-- 025: `AVAILABLE`/`COMPLETED` progress only; and
-- 026: rejection of new/updated same-origin/destination moves.
+- 025: `AVAILABLE`/`COMPLETED` progress only;
+- 026: rejection of new/updated same-origin/destination moves; and
+- 027 (local/pending): worker-private first-party monitor targets for nine
+  previously failed rows, explicit owned manual monitoring for two Yukon rows,
+  and a persistence guard that rejects manual rows. It does not change public
+  canonical source links or any live corridor rule.
 
 Migration 019/policy 1.1 and 023–026 are coordinated with the 1.0.1 client. The
 currently shipped 1.0 binary points to a deleted backend and cannot be rescued,
@@ -81,13 +86,15 @@ supabase migration list --linked
 supabase db push --dry-run
 ```
 
-Preview's dry run should report no pending migrations. Re-run ledger, lint,
-pgTAP, advisors, and the self-cleaning hosted smoke; then pause it again if no
-preview work remains.
+After preview is deliberately resumed, its ledger should still end at 026 and
+the current repository dry run should report only pending migration 027. Re-run
+local reset/lint/pgTAP first. Do not push without explicit approval; after an
+approved preview migration, re-run ledger, lint, pgTAP, advisors, and the self-
+cleaning hosted smoke, then pause preview again if no work remains.
 
-Production is currently linked locally and needs no schema push: its ledger is
-exact 001–026 and dry run reports no pending migrations. Record the state with
-read-only commands:
+Production is currently linked locally and remains at exact 001–026. Its last
+pre-027 dry run was clean; with this local tranche, a current dry run should
+show exactly migration 027 pending. Record the state with read-only commands:
 
 ```bash
 supabase link --project-ref yskknolxbxfxakgvrcmg
@@ -95,11 +102,15 @@ supabase migration list --linked
 supabase db push --dry-run
 ```
 
-Do not rerun a push merely to reproduce the already-complete promotion. The
-next schema change is migration 027 and requires its own explicit approval,
-preview verification, and pre/post ledger/dry-run/lint/pgTAP/advisor/smoke gates.
-Stop and report any mismatch; do not repair history ad hoc. Never run
-`supabase config push`: committed config contains localhost Auth URLs.
+Do not run the push merely because the dry run finds 027. Migration 027 requires
+its own explicit approval, preview verification, and pre/post ledger/dry-run/
+lint/pgTAP/advisor/smoke gates. It must be applied before the coordinated worker
+code, whose preflight selects the new monitoring columns. After the approved
+migration passes its post-push gates, deploy or trigger the coordinated worker
+and require a live Actions summary showing both manual assignments. Neither the
+migration nor worker may auto-change live rules. Stop and report any mismatch;
+do not repair history ad hoc. Never run `supabase config push`: committed config
+contains localhost Auth URLs.
 
 > **Note:** Supabase link state is machine-local and intentionally ignored by
 > git. On a new machine, run `supabase login` and `supabase link` even if another
@@ -278,29 +289,43 @@ attempt an `eas update` hotfix for that binary.
 The recovery app is 1.0.1 / SDK 55 and now has app-version-based runtime
 versioning, Expo Updates configuration, and a build-time release preflight.
 This helps future compatible releases; it does not retroactively update 1.0.
-Fresh production/store builds from exact merged `main` `e75f449` both finished
-successfully: iOS version 1.0.1 build 7, EAS
+Earlier production/store builds from exact merged `main` `e75f449` both
+finished successfully: iOS version 1.0.1 build 7, EAS
 `765965d7-c7c1-432c-ac1d-302d2f0c5116`, and Android version 1.0.1 build 4, EAS
 `28076f35-1495-466b-af77-97a9339c5ea2`. The registered production EAS values
 passed the release contract and existing remote signing credentials worked;
-no credential or password was requested. Neither build has been submitted, and
-cloud completion still cannot
-replace real-device evidence or store approval.
+no credential or password was requested. iOS build 7 was successfully uploaded
+on 2026-08-04 and is `VALID`/`IN_BETA_TESTING` in internal TestFlight; it has
+not been submitted for App Review. Android build 4 has not been uploaded to
+Google Play. Both artifacts predate the current `tamim` startup and dependency
+fixes, so they are historical evidence rather than current release candidates.
+Current production replacements both `FINISHED` from exact green `tamim` commit
+`cd3a87c`: iOS version 1.0.1 build 8, EAS
+`daa8e42a-c12d-4365-b6ca-ff36732cd858`, and Android version 1.0.1 build 5, EAS
+`f839dede-1f83-4c6a-a928-de258597e6d0`. Their archives and embedded production
+metadata passed integrity checks. Neither was uploaded or submitted to a store.
+Cloud build completion still cannot replace real-device evidence or approval.
 Prioritize the iOS recovery because broken 1.0 is publicly downloadable there.
 Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
-The production dependency audit reports 0 vulnerabilities after an exact
-`xcode@3.0.1` override pins the CommonJS-compatible `uuid@11.1.1`; keep that
-override narrow and remove it when fixed upstream.
+The mobile production audit patches `js-yaml`, `nanoid`, and `postcss` and uses
+a fail-closed wrapper for two exact `image-size@1.2.1` denial-of-service
+advisories propagated through Metro build tooling. There is no patched
+`image-size` release or compatible npm remedy; the reviewed exception is
+limited to repository-controlled build assets and every other high/critical
+finding fails. The exact `xcode@3.0.1` override still pins the CommonJS-
+compatible `uuid@11.1.1`; keep it narrow and remove it when fixed upstream.
 The final current-tree local mobile gates pass: release configuration,
-TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
-modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
-bytecode, and audit 0. Cloud build completion does not replace real-device QA
-or store-submission evidence. Once fresh builds exist for the exact merged
-candidate, do not start duplicates merely to reproduce their status.
-Before internal iOS QA, the account owner must register a test iPhone. Before
-automated Android submission, the owner must provide/review a Google Play
-service-account key; otherwise use a documented owner-controlled manual path.
+TypeScript, lint, 13 Jest suites with 133/133 tests, iOS export at 1,753
+modules/5.8 MB Hermes bytecode, Android export at 1,774 modules/5.9 MB Hermes
+bytecode, and the fail-closed production audit. Cloud build completion does
+not replace real-device QA or store-submission evidence. Do not create duplicate
+builds merely to reproduce their successful status. For internal iOS QA, only
+with explicit owner authorization, upload exact-`cd3a87c` build 8 to TestFlight,
+then install it with an App Store Connect internal tester. EAS device
+registration is not required. Before automated Android submission, the owner
+must provide/review a Google Play service-account key; otherwise use a
+documented owner-controlled manual path.
 
 ```bash
 cd mobile
@@ -310,7 +335,7 @@ npx expo install --check
 npm run lint
 npm run typecheck
 npm test -- --runInBand
-npm audit --omit=dev
+npm run audit:production
 npx expo start                                  # local development
 
 npm install -g eas-cli                          # or: npx eas-cli ...
@@ -318,10 +343,22 @@ eas login
 eas env:list --environment preview
 eas build --profile preview --platform all      # first: internal distribution
 
-# Only after preview/device/legal/store/production gates all pass:
+# Create exact production artifacts after repository gates pass. This does not
+# upload them to a store or submit them for review:
 eas env:list --environment production
-eas build --profile production --platform all
-eas submit --profile production --platform all
+eas build --profile production --platform all --non-interactive \
+  --freeze-credentials --no-wait --json
+
+# Only after explicit owner authorization to upload current iOS build 8 for
+# TestFlight/device QA. This uploads the binary to App Store Connect; it does
+# not submit an App Review release:
+eas submit --profile production --platform ios \
+  --id daa8e42a-c12d-4365-b6ca-ff36732cd858 --non-interactive --no-wait
+
+# Android remains separate. Only after Android device QA, an owner-approved
+# Google Play path/service-account key, and explicit upload authorization:
+eas submit --profile production --platform android \
+  --id f839dede-1f83-4c6a-a928-de258597e6d0 --non-interactive --no-wait
 ```
 `mobile/eas.json` explicitly selects the EAS `development`, `preview`, and
 `production` environments and intentionally stores no project values. The
@@ -346,7 +383,9 @@ a build pass.
 The startup recovery removes network work from the static splash path, bounds
 session restore at 3 seconds and consent/profile bootstrap at 5 seconds, avoids
 duplicate initial-session requests, reuses the bootstrap profile, and defers the
-heavy PDF engine until an explicit tap. Checklist profile/rules/progress reads
+heavy PDF engine until an explicit tap. After current consent is confirmed it
+prefetches corridor rules and progress during route rendering; the checklist
+reuses those exact in-flight queries. Checklist profile/rules/progress reads
 abort after 8 seconds and use `retry: false`. Onboarding writes only minimal
 non-PII profile fields, then `get_policy_consent_state()` returns the
 authoritative allowlisted profile that is cached before checklist navigation.
@@ -399,7 +438,14 @@ The worker is containerized (`worker/Dockerfile`, `python:3.11-slim` with
 Chromium for Playwright).
 
 Migrations 011 and 023 must be applied first; both are now present in
-production. The service role can read the narrow source columns and execute
+production. Local migration 027 must also be applied before the coordinated
+worker changes are run; it is not yet hosted. Do not apply 027 while the daily
+schedule still executes the older default-branch worker: that implementation
+ignores `monitor_url` and could repopulate the nine cleared automatic baselines
+from canonical blocked pages. First schedule the coordinated worker, or
+explicitly pause the old schedule and run the reviewed `tamim` workflow
+manually. The service role can read the
+narrow source columns and execute
 `persist_official_source_scrape()` but cannot directly edit source baselines or
 alert rows. The RPC atomically files a PENDING alert and advances its baseline;
 stale compare-and-swap work is discarded and reported.
@@ -418,6 +464,33 @@ outcomes, completed 42 rows (`1` baseline, `38` unchanged, `3` changed), and
 kept 11 outcomes failed closed (`8` managed challenges, `2` CAPTCHAs, `1`
 empty-body rejection). Production now has 43/53 baselines. The three changes
 are PENDING human-review alerts; the worker did not update live rules.
+
+Those 11 failed rows represented 10 unique canonical URLs. The local migration
+027 treatment preserves every canonical `official_url` exposed to users. Nine
+rows use separate, worker-only first-party monitor targets; all nine targets
+passed worker-equivalent local reachability checks. Yukon driver-licence and
+vehicle-registration rows have no approved safely reachable equivalent and are
+instead MANUAL assignments owned by ReloGo operations every 30 days. The
+updated worker excludes those rows from automatic fetching and lists them in
+every Actions summary. The cadence records responsibility only—it is not proof
+of review and does not track overdue work. Challenge/content gates remain fail-
+closed, and the persistence RPC rejects writes to manual rows. These changes
+are local/pending review: no hosted migration, worker deployment, or live rerun
+has occurred.
+
+Worker-equivalent reachability does not prove complete semantic coverage. The
+Quebec surrogate contains high-level RAMQ guidance rather than the full RAMQ
+procedure; the Nunavut vehicle surrogate is a general driver manual; the PEI
+school source covers the English Public Schools Branch; and the Yukon school
+policy omits some registration steps and school authorities. A green Actions
+run means the configured automatic checks completed, not that these content
+gaps disappeared. Keep them in the human content/legal review gate.
+
+Local verification of this tranche passes a fresh reset through migration 027,
+public-schema lint, pgTAP 207/207, worker compile/tests 106/106, database type
+sync, mobile TypeScript, and the admin production build. The API E2E run passed
+247/248 before the local Edge Runtime stopped and returned 503; after restarting
+that local service, the exact remaining anonymous-function test passed.
 
 ```bash
 cd worker
@@ -443,14 +516,15 @@ workflow** button. It and the required `SUPABASE_URL` and
 Actions variables are corrected. Main run `30843904269` confirmed the exact
 production origin and existing encrypted key with the `2.31.0` preflight; do
 not rotate it. The full run scraped and persisted 42 of 53 sources, then exited
-nonzero because 11 official pages returned RAMQ/Yukon/Nunavut managed HTTP 403
-challenges or PEI browser-verification content. Preserve this fail-closed
-visibility: never baseline a block page, solve/evasion-test a CAPTCHA, or use an
-unreviewed cache/third-party mirror. Replace a source only with a reviewed,
-equivalent first-party URL through the next migration (027), or model explicit
-manual monitoring. Configure and exercise optional `ALERT_WEBHOOK_URL`, which
-is currently unset. The secret key bypasses RLS and belongs only in the worker,
-never a client.
+nonzero because 11 rows across 10 URLs returned anti-bot/CAPTCHA responses or
+empty content. Preserve this fail-closed visibility: never baseline a block
+page, solve/evasion-test a CAPTCHA, or use an
+unreviewed cache/third-party mirror. Review and apply migration 027 before
+running its coordinated worker changes. Require all nine automatic targets to
+remain healthy and both Yukon manual assignments to appear in the Actions
+summary. Configure and exercise optional `ALERT_WEBHOOK_URL`, which is currently
+unset. The secret key bypasses RLS and belongs only in the worker, never a
+client.
 
 Hardened verification run `30845791036` intentionally exited nonzero after the
 successful preflight because 11 source-row outcomes remained inaccessible. It
@@ -524,8 +598,8 @@ usage/context, and atomically persists a reply only if the same user turn is
 still latest and the thread remains AI-owned.
 
 Current state: preview v3 was authenticated-smoke-tested before being paused.
-Production v4 is ACTIVE with JWT verification and returns 401 unauthenticated;
-its public resolver smoke passed. v4 grounds through
+Production v5 is ACTIVE with JWT verification and returns 401 unauthenticated;
+its public resolver smoke passed. v5 grounds through
 `resolve_corridor_rules()`, validates/bounds HTTPS sources, uses current
 reviewed Gemini model IDs, applies a 12-second provider deadline across both
 response headers and the full response-body read, caps output, and returns
@@ -638,9 +712,10 @@ service-role key in the uptime probe.
 - **Edge Function:** review `support-ai` logs for exceptions, Gemini rate limits,
   policy-consent failures, and fallback surges.
 - **Worker:** hardened run `30845791036` passed preflight and left 43/53
-  baselines; key rotation is not needed. Review equivalent first-party
-  alternatives or assign manual monitoring for the 11 failed source-row
-  sources, then configure a webhook and explicit GitHub Actions alert owner.
+  baselines; key rotation is not needed. Review and roll out local migration 027
+  before its worker changes, then require a healthy live rerun with both Yukon
+  manual assignments visible. Configure a webhook and explicit GitHub Actions
+  alert owner; `ALERT_WEBHOOK_URL` remains unset.
 - **App uptime:** main run `30843906264` passed the public web, production
   anonymous-auth, and resolver checks against the exact production origin.
   Establish recurring schedule and alert ownership before relying on it as an
@@ -662,11 +737,15 @@ service-role key in the uptime probe.
 1. Open the GitHub Actions tab and inspect the failed worker logs.
 2. Determine whether the failure happened during runner setup, authentication,
    or source fetching; rerun only after the cause is understood.
-   The modern 2.31.0/preflight source is pushed on the recovery branch. Verify
+   The modern 2.31.0/preflight source is on the default branch. Verify
    the run used that merged dependency before diagnosing a current
    authentication failure or rotating a valid key unnecessarily.
-3. Triage every failed government source. Fifteen sources currently need a bot,
-   server-error, or extraction strategy; do not silently wait for the next cron.
+3. Triage every failed automatic source and verify every manual assignment is
+   listed. The last live incident contained 11 failed rows across 10 URLs; the
+   local migration 027 treatment is not production evidence until it is
+   reviewed, applied before the coordinated worker, and live-rerun. Do not
+   silently wait for the next cron or treat a 30-day assignment as proof of
+   review.
 4. If a site structure changed, update and test the bounded extraction logic.
 5. If Supabase failed, verify the scoped secrets and project health without
    printing credentials.

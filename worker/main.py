@@ -113,6 +113,9 @@ USER_AGENT = (
     "Chrome/125.0.0.0 Safari/537.36"
 )
 
+AUTOMATED_MONITORING_MODE = "AUTOMATED"
+MANUAL_MONITORING_MODE = "MANUAL"
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -146,7 +149,9 @@ def init_supabase() -> Client:
 def fetch_official_sources(sb: Client) -> list[dict]:
     """Fetch all rows from the `official_sources` table."""
     response = sb.table("official_sources").select(
-        "id, agency_name, official_url, last_content_hash, last_content_text"
+        "id, agency_name, official_url, monitor_url, monitoring_mode, "
+        "manual_review_owner, manual_review_interval_days, "
+        "last_content_hash, last_content_text"
     ).execute()
     rows = response.data or []
     logger.info("Fetched %d official source(s) to scrape.", len(rows))
@@ -186,6 +191,7 @@ def notify_admins(
     stats: dict[str, int],
     filed_alerts: list[dict],
     failed_sources: list[dict],
+    manual_sources: list[dict],
 ) -> None:
     """POST a small run summary to *webhook_url*.
 
@@ -194,7 +200,7 @@ def notify_admins(
     """
 
     sent, detail = send_run_webhook(
-        webhook_url, stats, filed_alerts, failed_sources
+        webhook_url, stats, filed_alerts, failed_sources, manual_sources
     )
     if sent:
         logger.info("  🔔 Admin webhook notified (%s).", detail)
@@ -208,6 +214,7 @@ def write_step_summary(
     stats: dict[str, int],
     filed_alerts: list[dict],
     failed_sources: list[dict],
+    manual_sources: list[dict],
 ) -> None:
     """Append a markdown run summary to the GitHub Actions job summary.
 
@@ -219,7 +226,11 @@ def write_step_summary(
         return
     try:
         with open(summary_path, "a", encoding="utf-8") as fh:
-            fh.write(build_step_summary(stats, filed_alerts, failed_sources))
+            fh.write(
+                build_step_summary(
+                    stats, filed_alerts, failed_sources, manual_sources
+                )
+            )
     except OSError as exc:
         logger.warning("Could not write GitHub step summary (ignored): %s", exc)
 
@@ -345,6 +356,52 @@ def scrape_origin(url: str) -> str:
         return f"{parsed.scheme.lower()}://{parsed.hostname.lower()}{port_suffix}"
     except ValueError:
         return f"invalid:{url}"
+
+
+def source_monitor_url(source: dict) -> str:
+    """Return the private worker target, falling back to the public URL."""
+
+    return str(source.get("monitor_url") or source.get("official_url") or "")
+
+
+def partition_sources(sources: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Separate automatic sources from validated, operator-owned manual ones."""
+
+    automated_sources: list[dict] = []
+    manual_sources: list[dict] = []
+    for source in sources:
+        mode = str(source.get("monitoring_mode") or "")
+        if mode == AUTOMATED_MONITORING_MODE:
+            automated_sources.append(source)
+            continue
+        if mode != MANUAL_MONITORING_MODE:
+            raise WorkerConfigurationError(
+                f"official source has invalid monitoring mode {mode!r}"
+            )
+
+        owner = str(source.get("manual_review_owner") or "").strip()
+        interval_days = source.get("manual_review_interval_days")
+        if (
+            source.get("monitor_url") is not None
+            or not owner
+            or isinstance(interval_days, bool)
+            or not isinstance(interval_days, int)
+            or not 1 <= interval_days <= 365
+        ):
+            raise WorkerConfigurationError(
+                "manual official source is missing valid owner/interval metadata"
+            )
+
+        manual_sources.append(
+            {
+                "agency": str(source.get("agency_name") or "Unknown"),
+                "url": str(source.get("official_url") or ""),
+                "owner": owner,
+                "interval_days": interval_days,
+            }
+        )
+
+    return automated_sources, manual_sources
 
 
 def failure_category(exc: Exception) -> str:
@@ -528,7 +585,7 @@ async def scrape_source(
     """Scrape one source in isolation without performing database writes."""
 
     agency = str(source.get("agency_name") or "Unknown")
-    url = str(source.get("official_url") or "")
+    url = source_monitor_url(source)
 
     if not url:
         exc = WorkerConfigurationError("official source URL is missing")
@@ -595,7 +652,7 @@ async def scrape_all_sources(context, sources: list[dict]) -> list[ScrapeOutcome
     tasks_by_url: dict[str, asyncio.Task[ScrapeOutcome]] = {}
 
     for source in sources:
-        url = str(source.get("official_url") or "")
+        url = source_monitor_url(source)
         if url in tasks_by_url:
             continue
         origin = scrape_origin(url)
@@ -638,10 +695,10 @@ async def scrape_all_sources(context, sources: list[dict]) -> list[ScrapeOutcome
     return [
         ScrapeOutcome(
             source=source,
-            body_text=fetched[str(source.get("official_url") or "")].body_text,
-            error=fetched[str(source.get("official_url") or "")].error,
+            body_text=fetched[source_monitor_url(source)].body_text,
+            error=fetched[source_monitor_url(source)].error,
             failure_category=fetched[
-                str(source.get("official_url") or "")
+                source_monitor_url(source)
             ].failure_category,
         )
         for source in sources
@@ -661,6 +718,7 @@ def persist_outcomes(
         source = outcome.source
         agency = str(source.get("agency_name") or "Unknown")
         url = str(source.get("official_url") or "")
+        monitor_url = source_monitor_url(source)
 
         if outcome.error is not None:
             stats["failed"] += 1
@@ -668,6 +726,7 @@ def persist_outcomes(
                 {
                     "agency": agency,
                     "url": url,
+                    "monitor_url": monitor_url,
                     "error": outcome.error,
                     "kind": "source",
                     "category": outcome.failure_category or "other",
@@ -747,6 +806,7 @@ def persist_outcomes(
                 {
                     "agency": agency,
                     "url": url,
+                    "monitor_url": monitor_url,
                     "error": error,
                     "kind": "source",
                 }
@@ -756,8 +816,10 @@ def persist_outcomes(
 async def run() -> dict[str, int]:
     """Main entry-point: fetch, scrape, and atomically persist source outcomes.
 
-    Every source is attempted before the result is reported. Network work is
-    concurrent, while database effects are sequential and deterministic.
+    Every automatic source is attempted before the result is reported. Manual
+    sources remain visible with their owner/cadence but are never presented as
+    automatic coverage. Network work is concurrent, while database effects are
+    sequential and deterministic.
     """
     stats = {
         "scraped": 0,
@@ -766,9 +828,11 @@ async def run() -> dict[str, int]:
         "changed": 0,
         "stale": 0,
         "failed": 0,
+        "manual": 0,
     }
     filed_alerts: list[dict] = []
     failed_sources: list[dict] = []
+    manual_sources: list[dict] = []
 
     try:
         sb = init_supabase()
@@ -782,10 +846,27 @@ async def run() -> dict[str, int]:
                 "no official sources found (is the table seeded?)"
             )
 
+        automated_sources, manual_sources = partition_sources(sources)
+        stats["manual"] = len(manual_sources)
+        for manual_source in manual_sources:
+            logger.warning(
+                "Manual monitoring [%s] %s — owner=%s, interval=%d day(s).",
+                manual_source["agency"],
+                manual_source["url"],
+                manual_source["owner"],
+                manual_source["interval_days"],
+            )
+        if not automated_sources:
+            raise WorkerConfigurationError(
+                "no automatically monitored official sources found"
+            )
+
         logger.info(
-            "Scraping %d source(s) with concurrency=%d.",
-            len(sources),
+            "Scraping %d automatic source(s) with concurrency=%d "
+            "(%d manual source(s) listed separately).",
+            len(automated_sources),
             SCRAPE_CONCURRENCY,
+            len(manual_sources),
         )
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
@@ -795,7 +876,7 @@ async def run() -> dict[str, int]:
                     viewport={"width": 1280, "height": 720},
                 )
                 context.set_default_timeout(PAGE_TIMEOUT_MS)
-                outcomes = await scrape_all_sources(context, sources)
+                outcomes = await scrape_all_sources(context, automated_sources)
 
                 # Network completion order cannot influence database state:
                 # gather preserved the sorted source order, and this loop is
@@ -820,21 +901,28 @@ async def run() -> dict[str, int]:
     finally:
         logger.info(
             "Run complete — scraped=%d  baseline=%d  unchanged=%d  "
-            "changed=%d  stale=%d  failed=%d",
+            "changed=%d  stale=%d  failed=%d  manual=%d",
             stats["scraped"],
             stats["baseline"],
             stats["unchanged"],
             stats["changed"],
             stats["stale"],
             stats["failed"],
+            stats["manual"],
         )
         if ALERT_WEBHOOK_URL and (
             filed_alerts or failed_sources or stats["stale"] > 0
         ):
             notify_admins(
-                ALERT_WEBHOOK_URL, stats, filed_alerts, failed_sources
+                ALERT_WEBHOOK_URL,
+                stats,
+                filed_alerts,
+                failed_sources,
+                manual_sources,
             )
-        write_step_summary(stats, filed_alerts, failed_sources)
+        write_step_summary(
+            stats, filed_alerts, failed_sources, manual_sources
+        )
 
     return stats
 
@@ -850,10 +938,12 @@ if __name__ == "__main__":
         # Failed sources and stale CAS outcomes both make monitoring incomplete
         # and turn the scheduled Actions job red after all sources are attempted.
         logger.error(
-            "Run incomplete (scraped=%d, stale=%d, failed=%d) — exiting 1.",
+            "Run incomplete (scraped=%d, stale=%d, failed=%d, manual=%d) — "
+            "exiting 1.",
             run_stats["scraped"],
             run_stats["stale"],
             run_stats["failed"],
+            run_stats["manual"],
         )
         sys.exit(1)
     logger.info("ReloGo Worker finished.")

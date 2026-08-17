@@ -118,12 +118,13 @@ def _run_sql(statement: str, attempts: int = 3) -> None:
 
 
 # Mirrors the service_role privilege model established by migrations 011, 015,
-# and 023.
+# 023, and 027.
 _SERVICE_ROLE_BOUNDARY_SQL = [
     # Migration 011 — worker least privilege.
     "REVOKE ALL PRIVILEGES ON TABLE public.official_sources FROM service_role;",
     "GRANT SELECT (id, corridor_rule_id, agency_name, official_url, last_verified,"
-    " last_content_hash, last_content_text)"
+    " monitor_url, monitoring_mode, manual_review_owner,"
+    " manual_review_interval_days, last_content_hash, last_content_text)"
     " ON TABLE public.official_sources TO service_role;",
     "REVOKE ALL PRIVILEGES ON TABLE public.rule_change_alerts FROM service_role;",
     # Migration 015 — support AI least privilege.
