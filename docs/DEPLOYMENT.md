@@ -13,7 +13,7 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Build fresh iOS/Android production artifacts from the final `tamim` commit, verify their exact EAS commit metadata, then complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 1 | Verify that current iOS build 8 and Android build 5 identify exact green commit `cd3a87c`, then—after explicit upload authorization—complete real-device startup, offline/recovery, PDF, deletion, and privacy QA on those exact artifacts | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 4 | Review migration 027, ensure the coordinated worker—not the old default-branch worker—is the next scheduled/manual implementation, then apply 027 before that worker run; obtain a healthy live result with manual assignments visible and configure/test webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
@@ -31,7 +31,7 @@ Current hosted/repository truth (2026-08-17):
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
 | Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
-| Mobile | Local version 1.0.1 / SDK 55 gates pass. Earlier exact-`e75f449` iOS build 7 (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) and Android build 4 (`28076f35-1495-466b-af77-97a9339c5ea2`) finished successfully. iOS build 7 is `VALID`/`IN_BETA_TESTING` in internal TestFlight but not in App Review; Android has not been uploaded to Google Play. Both predate current `tamim` fixes, so fresh exact-commit artifacts, real-device QA, and approval remain |
+| Mobile | Local version 1.0.1 / SDK 55 gates and push CI run `32050117854` pass. Current exact-`cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives. Neither was uploaded or submitted to a store; real-device QA and approval remain. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; main run `30843906264` passed public web/auth/resolver checks with required backend probes |
 | Worker/uptime | Main run `30843904269` passed the `2.31.0` preflight and created 42 baselines. Hardened run `30845791036` fetched 50 unique URLs for 53 rows, completed 42 rows, added one baseline, and filed three PENDING alerts while 11 rows/10 URLs failed closed. Production remains at 43/53 baselines. Local migration 027 maps nine rows to validated worker-only first-party targets and two Yukon rows to visible 30-day ReloGo operations assignments; it is pending review, hosted rollout, and live rerun. Key rotation is not needed; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
@@ -299,8 +299,12 @@ on 2026-08-04 and is `VALID`/`IN_BETA_TESTING` in internal TestFlight; it has
 not been submitted for App Review. Android build 4 has not been uploaded to
 Google Play. Both artifacts predate the current `tamim` startup and dependency
 fixes, so they are historical evidence rather than current release candidates.
-Fresh exact-commit artifacts are required. Cloud/TestFlight processing still
-cannot replace real-device evidence or store approval.
+Current production replacements both `FINISHED` from exact green `tamim` commit
+`cd3a87c`: iOS version 1.0.1 build 8, EAS
+`daa8e42a-c12d-4365-b6ca-ff36732cd858`, and Android version 1.0.1 build 5, EAS
+`f839dede-1f83-4c6a-a928-de258597e6d0`. Their archives and embedded production
+metadata passed integrity checks. Neither was uploaded or submitted to a store.
+Cloud build completion still cannot replace real-device evidence or approval.
 Prioritize the iOS recovery because broken 1.0 is publicly downloadable there.
 Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
@@ -315,15 +319,13 @@ The final current-tree local mobile gates pass: release configuration,
 TypeScript, lint, 13 Jest suites with 133/133 tests, iOS export at 1,753
 modules/5.8 MB Hermes bytecode, Android export at 1,774 modules/5.9 MB Hermes
 bytecode, and the fail-closed production audit. Cloud build completion does
-not replace real-device QA
-or store-submission evidence. Once fresh builds exist for the exact merged
-candidate, do not start duplicates merely to reproduce their status.
-For internal iOS QA, first build and—only with explicit owner authorization—
-upload the final exact-`tamim` iOS candidate to TestFlight, then install it with
-an App Store Connect internal tester. EAS device registration is not required.
-Before
-automated Android submission, the owner must provide/review a Google Play
-service-account key; otherwise use a documented owner-controlled manual path.
+not replace real-device QA or store-submission evidence. Do not create duplicate
+builds merely to reproduce their successful status. For internal iOS QA, only
+with explicit owner authorization, upload exact-`cd3a87c` build 8 to TestFlight,
+then install it with an App Store Connect internal tester. EAS device
+registration is not required. Before automated Android submission, the owner
+must provide/review a Google Play service-account key; otherwise use a
+documented owner-controlled manual path.
 
 ```bash
 cd mobile
@@ -347,9 +349,16 @@ eas env:list --environment production
 eas build --profile production --platform all --non-interactive \
   --freeze-credentials --no-wait --json
 
-# Only after device/legal/store/production gates all pass and the owner gives
-# explicit upload/submission authorization:
-eas submit --profile production --platform all
+# Only after explicit owner authorization to upload current iOS build 8 for
+# TestFlight/device QA. This uploads the binary to App Store Connect; it does
+# not submit an App Review release:
+eas submit --profile production --platform ios \
+  --id daa8e42a-c12d-4365-b6ca-ff36732cd858 --non-interactive --no-wait
+
+# Android remains separate. Only after Android device QA, an owner-approved
+# Google Play path/service-account key, and explicit upload authorization:
+eas submit --profile production --platform android \
+  --id f839dede-1f83-4c6a-a928-de258597e6d0 --non-interactive --no-wait
 ```
 `mobile/eas.json` explicitly selects the EAS `development`, `preview`, and
 `production` environments and intentionally stores no project values. The

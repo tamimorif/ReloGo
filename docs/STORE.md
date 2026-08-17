@@ -8,8 +8,12 @@
 > `e75f449`. iOS build 7 is already `VALID`/`IN_BETA_TESTING` in internal
 > TestFlight but has not been submitted for App Review; Android build 4 has not
 > been uploaded to Google Play. Both predate the current `tamim` startup and
-> dependency fixes and are not current release candidates; fresh exact-commit
-> artifacts are required. Build/TestFlight processing is not real-device
+> dependency fixes and are not current release candidates. Current exact-
+> `cd3a87c` iOS 1.0.1 build 8 (EAS
+> `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+> `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED` with verified archive
+> identity/integrity. Neither current artifact was uploaded or submitted to a
+> store. Build processing is not real-device
 > evidence. Before the 1.0.1 recovery submission, the account
 > owner and legal reviewer must
 > confirm the binary's behavior, anonymous account-linked data, Gemini

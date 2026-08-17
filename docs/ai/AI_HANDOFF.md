@@ -52,7 +52,12 @@ Environment truth:
   in internal TestFlight; it has not been submitted for App Review. Android
   build 4 has not been uploaded to Google Play. Both artifacts predate the
   current `tamim` startup-prefetch and dependency-audit fixes and must not be
-  treated as current release candidates; fresh exact-commit builds are needed.
+  treated as current release candidates. Current replacements were built from
+  exact green commit `cd3a87c`: iOS 1.0.1 build 8 (EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive identity and
+  integrity pass; neither current artifact was uploaded or submitted to a
+  store.
 - GitHub: pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel
   checks, both fixed review threads were resolved, and it merged as `e75f449`.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
@@ -281,8 +286,7 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
    before reading PII, validates mapped fields, and fills on-device.
 4. The BC health-coverage form passes local unit/Unicode round-trip and an
    historical iOS Simulator share flow. It has not passed real-device
-   Android/iOS QA on replacement production artifacts for the current 1.0.1
-   candidate.
+   Android/iOS QA on current production artifacts for the 1.0.1 candidate.
 5. iOS deletes a filled PDF after sharing. Android retains the exact file for a
    ten-minute asynchronous share-target grace and retries safe cleanup. Start,
    sign-out, and deletion paths preserve the documented privacy behavior.
@@ -497,6 +501,10 @@ deno test --config supabase/functions/support-ai/deno.json \
   commit. iOS build 7 is valid and active in internal TestFlight, but has not
   been submitted for App Review. Android build 4 has no Google Play submission.
   Both predate the current `tamim` changes and are not current candidates.
+- Current iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android
+  build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) are `FINISHED` from exact
+  green commit `cd3a87c`; both archives and embedded production metadata pass
+  verification. Neither was uploaded or submitted to a store.
 - No current real-device QA or App Review submission result exists.
 
 ## Hosted environment state
@@ -532,6 +540,11 @@ deno test --config supabase/functions/support-ai/deno.json \
   mailbox exists. The ignored `admin/.vercel` link names project `admin`;
   relink or target `relo-go` explicitly for future deploys.
 - EAS project `@tamimorif/relogo` separates development/preview from production.
+  Current production replacements are iOS 1.0.1 build 8 at EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858` and Android 1.0.1 build 5 at EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`; both `FINISHED` from exact green
+  commit `cd3a87c`, using production channel/runtime 1.0.1 and existing frozen
+  credentials. Archive checks pass. Neither was uploaded or submitted.
   Earlier iOS production 1.0.1 build 7 is `FINISHED` at EAS
   `765965d7-c7c1-432c-ac1d-302d2f0c5116`; Android production 1.0.1 build 4 is
   also `FINISHED` at EAS `28076f35-1495-466b-af77-97a9339c5ea2`. Both use exact merged
@@ -541,15 +554,13 @@ deno test --config supabase/functions/support-ai/deno.json \
   so EAS device registration is not required; no physical iPhone was connected
   during the 2026-08-17 audit. It is not in App Review. Android build 4 has not
   been submitted, and automated Android submission has no Google Play service-
-  account key. These artifacts predate the current `tamim` fixes; fresh builds
-  from the final commit are required before current-tree device QA.
+  account key. Those earlier artifacts predate the current `tamim` fixes.
 
 ## Known limits and next work
 
-1. Build fresh iOS and Android production artifacts from the final `tamim`
-   commit. Do not upload or submit them automatically. After explicit owner
-   authorization, upload the exact iOS candidate to TestFlight and use the
-   exact Android candidate for real-device startup,
+1. Do not upload or submit the current artifacts automatically. After explicit
+   owner authorization, upload exact-`cd3a87c` iOS build 8 to TestFlight and
+   use exact-`cd3a87c` Android build 5 for real-device startup,
    offline/
    recovery, PDF, deletion, and privacy QA. Do not submit either automatically.
 2. Review local migration 027 and its coordinated worker changes. It maps the
@@ -592,8 +603,9 @@ decision.
 
 - Old binary recovery is impossible. Historical iOS 1.0.1 build 7 is `FINISHED`
   from exact merged commit `e75f449`; Android 1.0.1 build 4 is also `FINISHED`
-  from that commit. Both predate the current `tamim` fixes. Replacement
-  exact-commit artifacts require real-device QA and store approval. OTA can be
+  from that commit. Both predate the current `tamim` fixes. Current exact-
+  `cd3a87c` iOS build 8 and Android build 5 are `FINISHED` with verified
+  archives but still require real-device QA and store approval. OTA can be
   considered only for a released compatible
   runtime/channel, never for v1.0.
 - Mobile runtime configuration accepts only clean Supabase origins; production

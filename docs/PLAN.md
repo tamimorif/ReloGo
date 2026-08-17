@@ -82,7 +82,11 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   real-device QA and a Google Play service-account key or reviewed manual
   Android path remain. Both artifacts predate the current `tamim` startup-
   prefetch and dependency-audit fixes, so neither is the current release
-  candidate; fresh artifacts must be built from the final `tamim` commit.
+  candidate. Current replacements were built from exact green commit
+  `cd3a87c`: iOS 1.0.1 build 8 (EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Neither current
+  artifact was uploaded or submitted to a store.
 - Startup no longer waits behind a static native splash for remote work.
   Session storage reads the encrypted value and key concurrently; session
   restore is bounded at 3 seconds and consent/profile bootstrap at 5 seconds,
@@ -288,7 +292,7 @@ Local evidence does not replace real-device or store-submission evidence.
 
 | Scope | Latest established evidence |
 | --- | --- |
-| Current `tamim` recovery recheck (2026-08-17) | Node 22 clean installs; mobile release/dependency checks, TypeScript, lint, 13 Jest suites with 133/133 tests, and 1,753-module iOS/1,774-module Android exports pass; admin/landing lint/build pass; worker 106/106 and Deno 16/16 pass; fresh reset through 027, public lint, pgTAP 207/207, API E2E 248/248, contracts, and production-backed public uptime pass |
+| Current `tamim` recovery recheck (2026-08-17) | Node 22 clean installs; mobile release/dependency checks, TypeScript, lint, 13 Jest suites with 133/133 tests, and 1,753-module iOS/1,774-module Android exports pass; admin/landing lint/build pass; worker 106/106 and Deno 16/16 pass; fresh reset through 027, public lint, pgTAP 207/207, API E2E 248/248, contracts, and production-backed public uptime pass. Push CI run `32050117854` passed the full matrix from `cd3a87c` |
 | Current recovery database baseline | Fresh local reset applies 001–026; public-schema lint clean; pgTAP 198/198; focused resolver/integrity API E2E 5/5 |
 | Local migration 027 monitoring fix | Eleven failed rows across 10 unique URLs were mapped without weakening challenge gates: nine worker-only first-party automatic targets passed worker-equivalent reachability checks; two Yukon rows are explicit 30-day ReloGo operations assignments. Fresh reset through 027, lint, pgTAP 207/207, API E2E 248/248, worker 106/106, type sync/mobile TypeScript, and admin build pass. This records target reachability only; the migration and coordinated worker remain pending review, hosted rollout, and a live Actions rerun |
 | Hosted preview recovery | Exact ledger 001–026; JWT-protected `support-ai` v3; hosted smoke passed before preview was deliberately paused |
@@ -300,6 +304,8 @@ Local evidence does not replace real-device or store-submission evidence.
 | Post-merge worker safeguards | Duplicate-URL fan-out, per-origin serialization/pacing, Cloudflare/Radware classification, task cleanup, baseline-safety reporting, compile, and 97/97 worker tests pass. Production run `30845791036` verified 50 unique fetches/3 reused outcomes and kept 11 failures visible; failure policy remains nonzero for any failed/stale source |
 | Pull request #2 / CI | Final head `f34b64a`; 19/19 GitHub and Vercel checks passed; both review threads resolved; merged to `main` as `e75f449` |
 | Pull request #3 / worker hardening | Final head `3f063e9`; 19/19 checks passed; sole review thread fixed/resolved; merged to `main` as `d2db994` |
+| Current iOS store artifact | Version 1.0.1 build 8 `FINISHED`, EAS `daa8e42a-c12d-4365-b6ca-ff36732cd858`, exact green commit `cd3a87c`; IPA 19,516,089 bytes, SHA-256 `22514a7ee6672aa2b27942994b21a10a9a64b23a24eba17b7a845afd518d7bfc`; archive/bundle/channel/runtime verified; not uploaded to TestFlight or submitted |
+| Current Android store artifact | Version 1.0.1 build 5 `FINISHED`, EAS `f839dede-1f83-4c6a-a928-de258597e6d0`, exact green commit `cd3a87c`; AAB 68,966,684 bytes, SHA-256 `afad9d7cd505c2f0c0e516a1f7eddb02ef71748de2e21d0125b735e4b1a15343`; archive/package/ABI/runtime verified; not uploaded or submitted |
 | Earlier iOS store artifact | Build 7 `FINISHED`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`, exact `e75f449`; uploaded and `VALID`/`IN_BETA_TESTING` in internal TestFlight, but predates the current `tamim` changes and is not the current candidate |
 | Earlier Android store artifact | Build 4 `FINISHED`, EAS `28076f35-1495-466b-af77-97a9339c5ea2`, exact `e75f449`; predates the current `tamim` changes and is not the current candidate |
 | Web/worker/uptime recovery | Admin recovery live; landing unchanged/live; main uptime run `30843906264` passed required backend probes. Hardened worker run `30845791036` passed preflight, fetched 50 unique URLs for 53 rows, completed 42 rows, and left 11 outcomes failed closed; 43/53 sources now have baselines, three new alerts are PENDING human review, key rotation is not needed, and the webhook is unset |
@@ -307,10 +313,10 @@ Local evidence does not replace real-device or store-submission evidence.
 
 The recovery database result was established locally, production carries the
 final schema/function, main uptime is backend-aware and green, the reviewed
-tree is merged, and the earlier exact-`e75f449` artifacts finished with iOS
-build 7 in internal TestFlight. The current `tamim` tree still requires fresh
-exact-commit artifacts, real-device QA, approved store metadata, and App Review
-submission evidence.
+tree is merged, and current exact-`cd3a87c` iOS build 8/Android build 5 both
+finished. The release still requires current-artifact real-device QA, approved
+store metadata, an explicitly authorized TestFlight/store upload, and App
+Review submission evidence.
 
 ### iOS Simulator run (2026-07-21)
 
@@ -386,8 +392,9 @@ binaries, real-device QA, CI, or the remaining release phases below.
   started from the same commit (EAS
   `28076f35-1495-466b-af77-97a9339c5ea2`) and also `FINISHED` successfully.
   Those two artifacts predate the current `tamim` startup/dependency changes
-  and are not current release candidates. Fresh exact-commit artifacts,
-  real-device QA, and store approval remain. Automated Google Play
+  and are not current release candidates. Current exact-`cd3a87c` iOS build 8
+  and Android build 5 both `FINISHED` successfully with verified archives, but
+  real-device QA and store approval remain. Automated Google Play
   submission needs an
   owner-provided service-account key or reviewed manual submission path.
 - The production backend promotion is complete at exact 001–026/final function
@@ -555,7 +562,16 @@ work, and no worker path can modify live rules.
 
 ### Phase 3 — mobile preview and full end-to-end QA
 
-Status: **current-tree store artifacts pending; real-device QA not complete.**
+Status: **current-tree store artifacts finished; real-device QA not complete.**
+
+- Current iOS production store build 8 is `FINISHED`: version/runtime 1.0.1,
+  exact green commit `cd3a87c`, EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`. Archive identity and integrity pass;
+  it has not been uploaded to TestFlight or submitted for App Review.
+- Current Android production store build 5 is `FINISHED`: version/runtime
+  1.0.1, exact green commit `cd3a87c`, EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`. Archive identity and integrity pass;
+  it has not been uploaded or submitted to Google Play.
 
 - Earlier iOS production store build 7 is `FINISHED`: version 1.0.1, exact
   commit `e75f449`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`. It is already
@@ -575,9 +591,9 @@ Status: **current-tree store artifacts pending; real-device QA not complete.**
   publicly downloadable there. Google Play does not currently expose
   `com.relogo.app`; Android recovery work can run in parallel or immediately
   afterward, but a public-store 404 alone does not prove publication history.
-- Build fresh iOS and Android artifacts from the final `tamim` commit. After
-  explicit owner authorization uploads the iOS candidate to TestFlight,
-  install that exact build with an App Store Connect internal tester Apple ID.
+- After receiving explicit owner authorization, upload current iOS build 8 to
+  App Store Connect/TestFlight and install that exact build with an internal
+  tester Apple ID.
   EAS device registration is not required for TestFlight; keep Apple
   account/2FA actions with the owner.
 - Measure cold and warm startup on representative phones and slow networks;

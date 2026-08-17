@@ -87,7 +87,13 @@ outage gate.
   internal TestFlight but has not entered App Review; Android build 4 has not
   reached Google Play. Those artifacts predate the current `tamim` startup and
   dependency fixes and are historical evidence, not current release
-  candidates. Fresh exact-commit artifacts, real-device QA, and
+  candidates.
+- Current production artifacts were created from exact green `tamim` commit
+  `cd3a87c`: iOS 1.0.1 build 8 (EAS
+  `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive integrity,
+  bundle/package identity, production channel, and runtime 1.0.1 were verified.
+  Neither artifact was uploaded or submitted to a store; real-device QA and
   owner/legal/store approval remain.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
   unchanged and live at `https://relogo-two.vercel.app`. Main-branch uptime run
