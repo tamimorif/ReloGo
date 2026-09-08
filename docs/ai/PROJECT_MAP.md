@@ -65,9 +65,9 @@ mobile/
 ├── lib/
 │   ├── supabase.ts             ← typed client + AES-encrypted session store, foreground-only refresh
 │   ├── secureStore.ts          ← on-device PII vault (expo-secure-store) — PII NEVER leaves the device
-│   ├── account.ts              ← secure sign-out/deletion + PII/PDF/session cleanup
-│   ├── pdfEngine.ts            ← on-device gov PDF form-fill + share, with cache hygiene
-│   ├── pdfTemplates.ts         ← destination/task-scoped official PDF registry and field map
+│   ├── account.ts              ← secure sign-out/deletion + PII/session cleanup
+│   ├── pdfEngine.ts            ← modular on-device PDF filler (preserved for Phase 2 gov integration)
+│   ├── pdfTemplates.ts         ← destination/task PDF template registry (preserved for Phase 2)
 │   ├── legalConsent.ts         ← mobile policy version + hosted legal URLs
 │   ├── supportQuestions.ts      ← the only six client-sendable support questions
 │   ├── errorReporting.ts       ← PII-safe crash/error redaction + global handler; unit-tested

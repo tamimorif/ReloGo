@@ -1,10 +1,14 @@
 # ReloGo
 
-ReloGo turns a move between Canadian provinces or territories into a
-personalized checklist of government tasks with suggested timing. Current core
-content is selected by destination and filtered by vehicle and dependent
-details; origin-specific rule depth remains planned. The app tracks completion
-and links every task to an official source.
+ReloGo converts a move between Canadian provinces or territories into a
+standardized **Relocation Navigator & Moving Checklist** with suggested timing.
+The app guides users on what to do first, what documents to prepare, and provides
+direct 1-tap links to official provincial government portals and registry locators
+with completion checkmark tracking.
+
+The product is built on a clear two-phase strategy:
+- **Phase 1 (Current / 1.0.1 Release):** Uniform relocation checklist, urgency-sorted countdown, document preparation packs, and verified official government portal links across all 13 Canadian provinces and territories.
+- **Phase 2 (Future Roadmap):** Direct provincial government partnerships, registry API access, and automated in-app form submission.
 
 Privacy is an architectural rule: full name, date of birth, street address,
 driver's licence number, and health-card number stay on the device. They are
@@ -14,7 +18,7 @@ never written to Supabase or sent to the support AI.
 
 | Area | Purpose | Stack |
 | --- | --- | --- |
-| `mobile/` | Onboarding, checklist, local PII vault, on-device PDF filling, fixed-question support | Expo SDK 55, React Native 0.83, React 19, expo-router |
+| `mobile/` | Onboarding, checklist navigator, local PII vault, fixed-question support | Expo SDK 55, React Native 0.83, React 19, expo-router |
 | `landing/` | Marketing, legal pages, and waitlist | Next.js 16 static export, React 19, Tailwind |
 | `admin/` | Rule alerts, users, support, and waitlist operations | Vite 5, React 18, Tailwind |
 | `worker/` | Official-source change monitor | Python 3.11, Playwright, Supabase |
@@ -147,8 +151,8 @@ Landing ── waitlist RPC ───────────────┐
                                       │
 Mobile ── auth/checklist/progress ── Supabase ── protected Admin dashboard
   │                                   ▲
-  └─ sensitive PII + filled PDFs      │
-     remain on the device             ├─ support-ai Edge Function
+  └─ sensitive PII (SecureStore)      │
+     remains on the device            ├─ support-ai Edge Function
                                       └─ service-role monitoring RPC ── Worker
 ```
 
@@ -161,12 +165,10 @@ Mobile ── auth/checklist/progress ── Supabase ── protected Admin das
   records each result through a row-locked compare-and-swap RPC. Explicit manual
   assignments remain visible in every Actions summary. A changed source creates
   a PENDING alert; only a human admin can approve a live rule change.
-- The first production template is British Columbia's official Application for
-  Health and Drug Coverage. ReloGo downloads the blank form from the government
-  source only after an explicit tap, verifies its audited SHA-256 before reading
-  local PII, fills mapped fields on-device, and leaves it editable. Unit and
-  Unicode round-trip checks pass; real-device sharing still needs preview-build
-  QA.
+- Every task across all 13 provinces provides a uniform card experience: urgency
+  badges, document requirements, verified 1-tap links to the official government
+  portal or registry locator, and completion checkmarks. Underlying PDF form-filling
+  modules remain modular for Phase 2 government integrations.
 
 ## Database migrations
 

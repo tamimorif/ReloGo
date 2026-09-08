@@ -29,7 +29,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
-import { hasPDFTemplate } from "@/lib/pdfTemplates";
 import { safeOfficialUrl } from "@/lib/safeOfficialUrl";
 import { withAbortableTimeout } from "@/lib/startupTimeout";
 import {
@@ -230,33 +229,22 @@ function ScreenHeader({
 
 type TaskCardProps = {
   item: ChecklistTask;
-  canFillPDF: boolean;
   isExpanded: boolean;
-  isSharing: boolean;
-  shareDisabled: boolean;
   today: Date;
   onToggle: () => void;
   onExpand: () => void;
-  onShare: () => void;
 };
 
 function TaskCard({
   item,
-  canFillPDF,
   isExpanded,
-  isSharing,
-  shareDisabled,
   today,
   onToggle,
   onExpand,
-  onShare,
 }: TaskCardProps) {
   const isCompleted = item.status === "COMPLETED";
   const deadline = item.deadlineDate ? parseISODate(item.deadlineDate) : null;
   const isOverdue = !!deadline && deadline < today && !isCompleted;
-  // While one share runs, only the OTHER buttons drop to the dimmed style —
-  // the busy button keeps its brand tint behind the spinner.
-  const shareDimmed = shareDisabled && !isSharing;
 
   return (
     <View
@@ -439,49 +427,6 @@ function TaskCard({
           )}
         </View>
       )}
-
-      {/* Fill & Share PDF — only for tasks with a registered template
-          (all buttons disabled while any share runs) */}
-      {canFillPDF && (
-        <Pressable
-          onPress={onShare}
-          disabled={shareDisabled}
-          className={`mt-3 h-11 flex-row items-center justify-center overflow-hidden rounded-xl border ${
-            shareDimmed
-              ? "border-slate-100 bg-slate-50"
-              : "border-brand-100 bg-brand-50"
-          }`}
-          android_ripple={brandRipple}
-          style={iosPressOpacity}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: shareDisabled, busy: isSharing }}
-          accessibilityLabel={`Fill and share PDF for ${item.title}`}
-        >
-          {isSharing ? (
-            <>
-              <ActivityIndicator size="small" color="#2563EB" />
-              <Text className="ml-2 text-sm font-semibold text-brand-700">
-                Preparing…
-              </Text>
-            </>
-          ) : (
-            <>
-              <Ionicons
-                name="document-text-outline"
-                size={16}
-                color={shareDimmed ? "#94a3b8" : "#2563eb"}
-              />
-              <Text
-                className={`ml-1.5 text-sm font-semibold ${
-                  shareDimmed ? "text-slate-400" : "text-brand-700"
-                }`}
-              >
-                Fill & Share PDF
-              </Text>
-            </>
-          )}
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -497,7 +442,6 @@ export default function ChecklistScreen() {
   const insets = useSafeAreaInsets();
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [sharingTaskKey, setSharingTaskKey] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // 1. Profile ────────────────────────────────
@@ -687,57 +631,7 @@ export default function ChecklistScreen() {
     });
   }
 
-  async function prepareAndSharePDF(item: ChecklistTask) {
-    // One share flow at a time: a second fillAndSharePDF would race the
-    // first one's cache cleanup and iOS can't stack share sheets.
-    if (
-      sharingTaskKey !== null ||
-      !dest ||
-      !hasPDFTemplate(item.taskKey, dest)
-    ) {
-      return;
-    }
-    setSharingTaskKey(item.taskKey);
-    try {
-      // PDF generation pulls in pdf-lib and native sharing/crypto modules.
-      // Load that heavy path only after an explicit user tap, never at launch.
-      const { fillAndSharePDF } = await import("@/lib/pdfEngine");
-      await fillAndSharePDF(item.taskKey, dest);
-    } catch {
-      // The button only renders for registered templates, so this is a
-      // genuine download, validation, fill, or share failure, not a miss.
-      Alert.alert(
-        "Form not available",
-        "Couldn't safely prepare the official form. Check your connection and try again.",
-      );
-    } finally {
-      setSharingTaskKey(null);
-    }
-  }
 
-  function handleSharePDF(item: ChecklistTask) {
-    if (
-      sharingTaskKey !== null ||
-      !dest ||
-      !hasPDFTemplate(item.taskKey, dest)
-    ) {
-      return;
-    }
-
-    Alert.alert(
-      "Review before sharing",
-      "ReloGo fills only matching fields. Review every entry, especially names and addresses with non-Latin characters, and complete all remaining fields before choosing where to share or save the PDF.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Prepare Form",
-          onPress: () => {
-            void prepareAndSharePDF(item);
-          },
-        },
-      ],
-    );
-  }
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -1003,14 +897,10 @@ export default function ChecklistScreen() {
               )}
               <TaskCard
                 item={item}
-                canFillPDF={hasPDFTemplate(item.taskKey, dest)}
                 isExpanded={expandedIds.has(item.taskRuleId)}
-                isSharing={sharingTaskKey === item.taskKey}
-                shareDisabled={sharingTaskKey !== null}
                 today={today}
                 onToggle={() => handleToggle(item)}
                 onExpand={() => toggleExpanded(item.taskRuleId)}
-                onShare={() => handleSharePDF(item)}
               />
             </Fragment>
           );

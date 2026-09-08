@@ -10,22 +10,35 @@ belong in [DEPLOYMENT.md](DEPLOYMENT.md). AI agents must also read
 ## Product concept
 
 ReloGo converts a move between Canadian provinces or territories into a
-personalized checklist of government tasks and suggested timing. The app uses
-the user's origin, destination, move date, vehicle, and dependent flags when
-selecting rules, but the current seeded jurisdiction rules are destination-wide
-`ANY`-origin rules; true origin-specific content remains launch work. Users can
-track completion and verify each task against its official source.
+personalized **Relocation Navigator & Moving Checklist** with suggested timing.
+The app uses the user's origin, destination, move date, vehicle, and dependent
+flags when selecting rules. Current seeded jurisdiction rules provide
+destination-wide guidance; true origin-specific nuances remain planned for
+future content depth.
+
+The product operates under a clear, phased architectural strategy:
+
+1. **Phase 1 (Current / 1.0.1 MVP — Relocation Navigator & Checklist):**
+   A standardized, distraction-free moving guide. For every task, ReloGo gives
+   users:
+   - **What to do first:** Visual move timeline and urgency-sorted countdown.
+   - **What documents to prepare:** Clear document packs before heading to registries.
+   - **Where to go:** 1-tap deep links to official provincial government portals and registry locators.
+   - **Checkmark tracker:** Intuitive progress tracking (Available ↔ Completed) without requiring form completion inside the app.
+2. **Phase 2 (Future Roadmap — Direct Government Integration):**
+   Establishing provincial ministry partnerships and registry API access to
+   enable digital form auto-fill and direct in-app submission on behalf of users.
 
 The defining product rule is privacy by construction. Full name, date of birth,
 street address, driver's licence number, and health-card number stay in the
-device secure store and ephemeral on-device PDF cache. They are never stored in
-Supabase, sent to Gemini, logged, or exposed to the admin dashboard.
+device secure store. They are never stored in Supabase, sent to Gemini, logged,
+or exposed to the admin dashboard.
 
 ## Architecture
 
 | Area | Responsibility | Current stack |
 | --- | --- | --- |
-| `mobile/` | User product, local PII/PDFs, support | Expo SDK 55, React Native 0.83, React 19 |
+| `mobile/` | User product, checklist navigator, local PII vault, support | Expo SDK 55, React Native 0.83, React 19 |
 | `landing/` | Marketing, legal, support, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
@@ -49,8 +62,10 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
    `ANY`/`ANY`. It also returns ordered, validated HTTPS official-source links.
    Mobile then filters vehicle/dependent flags and calculates local-calendar
    deadlines.
-5. Sensitive form values stay in the device secure store. Filled PDFs are
-   generated locally and shared only after an explicit action.
+5. ReloGo presents a unified checklist card for each task: visual urgency,
+   document preparation instructions, 1-tap deep links to the official
+   government portal, and a local/synced completion checkmark. Any sensitive
+   vault entries remain purely in the device secure store.
 6. Support uses six fixed general questions. Database policy enforces the exact
    allowlist; unsafe legacy history is re-escalated without reaching Gemini.
 7. The worker monitors automatic official HTML/PDF sources with bounded
@@ -680,10 +695,15 @@ Status: **in progress.**
 Exit: 1.0.1 users are observable, recoverable, and supportable, and the broken
 1.0 release is no longer the current App Store version.
 
-### Phase 6 — post-launch product growth
+### Phase 6 — post-launch product growth & government integration
 
 Status: **deferred.**
 
+- **Phase 2 Direct Government Integration:**
+  - Establishing official provincial ministry partnerships and registry system access.
+  - In-app digital form generation across all provinces.
+  - Automated form submission on behalf of users directly to government endpoints.
+  - Application receipt and status tracking.
 - Recoverable/linkable accounts and multi-device sync.
 - Push reminders, calendar export, and deadline notifications.
 - French content and UI localization.
@@ -702,11 +722,11 @@ Recovery completion and MVP readiness are established only when:
 - isolated preview/production environments are configured;
 - hosted migrations, RLS/RPCs, Edge Function, web apps, and worker are live;
 - iOS and Android store-equivalent builds pass full end-to-end QA;
-- promoted rules and at least one production PDF workflow are verified;
+- promoted rules and verified official government portal links are established across all corridors;
 - legal/store disclosures are approved and published;
 - backup/restore, monitoring, alerts, incident response, and support ownership
   are operational; and
-- deletion and on-device PII behavior are verified on real devices.
+- deletion and on-device privacy behavior are verified on real devices.
 
 Update this file when status or priority changes. Do not create another roadmap,
 project-status document, or competing action list.
