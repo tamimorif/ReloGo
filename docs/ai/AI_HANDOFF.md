@@ -8,17 +8,27 @@ roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 
 ## Mission and stage
 
-ReloGo turns a move between Canadian provinces or territories into a
-personalized checklist of government tasks, timing, and official sources. Pull
-request #2 final head `f34b64a` passed all 19 GitHub/Vercel checks, its two
-fixed review threads were resolved, and it merged into `main` as `e75f449`.
-Pull request #3 final head `3f063e9` then passed all 19 checks, its sole review
-thread was fixed/resolved, and worker hardening merged as `d2db994`. The final
-production Edge Function v5, reviewed admin recovery, landing site, and
-backend-aware main uptime are live. The App Store still distributes the broken
-1.0 binary; 1.0.1 has not shipped. Recovery is not complete because real-
-device/store, hosted rollout of the local source-monitoring fix, and human approval gates
-remain.
+ReloGo converts a move between Canadian provinces or territories into a
+standardized **Relocation Navigator & Moving Checklist** of government tasks,
+urgency timing, document preparation guides, and direct official government
+links. Pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel checks,
+its two fixed review threads were resolved, and it merged into `main` as
+`e75f449`. Pull request #3 final head `3f063e9` then passed all 19 checks, its
+sole review thread was fixed/resolved, and worker hardening merged as `d2db994`.
+The final production Edge Function v5, reviewed admin recovery, landing site,
+and backend-aware main uptime are live. The App Store still distributes the
+broken 1.0 binary; 1.0.1 has not shipped. Recovery is not complete because
+real-device/store, hosted rollout of the local source-monitoring fix, and human
+approval gates remain.
+
+The product operates under a clear, phased architectural strategy:
+- **Phase 1 (Current / 1.0.1 MVP — Relocation Navigator & Checklist):**
+  A uniform, distraction-free moving guide across all 13 provinces. Every task card
+  gives users the urgency countdown, document preparation pack, direct link to the
+  official government portal, and a 1-tap completion checkmark (Available ↔ Completed).
+- **Phase 2 (Future Roadmap — Direct Government Integration):**
+  Provincial ministry partnerships and registry system access to enable automated
+  in-app form auto-fill and direct digital submission.
 
 The shipped App Store 1.0 binary was built from SDK 51 and contains the retired
 Supabase ref `fxrynmgaymslwcklfena`. That project is deleted, the ref is present
@@ -275,21 +285,18 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
    safe official sources. Missing progress means `AVAILABLE`; optimistic writes
    toggle between `AVAILABLE` and `COMPLETED`.
 
-### Local PII and PDFs
+### Local PII, Privacy, and Unified Navigation
 
 1. Profile PII uses `expo-secure-store`; it never enters Supabase.
-2. Startup imports only lightweight `pdfCleanup.ts`. The heavy `pdf-lib` and
-   sharing paths are dynamically imported after an explicit fill action.
-3. `pdfTemplates.ts` selects a form by task/destination. `pdfEngine.ts`
-   downloads the official blank only after a tap, requests a bounded range,
-   cancels over-limit/backgrounded transfers, verifies the audited SHA-256
-   before reading PII, validates mapped fields, and fills on-device.
-4. The BC health-coverage form passes local unit/Unicode round-trip and an
-   historical iOS Simulator share flow. It has not passed real-device
-   Android/iOS QA on current production artifacts for the 1.0.1 candidate.
-5. iOS deletes a filled PDF after sharing. Android retains the exact file for a
-   ten-minute asynchronous share-target grace and retries safe cleanup. Start,
-   sign-out, and deletion paths preserve the documented privacy behavior.
+2. The checklist interface presents a 100% unified experience across all 13
+   provinces and territories: urgency badge, document preparation guide, verified
+   official government portal link, and an optimistic completion checkmark.
+3. Users are guided directly to official government portals and registry locators
+   to complete applications directly on official systems.
+4. Underlying PDF form-filling modules (`pdfEngine.ts`, `pdfTemplates.ts`) remain
+   modular and preserved for Phase 2 government integration.
+5. Sign-out and account deletion wipe the local PII vault and local session.
+   Deletion also removes the server account and session.
 
 ### Support
 

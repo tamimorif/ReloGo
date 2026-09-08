@@ -6,18 +6,12 @@ const REVIEWED_ADVISORIES = new Set([
   "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
 ]);
 const REVIEWED_BLOCKING_GRAPH = new Map([
-  ["@expo/cli", ["@expo/metro", "@expo/metro-config"]],
-  ["@expo/metro", ["metro", "metro-config", "metro-transform-worker"]],
-  ["@expo/metro-config", ["@expo/metro"]],
-  ["@react-native/community-cli-plugin", ["metro", "metro-config"]],
-  ["expo", ["@expo/cli", "@expo/metro", "@expo/metro-config"]],
   ["image-size", []],
   ["metro", ["image-size", "metro-config", "metro-transform-worker"]],
   ["metro-config", ["metro"]],
   ["metro-transform-worker", ["metro"]],
-  ["react-native", ["@react-native/community-cli-plugin"]],
 ]);
-const REVIEWED_DIRECT_PACKAGES = new Set(["expo", "react-native"]);
+const REVIEWED_DIRECT_PACKAGES = new Set();
 
 function verdict(ok, message) {
   return { ok, message };

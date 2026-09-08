@@ -7,16 +7,10 @@ const reviewedUrls = [
   "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
 ];
 const reviewedGraph: Record<string, string[]> = {
-  "@expo/cli": ["@expo/metro", "@expo/metro-config"],
-  "@expo/metro": ["metro", "metro-config", "metro-transform-worker"],
-  "@expo/metro-config": ["@expo/metro"],
-  "@react-native/community-cli-plugin": ["metro", "metro-config"],
-  expo: ["@expo/cli", "@expo/metro", "@expo/metro-config"],
   "image-size": [],
   metro: ["image-size", "metro-config", "metro-transform-worker"],
   "metro-config": ["metro"],
   "metro-transform-worker": ["metro"],
-  "react-native": ["@react-native/community-cli-plugin"],
 };
 
 type AdvisoryReason = {
@@ -56,7 +50,7 @@ function reviewedReport() {
     vulnerabilities[name] = {
       name,
       severity: "high",
-      isDirect: name === "expo" || name === "react-native",
+      isDirect: false,
       via: name === "image-size" ? reviewedAdvisories() : via,
     };
   }
@@ -64,7 +58,7 @@ function reviewedReport() {
   return {
     auditReportVersion: 2,
     vulnerabilities,
-    metadata: { vulnerabilities: { high: 10, critical: 0 } },
+    metadata: { vulnerabilities: { high: 4, critical: 0 } },
   };
 }
 
@@ -151,14 +145,14 @@ describe("production audit policy", () => {
       isDirect: true,
       via: reviewedAdvisories(),
     };
-    report.metadata.vulnerabilities.high = 11;
+    report.metadata.vulnerabilities.high = 5;
 
     expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
   });
 
   it("rejects changes to the reviewed Metro dependency graph", () => {
     const report = reviewedReport();
-    report.vulnerabilities.expo.via = reviewedAdvisories();
+    report.vulnerabilities.metro.via = reviewedAdvisories();
 
     expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
   });

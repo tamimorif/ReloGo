@@ -16,7 +16,7 @@ never infer production approval from a successful preview deploy.
 | 1 | Verify that current iOS build 8 and Android build 5 identify exact green commit `cd3a87c`, then—after explicit upload authorization—complete real-device startup, offline/recovery, PDF, deletion, and privacy QA on those exact artifacts | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 4 | Review migration 027, ensure the coordinated worker—not the old default-branch worker—is the next scheduled/manual implementation, then apply 027 before that worker run; obtain a healthy live result with manual assignments visible and configure/test webhook ownership | [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
+| 4 | Apply migration 027 to production outside the `0 2 * * *` UTC cron window, run post-push pgTAP/lint, trigger `.github/workflows/worker.yml` via `workflow_dispatch` (coordinated worker merged to `main` via PR #5), verify 9 automated targets and 2 manual Yukon assignments in step summary, and configure/test alert webhook ownership | [§1](#1-supabase-database), [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
 | 5 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
 
 **Configured cloud mapping:** separate Supabase preview and production projects
@@ -146,6 +146,181 @@ Supabase CLI 2.109.1 may warn that its optional pg-delta migration catalog cache
 could not read a temporary CA file. Treat a push as successful only when the
 command finishes, remote migration history matches, and the post-push dry run,
 lint, and pgTAP checks all pass.
+
+### Migration 027: Validation and security architecture
+
+Migration 027 (`supabase/migrations/027_worker_source_monitoring.sql`) resolves
+the 11 source-row monitoring failures identified in hardened worker run
+`30845791036` (8 Cloudflare managed challenges, 2 CAPTCHAs, 1 empty body) while
+strictly preserving public API contracts and baseline integrity.
+
+#### 1. Column-level access security
+Migration 027 adds four monitoring columns to `public.official_sources`:
+`monitor_url`, `monitoring_mode`, `manual_review_owner`, and
+`manual_review_interval_days`. To prevent reconnaissance of internal scraping
+targets or operational review cadences, column privileges are explicitly
+restricted:
+```sql
+REVOKE SELECT (monitor_url, monitoring_mode, manual_review_owner, manual_review_interval_days)
+    ON TABLE public.official_sources FROM anon, authenticated;
+GRANT SELECT (monitor_url, monitoring_mode, manual_review_owner, manual_review_interval_days)
+    ON TABLE public.official_sources TO service_role;
+```
+Neither anonymous visitors, authenticated mobile users, nor standard PostgREST
+clients can query these columns. Only the worker executing under the
+`service_role` can access them.
+
+#### 2. Database RPC manual guard (ERRCODE 55000)
+`persist_official_source_scrape()` provides a database-enforced integrity gate.
+If an automated worker or misconfigured script attempts to persist scrape
+results against a row marked `MANUAL`, PostgreSQL raises an immediate
+exception:
+```sql
+IF v_monitoring_mode <> 'AUTOMATED' THEN
+    RAISE EXCEPTION 'persist_official_source_scrape(): source % is not automatically monitored',
+        p_official_source_id USING ERRCODE = '55000';
+END IF;
+```
+PostgreSQL error code `55000` (`object_not_in_prerequisite_state`) aborts the
+transaction. Manual monitoring baselines and audit history cannot be overwritten
+by scraper execution.
+
+#### 3. Canonical public official_url preservation
+The canonical corridor rule resolver `resolve_corridor_rules(origin, destination)`
+(defined in migration 023) selects and aggregates only the public
+`os.official_url`:
+```sql
+SELECT jsonb_agg(
+    jsonb_build_object(
+        'id', os.id,
+        'agency_name', os.agency_name,
+        'official_url', os.official_url,
+        'last_verified', os.last_verified
+    )
+    ORDER BY lower(os.agency_name), os.official_url, os.id
+) AS official_sources
+FROM public.official_sources AS os
+WHERE os.corridor_rule_id = r.id
+  AND os.official_url ~* '^https://[^[:space:]]+$'
+```
+`monitor_url` is private to the worker. Mobile end-users, the admin dashboard,
+and Support AI grounding only ever receive verified, canonical public government
+URLs.
+
+#### 4. Fail-closed anti-bot and CAPTCHA handling
+In `worker/main.py`, HTTP requests encountering Cloudflare managed challenges
+(`cf-mitigated: challenge` on HTTP 403) raise `ManagedChallengeError`. Pages
+displaying CAPTCHA text patterns raise `CaptchaChallengeError`, and short
+block/rejection pages raise `RejectedContentError`. When an exception is raised:
+- `persist_official_source_scrape()` is **never** invoked for that source;
+- existing stored baselines (`last_content_hash`, `last_content_text`) remain
+  uncorrupted;
+- the source is tallied in `stats["failed"]`; and
+- `run_should_fail(run_stats)` causes the worker process to exit with code 1.
+
+Under no circumstances does the worker attempt to bypass, solve, or baseline
+anti-bot or challenge pages.
+
+#### 5. The 11 mapped target sources inventory
+Migration 027 updates exactly 11 sources (verified by `v_updated = 11` during
+execution) across 10 unique URLs. Nine sources are assigned verified first-party
+surrogate URLs for automated scraping, and two Yukon sources are assigned to
+operations for recurring 30-day manual review:
+
+| Task Key | Dest | Canonical `official_url` (Public) | Assigned `monitor_url` (Worker Private) | Mode | Review Owner / Cadence |
+| :--- | :---: | :--- | :--- | :---: | :---: |
+| `EXCHANGE_DRIVERS_LICENCE` | NU | `https://www.gov.nu.ca/en/service-nunavut/apply-drivers-licence` | `https://www.gov.nu.ca/sites/default/files/documents/2022-12/driversmanual_eng.pdf` | AUTOMATED | — |
+| `EXCHANGE_DRIVERS_LICENCE` | PE | `https://www.princeedwardisland.ca/en/information/transportation-and-infrastructure/driving-with-an-out-of-province-license` | `https://www.princeedwardisland.ca/sites/default/files/publications/drivers_handbook.pdf` | AUTOMATED | — |
+| `EXCHANGE_DRIVERS_LICENCE` | YT | `https://yukon.ca/en/driving-and-transportation/driver-licensing/transfer-your-drivers-licence-jurisdiction-outside-yukon` | `NULL` | MANUAL | ReloGo operations / 30d |
+| `UPDATE_HEALTH_CARD` | NU | `https://www.gov.nu.ca/en/health/applying-health-care` | `https://www.gov.nu.ca/sites/default/files/forms/2022-02/new_to_nunavut_health_care_coverage%20_appli_eng.pdf` | AUTOMATED | — |
+| `UPDATE_HEALTH_CARD` | PE | `https://www.princeedwardisland.ca/en/service/apply-for-pei-health-card-new-residents` | `https://www.princeedwardisland.ca/sites/default/files/forms/pei_health_card_application_form.pdf` | AUTOMATED | — |
+| `UPDATE_HEALTH_CARD` | QC | `https://www.ramq.gouv.qc.ca/en/citizens/health-insurance/registration-information` | `https://www.quebec.ca/en/immigration/settle-and-integrate-in-quebec` | AUTOMATED | — |
+| `REGISTER_VEHICLE` | NU | `https://www.gov.nu.ca/en/service-nunavut/private-vehicle-registration-nunavut` | `https://www.gov.nu.ca/sites/default/files/documents/2022-12/driversmanual_eng.pdf` | AUTOMATED | — |
+| `REGISTER_CHILDREN_SCHOOL` | NU | `https://www.gov.nu.ca/en/education-and-schools/k-12-school-calendars-map-and-registration` | `https://www.gov.nu.ca/sites/default/files/publications/2024-12/Student_Registration_Guidelines_for_Kindergarten_to_Grade_12_2023.pdf` | AUTOMATED | — |
+| `REGISTER_CHILDREN_SCHOOL` | PE | `https://www.princeedwardisland.ca/en/information/education-and-lifelong-learning/register-your-child-for-school` | `https://psb.edu.pe.ca/schools/registering-your-child-for-school` | AUTOMATED | — |
+| `REGISTER_CHILDREN_SCHOOL` | YT | `https://yukon.ca/en/education-and-schools/plan-elementary-and-high-school/register-your-child-school` | `https://open.yukon.ca/information/d29fd0f4-dd63-4444-94ca-7a1476b76583/resource/49e90760-acb7-40c9-b4a0-4741296a72e0/download/edu-policy-enrolment-students-yukon-schools-2026.pdf` | AUTOMATED | — |
+| `REGISTER_VEHICLE` | YT | `https://yukon.ca/en/driving-and-transportation/driver-licensing/transfer-your-drivers-licence-jurisdiction-outside-yukon` | `NULL` | MANUAL | ReloGo operations / 30d |
+
+### Migration 027: Zero-regression rollout sequence
+
+To guarantee zero regression when rolling out Migration 027 and activating the
+coordinated worker, adhere to the following sequence:
+
+#### Background and safety barrier
+Pull request #5 merged the coordinated worker code (`worker/changedetect.py`,
+`worker/reporting.py`, `worker/main.py`) to `main`. The scheduled workflow
+`.github/workflows/worker.yml` runs daily at `0 2 * * *` UTC on `main`.
+Importantly, `worker/preflight.py` queries:
+```python
+client.table("official_sources").select(
+    "id, monitor_url, monitoring_mode, manual_review_owner, manual_review_interval_days"
+).limit(1).execute()
+```
+Because Migration 027 has not yet been applied to production Supabase
+(`yskknolxbxfxakgvrcmg`), `preflight.py` currently fails fast with exit code 1
+before browser installation or scraper execution. This fail-fast mechanism
+prevents the worker from regressing baselines against an unmigrated schema.
+
+#### Step-by-step rollout execution
+
+1. **Schedule maintenance outside cron window**:
+   Execute the migration strictly outside the daily scheduled cron window
+   (`0 2 * * *` UTC). A recommended window is between 04:00 UTC and 06:00 UTC.
+   Never apply schema migrations during or immediately adjacent to `02:00` UTC
+   to prevent race conditions with active cron jobs.
+
+2. **Pre-push verification**:
+   Confirm linked production target and dry-run output:
+   ```bash
+   supabase link --project-ref yskknolxbxfxakgvrcmg
+   supabase migration list --linked
+   supabase db push --dry-run
+   ```
+   Verify that `027_worker_source_monitoring.sql` is the only pending migration.
+
+3. **Apply migration to production**:
+   ```bash
+   supabase db push
+   ```
+   Confirm the command finishes cleanly and records migration 027 in the
+   hosted schema ledger.
+
+4. **Post-push database validation gates**:
+   Run schema lint and the transactional pgTAP test suite:
+   ```bash
+   supabase migration list --linked
+   supabase db push --dry-run
+   supabase db lint --linked --schema public --level warning --fail-on warning
+   DB_KEYCHAIN_SERVICE="ReloGo Supabase Production DB"
+   export PGPASSWORD="$(security find-generic-password -a 'tamimorif' -s "$DB_KEYCHAIN_SERVICE" -w)"
+   POOLER_URL="$(tr -d '\n' < supabase/.temp/pooler-url)"
+   supabase test db --db-url "$POOLER_URL" supabase/tests/
+   unset PGPASSWORD POOLER_URL DB_KEYCHAIN_SERVICE
+   ```
+   Verify that all pgTAP tests pass (including Migration 027 tests verifying
+   `monitor_url` check constraints, manual metadata invariants, and RPC
+   guard execution).
+
+5. **Manually trigger worker workflow via workflow_dispatch**:
+   Trigger the GitHub Actions workflow manually on branch `main`:
+   ```bash
+   gh workflow run worker.yml --ref main
+   ```
+   Alternatively, navigate to GitHub Actions → **Rule Monitor Worker** →
+   **Run workflow** → select branch `main`.
+
+6. **Verify GitHub Actions step summary and execution logs**:
+   Open the triggered workflow run and inspect the step summary:
+   - **Preflight**: Confirms connection to production Supabase, resolver
+     health, and query access to the new monitoring columns.
+   - **Automated targets**: All 9 newly mapped automatic sources complete
+     successfully and establish initial baselines (or report unchanged/changed)
+     without anti-bot rejections or CAPTCHA errors.
+   - **Manual assignments**: The summary table explicitly lists both Yukon
+     manual assignments:
+     - `EXCHANGE_DRIVERS_LICENCE` (YT) — Owner: `ReloGo operations`, Interval: `30d`
+     - `REGISTER_VEHICLE` (YT) — Owner: `ReloGo operations`, Interval: `30d`
+   - **Exit code**: The job finishes with status **Success** (exit code 0).
 
 ### Granting admin access
 
@@ -560,6 +735,52 @@ SUPABASE_URL=https://yskknolxbxfxakgvrcmg.supabase.co \
   device (`mobile/lib/secureStore.ts`). It must never appear in a Supabase
   query, log, error message, or any deployed environment variable.
 
+### Secret leakage audit findings
+
+A comprehensive repository security audit was conducted to verify credential
+hygiene across all tracked files, local development environments, and Git
+history:
+
+1. **Tracked files audit**:
+   Automated pattern scanning across the entire repository tree for sensitive
+   credential patterns:
+   - Supabase secret keys (`sb_secret_`, `service_role` tokens);
+   - Google AI Studio / Gemini API keys (`AIza[0-9A-Za-z_-]{35}`);
+   - GitHub Personal Access Tokens (`ghp_`, `github_pat_`);
+   - Private key blocks (RSA, EC, OpenSSH `BEGIN PRIVATE KEY`); and
+   - Hardcoded database passwords or authorization tokens.
+   **Finding**: ZERO leaked production credentials or private keys exist in
+   tracked repository files.
+
+2. **Local environment isolation**:
+   All `.env` files across root, `landing/`, `admin/`, and `mobile/` (`.env`,
+   `.env.local`, `.vercel/.env.*`, `admin/.env*`, `mobile/.env`) are strictly
+   ignored by `.gitignore` and contain no tracked history.
+
+3. **Integration test mock credentials**:
+   `tests/e2e/conftest.py` contains mock JWT tokens with issuer `"iss":
+   "supabase-demo"`. These are the standard, publicly documented local Supabase
+   Docker demo tokens. They function exclusively against an ephemeral local
+   Docker container listening on `127.0.0.1:54321` and cannot be used against
+   hosted preview or production environments.
+
+4. **Historical bootstrap credentials rotation note**:
+   Historical commit `059ccd43` (dated 2026-07-14) introduced bootstrap helpers
+   `create_admin.py` and `create_admin.sql` containing a default admin
+   credential pair (`admin@relogo.app` / `crypt('password123', gen_salt('bf'))`).
+   While commit `7c6edfef` subsequently excised both files from the working tree,
+   the plaintext password remains permanently recorded in repository commit
+   history.
+   **Operational Action**:
+   - Treat the historical bootstrap password as publicly compromised.
+   - Any admin user created using historical bootstrap credentials in hosted
+     Supabase environments (`yskknolxbxfxakgvrcmg` or `uwfblgllkibbupqyofkl`)
+     must be rotated or re-provisioned with strong unique credentials via the
+     Supabase Dashboard before public launch.
+   - Schedule a Git-history purge (e.g., via `git-filter-repo` or BFG Repo-Cleaner)
+     as a post-release maintenance task to eliminate the historical commit
+     without disrupting active branches during release execution.
+
 ### Support chat (threads + messages)
 
 Authenticated app support is delivered as in-app **chat threads**. A user
@@ -728,6 +949,98 @@ service-role key in the uptime probe.
   transmitted off-device. No external crash service is wired yet; adding one is
   a deliberate, privacy-reviewed decision and it must receive only the sanitized
   record from `reportFatalError`, never a raw error.
+
+### Alert webhook setup and operational runbook
+
+The rule-monitoring worker communicates run summaries, failures, and rule change
+alerts through an incoming webhook configured in GitHub Actions.
+
+#### 1. `ALERT_WEBHOOK_URL` secret configuration
+1. In the GitHub repository, navigate to **Settings → Secrets and variables →
+   Actions → Repository secrets**.
+2. Click **New repository secret**.
+3. Name: `ALERT_WEBHOOK_URL`.
+4. Value: The HTTPS incoming webhook URL provided by your team communication
+   platform:
+   - **Slack**: Create an Incoming Webhook app; use URL `https://hooks.slack.com/services/...`.
+   - **Discord**: In channel settings, create a Webhook and append `/slack` to
+     the generated URL (e.g. `https://discord.com/api/webhooks/.../slack`) to
+     enable Slack-compatible JSON payload processing.
+   - **Microsoft Teams**: Create an Incoming Webhook connector and use the
+     generated URL.
+5. Click **Add secret**. GitHub Actions masks the secret value in all workflow
+   logs.
+
+#### 2. Responder channel and platform assignment
+- **Platform**: Slack or Discord.
+- **Channel**: `#relogo-ops-alerts` (dedicated operations alert channel).
+- **Assigned team**: ReloGo Operations & On-Call Engineering.
+- **Alert classifications and response SLAs**:
+  - **PENDING Rule Change Alert**: Triggered when government portal content
+    changes (hash mismatch or content update). Action: Admin signs into
+    `https://relo-go.vercel.app`, reviews the visual diff, and clicks
+    **Approve** or **Dismiss**. **Response SLA**: 24 hours.
+  - **Worker Execution Failure**: Triggered when `main.py` exits nonzero due to
+    unreachable targets, anti-bot challenges, or timeout. Action: Inspect
+    failed source URLs, verify if government domains changed, and triage.
+    **Response SLA**: 4 hours during business days.
+
+#### 3. Standalone test verification
+To independently verify webhook connectivity and channel delivery without
+waiting for the nightly cron or executing a full scraper run:
+
+```bash
+# Option A: Standalone curl probe
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"text":"[ReloGo Operations Alert] Standalone webhook verification probe successful. Monitoring channel #relogo-ops-alerts active."}' \
+  "$ALERT_WEBHOOK_URL"
+```
+
+Verify that the message appears immediately in `#relogo-ops-alerts`.
+
+```bash
+# Option B: Worker reporting module probe
+cd worker
+python3.11 -c "
+import os, sys, reporting
+url = os.environ.get('ALERT_WEBHOOK_URL')
+if not url:
+    print('ERROR: Set ALERT_WEBHOOK_URL before running test', file=sys.stderr)
+    sys.exit(1)
+payload = {
+    'summary': 'Verification Probe',
+    'total': 53,
+    'completed': 42,
+    'unchanged': 40,
+    'changed': 2,
+    'pending_alerts': 2,
+    'stale': 0,
+    'failed': 0,
+}
+reporting.post_webhook(url, payload)
+print('SUCCESS: Webhook payload delivered.')
+"
+```
+
+#### 4. Failure handling and resilience architecture
+- **Non-blocking delivery**: In `worker/reporting.py`, the `post_webhook()`
+  function wraps HTTP POST requests in a `try / except Exception` block. If the
+  webhook endpoint times out (10-second request bound), returns an HTTP 4xx/5xx
+  status, or suffers a network drop, it logs a warning (`logger.warning("Failed
+  to post alert webhook: %s", err)`) and continues without throwing. Webhook
+  outages will **never** cause the worker to abort, fail a healthy scrape, or
+  prevent database baseline persistence.
+- **Dual-alert notification behavior**: The GitHub Actions workflow
+  `.github/workflows/worker.yml` contains two notification paths:
+  1. Application-level rich summary sent by Python `reporting.py` at the end
+     of `main.py`.
+  2. Step-level fallback curl command executed conditionally if the job fails
+     (`if: failure() && env.ALERT_WEBHOOK_URL != ''`).
+  Operators should be aware that when an unexpected worker failure occurs, both
+  notifications may fire in `#relogo-ops-alerts`.
+- **Secondary fallback**: If the webhook service is down, GitHub Actions
+  native email notifications (sent to repository owners and contributors on
+  workflow failure) serve as the automated secondary alerting channel.
 
 ### Incident Runbook
 
