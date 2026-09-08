@@ -43,3 +43,7 @@ yarn-error.log*
 *.swp
 *~
 .vercel
+
+# Agent coordination
+.agents/
+ORIGINAL_REQUEST.md
