@@ -170,7 +170,8 @@ supabase/
 │   ├── 024_consent_state_profile_payload.sql ← allowlisted startup profile in consent response
 │   ├── 025_available_only_progress.sql ← removes unused LOCKED progress state
 │   ├── 026_distinct_move_provinces.sql ← rejects new/updated same-origin/destination moves
-│   └── 027_worker_source_monitoring.sql ← local/pending private monitor targets + owned manual assignments
+│   ├── 027_worker_source_monitoring.sql ← local/pending private monitor targets + owned manual assignments
+│   └── 028_explicit_admin_membership.sql ← local/pending removal of email-based admin grants
 ├── functions/support-ai/       ← Deno/Gemini Edge Function and pure helpers
 │   ├── index.ts, grounding.ts, humanTakeover.ts, supportQuestions.ts, deno.lock
 ├── tests/rls_and_rpcs_test.sql ← adversarial pgTAP security/RPC suite

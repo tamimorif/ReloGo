@@ -38,9 +38,10 @@ import {
   Province,
   PROVINCE_LABELS,
   PROVINCES,
-  UserProfile,
 } from "@/types/database";
 import { parseISODate, toISODate } from "@/lib/dateHelpers";
+import { profileQueryOptions, PROFILE_REQUEST_TIMEOUT_MS } from "@/lib/profileQueries";
+import { withAbortableTimeout } from "@/lib/startupTimeout";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -121,19 +122,7 @@ export default function ProfileScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   // 1. Profile ────────────────────────────────
-  const profileQuery = useQuery({
-    queryKey: ["profile", userId],
-    enabled: !!userId,
-    queryFn: async (): Promise<UserProfile> => {
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("id", userId!)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-  });
+  const profileQuery = useQuery(profileQueryOptions(userId));
 
   // Hydrate the form once when the profile first arrives.
   useEffect(() => {
@@ -185,7 +174,8 @@ export default function ProfileScreen() {
   // 2. Save move details ───────────────────────
   const saveProfileMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      const { error } = await withAbortableTimeout(
+        (signal) => supabase
         .from("user_profiles")
         .update({
           origin_prov: originProvince,
@@ -195,7 +185,10 @@ export default function ProfileScreen() {
           has_dependents: hasDependents,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", userId!);
+        .eq("id", userId!)
+        .abortSignal(signal),
+        PROFILE_REQUEST_TIMEOUT_MS,
+      );
       if (error) throw error;
     },
     onSuccess: () => {
@@ -646,7 +639,7 @@ export default function ProfileScreen() {
             size={18}
             color="#475569"
           />
-          <Text className="ml-1.5 text-base font-semibold text-slate-700">
+          <Text className="ml-1.5 shrink text-center text-base font-semibold text-slate-700">
             Help & support
           </Text>
         </TouchableOpacity>
@@ -673,7 +666,7 @@ export default function ProfileScreen() {
                 size={18}
                 color="#475569"
               />
-              <Text className="ml-1.5 text-base font-semibold text-slate-700">
+              <Text className="ml-1.5 shrink text-center text-base font-semibold text-slate-700">
                 Sign Out
               </Text>
             </>
@@ -704,7 +697,7 @@ export default function ProfileScreen() {
                 size={18}
                 color="#b91c1c"
               />
-              <Text className="ml-1.5 text-base font-semibold text-red-700">
+              <Text className="ml-1.5 shrink text-center text-base font-semibold text-red-700">
                 Delete My Data
               </Text>
             </>

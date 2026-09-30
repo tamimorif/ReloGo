@@ -2,169 +2,59 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { evaluateProductionAudit } = require("../../scripts/production-audit-policy");
 
-const reviewedUrls = [
-  "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
-  "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
-];
-const reviewedGraph: Record<string, string[]> = {
-  "image-size": [],
-  metro: ["image-size", "metro-config", "metro-transform-worker"],
-  "metro-config": ["metro"],
-  "metro-transform-worker": ["metro"],
-};
-
-type AdvisoryReason = {
-  name: string;
-  dependency: string;
-  severity: string;
-  url: string;
-};
-
-type VulnerabilityFixture = {
-  name: string;
-  severity: string;
-  isDirect: boolean;
-  via: Array<string | AdvisoryReason>;
-};
-
-function reviewedAdvisories(): AdvisoryReason[] {
-  return reviewedUrls.map((url) => ({
-    name: "image-size",
-    dependency: "image-size",
-    severity: "high",
-    url,
-  }));
-}
-
-function cleanReport() {
+function report(severity?: string) {
   return {
     auditReportVersion: 2,
-    vulnerabilities: {},
-    metadata: { vulnerabilities: { high: 0, critical: 0 } },
-  };
-}
-
-function reviewedReport() {
-  const vulnerabilities: Record<string, VulnerabilityFixture> = {};
-  for (const [name, via] of Object.entries(reviewedGraph)) {
-    vulnerabilities[name] = {
-      name,
-      severity: "high",
-      isDirect: false,
-      via: name === "image-size" ? reviewedAdvisories() : via,
-    };
-  }
-
-  return {
-    auditReportVersion: 2,
-    vulnerabilities,
-    metadata: { vulnerabilities: { high: 4, critical: 0 } },
-  };
-}
-
-function reviewedLockfile(version = "1.2.1") {
-  return {
-    packages: {
-      "": { name: "relogo-mobile" },
-      "node_modules/metro/node_modules/image-size": { version },
-    },
+    vulnerabilities: severity ? { dependency: { severity } } : {},
+    metadata: { vulnerabilities: {
+      high: severity === "high" ? 1 : 0,
+      critical: severity === "critical" ? 1 : 0,
+    } },
   };
 }
 
 describe("production audit policy", () => {
-  it("passes a valid report with no blocking findings", () => {
-    expect(evaluateProductionAudit(cleanReport(), reviewedLockfile())).toEqual(
-      expect.objectContaining({ ok: true }),
-    );
+  it("passes a complete report with no blocking findings", () => {
+    expect(evaluateProductionAudit(report()).ok).toBe(true);
+    expect(evaluateProductionAudit(report("moderate")).ok).toBe(true);
   });
 
-  it("passes only the exact reviewed advisory graph and lock version", () => {
-    expect(
-      evaluateProductionAudit(reviewedReport(), reviewedLockfile()),
-    ).toEqual(expect.objectContaining({ ok: true }));
+  it.each(["high", "critical"])("rejects every %s finding", (severity) => {
+    expect(evaluateProductionAudit(report(severity)).ok).toBe(false);
   });
 
-  it("fails when the vulnerabilities map is missing despite high metadata", () => {
-    const report = { ...cleanReport(), vulnerabilities: undefined };
-    report.metadata.vulnerabilities.high = 1;
-
-    expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
+  it("rejects the former Metro/image-size advisory exception", () => {
+    const audit = report("high");
+    audit.vulnerabilities = { "image-size": {
+      severity: "high",
+      via: [{ url: "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr" }],
+    } } as typeof audit.vulnerabilities;
+    expect(evaluateProductionAudit(audit).ok).toBe(false);
   });
 
-  it("fails when metadata and vulnerability entries disagree", () => {
-    const report = reviewedReport();
-    report.metadata.vulnerabilities.high = 1;
+  it("fails when the vulnerabilities map is missing", () => {
+    expect(evaluateProductionAudit({ ...report(), vulnerabilities: undefined }).ok).toBe(false);
+  });
 
-    expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
+  it("fails on malformed vulnerability entries even with zero blocking counts", () => {
+    expect(evaluateProductionAudit(report("unknown")).ok).toBe(false);
+    expect(evaluateProductionAudit({ ...report(), vulnerabilities: { dependency: null } }).ok).toBe(false);
+  });
+
+  it("fails when metadata and entries disagree", () => {
+    const audit = report("high");
+    audit.metadata.vulnerabilities.high = 0;
+    expect(evaluateProductionAudit(audit).ok).toBe(false);
   });
 
   it("fails on operational errors and unsupported report versions", () => {
-    expect(
-      evaluateProductionAudit(
-        { ...cleanReport(), error: { summary: "network unavailable" } },
-        reviewedLockfile(),
-      ).ok,
-    ).toBe(false);
-    expect(
-      evaluateProductionAudit(
-        { ...cleanReport(), auditReportVersion: 3 },
-        reviewedLockfile(),
-      ).ok,
-    ).toBe(false);
+    expect(evaluateProductionAudit({ ...report(), error: { summary: "network unavailable" } }).ok).toBe(false);
+    expect(evaluateProductionAudit({ ...report(), auditReportVersion: 3 }).ok).toBe(false);
+    expect(evaluateProductionAudit(null).ok).toBe(false);
   });
 
-  it("fails on an unexpected advisory or changed image-size version", () => {
-    const report = reviewedReport();
-    report.vulnerabilities["image-size"].via.push({
-      name: "image-size",
-      dependency: "image-size",
-      severity: "high",
-      url: "https://github.com/advisories/GHSA-new-unreviewed",
-    });
-
-    expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
-    expect(
-      evaluateProductionAudit(reviewedReport(), reviewedLockfile("2.0.2")).ok,
-    ).toBe(false);
-  });
-
-  it("fails closed on any critical finding", () => {
-    const report = reviewedReport();
-    report.vulnerabilities.metro.severity = "critical";
-    report.metadata.vulnerabilities.high = 9;
-    report.metadata.vulnerabilities.critical = 1;
-
-    expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
-  });
-
-  it("rejects the same advisory URLs on an unrelated runtime package", () => {
-    const report = reviewedReport();
-    report.vulnerabilities["unrelated-runtime-package"] = {
-      name: "unrelated-runtime-package",
-      severity: "high",
-      isDirect: true,
-      via: reviewedAdvisories(),
-    };
-    report.metadata.vulnerabilities.high = 5;
-
-    expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
-  });
-
-  it("rejects changes to the reviewed Metro dependency graph", () => {
-    const report = reviewedReport();
-    report.vulnerabilities.metro.via = reviewedAdvisories();
-
-    expect(evaluateProductionAudit(report, reviewedLockfile()).ok).toBe(false);
-  });
-
-  it("rejects a hoisted image-size lock entry", () => {
-    const lockfile = {
-      packages: {
-        "": { name: "relogo-mobile" },
-        "node_modules/image-size": { version: "1.2.1" },
-      },
-    };
-
-    expect(evaluateProductionAudit(reviewedReport(), lockfile).ok).toBe(false);
+  it.each([-1, 0.5, undefined, "0"])("fails on malformed counts: %s", (high) => {
+    const audit = { ...report(), metadata: { vulnerabilities: { high, critical: 0 } } };
+    expect(evaluateProductionAudit(audit).ok).toBe(false);
   });
 });

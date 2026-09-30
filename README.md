@@ -32,13 +32,16 @@ The JavaScript applications are independent projects. Each owns its own
 The reviewed recovery source was merged through pull request #2 into `main` at
 `e75f449`; worker hardening and its evidence then merged through pull request
 #3 at `d2db994`. The production database, final support function, reviewed
-admin recovery, and backend-aware uptime checks are live; landing is unchanged
-and live. The App Store still distributes the broken 1.0 release, so real-
+admin recovery, and backend-aware uptime checks are live; the landing site is
+live and already serves the current support/legal pages. `tamim` and `main`
+have since fast-forwarded to `0c78e56` (2026-09-08), and the 2026-09-14
+verification fixes remain uncommitted. The App Store still distributes the
+broken 1.0 release, so real-
 device QA, approved store metadata, and release of 1.0.1 remain the user-facing
 outage gate.
 
-- The repository now contains migrations 001–027, but migration 027 and its
-  coordinated worker changes are local and pending review. Preview was migrated
+- The repository now contains migrations 001–028, but migrations 027–028 and
+  the coordinated worker changes are local and pending review. Preview was migrated
   to 001–026, passed the hosted smoke checks (including authenticated AI
   support), and was then deliberately paused. Production remains active at
   exact migrations 001–026 with `support-ai` version 5 ACTIVE/JWT-protected;
@@ -98,11 +101,18 @@ outage gate.
   `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive integrity,
   bundle/package identity, production channel, and runtime 1.0.1 were verified.
   Neither artifact was uploaded or submitted to a store; real-device QA and
-  owner/legal/store approval remain.
+  owner/legal/store approval remain. The commits recorded after `cd3a87c`
+  (`d64c4cb` Phase 1 checklist cards, `e103095` EAS `ascAppId`, `df3535b` Expo
+  SDK 55.0.31 pins) are on `tamim`/`main` at `0c78e56`, so the artifacts
+  predate the branch tip — rebuild or record the accepted delta before store QA
+  and upload.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
-  unchanged and live at `https://relogo-two.vercel.app`. Main-branch uptime run
-  `30843906264` passed every public route plus production anonymous-auth and
-  canonical-resolver probes with `REQUIRE_SUPABASE_CHECK=true`.
+  live at `https://relogo-two.vercel.app` and already serves the current
+  support/legal pages. A 2026-09-24 probe shows `relo-go` still returns SPA
+  HTML for missing assets, so the admin favicon/404 fix awaits an explicit
+  deploy. Main-branch uptime run `30843906264` passed every public route plus
+  production anonymous-auth and canonical-resolver probes with
+  `REQUIRE_SUPABASE_CHECK=true`.
 - Pull request #2's final head `f34b64a` passed all 19 GitHub/Vercel checks;
   both fixed review threads were resolved and the pull request was merged as
   `e75f449`.
@@ -119,7 +129,7 @@ outage gate.
   manual monitoring. The post-merge worker follow-up fetches duplicate URLs
   once, serializes/paces same-origin requests, and reports managed challenges
   separately while preserving the nonzero fail-closed policy; its worker suite
-  passes 97/97. Production verification run `30845791036` fetched 50 unique
+  passed 97/97 on the merged tree and 110/110 on the 2026-09-14 tree. Production verification run `30845791036` fetched 50 unique
   URLs for 53 rows, reused three duplicate outcomes, and again completed 42
   rows (`1` new baseline, `38` unchanged, `3` changed) while keeping 11 blocked
   outcomes failed. Production now has 43/53 source baselines; the three changes
@@ -173,8 +183,8 @@ Mobile ── auth/checklist/progress ── Supabase ── protected Admin das
 ## Database migrations
 
 `supabase/migrations/` is the schema source of truth. Apply approved migrations
-in order; do not edit the hosted schema by hand or treat local migration 027 as
-deployed evidence.
+in order; do not edit the hosted schema by hand or treat local migrations
+027–028 as deployed evidence.
 
 | Migration | Purpose |
 | --- | --- |
@@ -194,7 +204,7 @@ deployed evidence.
 | `014_persistent_support_human_takeover.sql` | Permanently records human-involved support threads |
 | `015_hosted_support_ai_least_privilege.sql` | Makes hosted Edge grants match the tested least-privilege boundary |
 | `016_support_thread_user_inbox_index.sql` | Covers the user-specific support inbox lookup and ordering |
-| `017_admin_bootstrap_trigger.sql` | Registers reviewed bootstrap admin emails on auth-user creation |
+| `017_admin_bootstrap_trigger.sql` | Registers reviewed bootstrap admin emails on auth-user creation (hosted; local migration 028 retires this trigger after authorized rollout) |
 | `018_consent_versioning.sql` | Adds accepted policy version and timestamp fields |
 | `019_policy_reconsent.sql` | Makes consent server-authored, adds re-consent RPCs, and gates normal user data on the current version |
 | `020_content_audit_corrections.sql` | Applies conservative deadline corrections and distinguishes crawl timestamps from content approval |
@@ -205,6 +215,7 @@ deployed evidence.
 | `025_available_only_progress.sql` | Removes the unused `LOCKED` state; progress is `AVAILABLE` or `COMPLETED` |
 | `026_distinct_move_provinces.sql` | Rejects new or updated profiles/waitlist rows whose origin equals destination |
 | `027_worker_source_monitoring.sql` | Adds private automatic monitor targets and explicit owned manual assignments; local and pending review/deployment |
+| `028_explicit_admin_membership.sql` | Retires email-based automatic admin grants while preserving existing memberships; local and pending review/deployment |
 
 ## Quick start
 
@@ -259,6 +270,8 @@ when rotating them or creating another EAS project.
 - [Deployment guide](docs/DEPLOYMENT.md) — platform setup and release commands.
 - [AI handoff](docs/ai/AI_HANDOFF.md) — required architecture, safety rules,
   verification matrix, and next engineering steps for agents.
+- [QA test playbook](docs/QA_TEST_PLAYBOOK.md) — complete visual and functional
+  test playbook for human and autonomous AI simulator QA.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
 The production backend is recovered, but the App Store still serves broken

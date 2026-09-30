@@ -30,9 +30,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/_layout";
 import { safeOfficialUrl } from "@/lib/safeOfficialUrl";
-import { withAbortableTimeout } from "@/lib/startupTimeout";
+import { profileQueryOptions } from "@/lib/profileQueries";
 import {
-  CHECKLIST_QUERY_TIMEOUT_MS,
   CORRIDOR_RULES_QUERY_KEY,
   corridorRulesQueryOptions,
   taskProgressQueryKey,
@@ -445,30 +444,7 @@ export default function ChecklistScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // 1. Profile ────────────────────────────────
-  const profileQuery = useQuery({
-    queryKey: ["profile", userId],
-    enabled: !!userId,
-    // Startup seeds this exact row from get_policy_consent_state. Avoid an
-    // immediate duplicate cellular request; profile mutations explicitly
-    // invalidate this key.
-    staleTime: 5 * 60_000,
-    retry: false,
-    queryFn: async ({ signal }) => {
-      const { data, error } = await withAbortableTimeout(
-        (requestSignal) =>
-          supabase
-            .from("user_profiles")
-            .select("*")
-            .eq("id", userId!)
-            .abortSignal(requestSignal)
-            .single(),
-        CHECKLIST_QUERY_TIMEOUT_MS,
-        signal,
-      );
-      if (error) throw error;
-      return data;
-    },
-  });
+  const profileQuery = useQuery(profileQueryOptions(userId));
 
   const profile = profileQuery.data;
   const origin = profile?.origin_prov ?? null;

@@ -1,7 +1,7 @@
 /**
  * Privacy-safe crash/error capture.
  *
- * ReloGo's defining rule is that the six device-only PII values (full name,
+ * ReloGo's defining rule is that the device-only PII values (full name,
  * date of birth, street address, driver's licence number, and health-card
  * number) never leave the device — not into Supabase, an AI prompt, a log, an
  * analytics event, or an error report. A crash reporter is the classic place
@@ -25,53 +25,42 @@ export interface SafeErrorReport {
   at: string;
 }
 
-const MAX_MESSAGE_LENGTH = 300;
+const SAFE_ERROR_MESSAGE = "An unexpected error occurred.";
+const SAFE_CONTEXTS = new Set([
+  "render-boundary", "global:fatal", "global:nonfatal", "checklist", "pdf", "auth",
+]);
 
-/**
- * Redact anything in free text that could carry one of the device-only PII
- * values. This is defence-in-depth: our own code never embeds PII in an error,
- * but a native/library error could echo an input we passed it, so we scrub
- * before anything is logged or stored.
- *
- * Redacted:
- *  - runs of 5+ digits (health-card, driver's licence, phone-shaped numbers)
- *  - email-shaped tokens
- *  - long alphanumeric runs (opaque ids/tokens that could encode PII)
- * Deliberately preserved: short numbers like 4-digit years and 001–020 error
- * codes, so messages stay diagnostic.
- */
-export function redactErrorText(input: unknown): string {
-  const raw = typeof input === "string" ? input : String(input ?? "");
-  const redacted = raw
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted-email]")
-    // Opaque long runs first, so a mixed id is redacted as a unit rather than
-    // leaving its letter fragments behind after the numeric pass.
-    .replace(/\b[A-Za-z0-9]{16,}\b/g, "[redacted-token]")
-    // Digit runs separated by space, dash, dot, or slash — covers health-card,
-    // licence, and phone numbers plus slash/dot-formatted dates (05/14/1990).
-    .replace(/\d[\d\s./-]{4,}\d/g, "[redacted-number]")
-    .replace(/\s+/g, " ")
-    .trim();
-  return redacted.length > MAX_MESSAGE_LENGTH
-    ? `${redacted.slice(0, MAX_MESSAGE_LENGTH)}…`
-    : redacted;
+/** Arbitrary exception text can contain names/addresses in any language.
+ * Discard it completely instead of treating a regex match as proof of safety.
+ * Do not stringify objects: even their toString/getters may throw or leak. */
+export function redactErrorText(_input: unknown): string {
+  return SAFE_ERROR_MESSAGE;
 }
 
-/** Convert any thrown value into a non-PII, length-bounded record. */
+/** Only built-in error categories are diagnostic; custom names are data. */
+function safeErrorName(error: unknown): string {
+  try {
+    if (error instanceof TypeError) return "TypeError";
+    if (error instanceof RangeError) return "RangeError";
+    if (error instanceof ReferenceError) return "ReferenceError";
+    if (error instanceof SyntaxError) return "SyntaxError";
+  } catch {
+    // A thrown proxy may even reject an instanceof check.
+  }
+  return "Error";
+}
+
+/** Convert any thrown value into a record containing only approved metadata. */
 export function sanitizeError(
   error: unknown,
   context: string,
   at: string,
 ): SafeErrorReport {
-  const name =
-    error instanceof Error && error.name ? error.name : "Error";
-  const message =
-    error instanceof Error ? error.message : String(error ?? "unknown error");
   return {
-    name: redactErrorText(name),
-    message: redactErrorText(message),
-    context: redactErrorText(context),
-    at,
+    name: safeErrorName(error),
+    message: redactErrorText(error),
+    context: SAFE_CONTEXTS.has(context) ? context : "unknown",
+    at: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(at) ? at : "unknown",
   };
 }
 
@@ -91,19 +80,9 @@ export function reportFatalError(error: unknown, context: string): SafeErrorRepo
   return report;
 }
 
-/**
- * Route React Native's global (unhandled) error handler through the sanitizer.
- *
- * On our own logging path only a redacted, non-PII record is ever emitted.
- * Non-fatal errors stop here so a raw message is never re-logged. A genuinely
- * FATAL error is still forwarded to the platform's default handler, because it
- * must run for the app to crash/terminate correctly and, in production, produce
- * the OS crash report. That handler receives the original error — the guarantee
- * that keeps it clean is the app-wide invariant that ReloGo's own code never
- * embeds one of the six PII values in an error message (all `throw`s use static
- * strings). Redaction is defence-in-depth against a native/library error that
- * echoes an input on our log path. Idempotent; safe to call once at app start.
- */
+/** Route global errors through the same privacy boundary. Fatal errors still
+ * reach the platform termination handler, but only as a newly-created safe
+ * Error. Raw message, name, stack, cause and custom properties never escape. */
 export function installGlobalErrorHandler(): void {
   const globalWithErrorUtils = global as unknown as {
     ErrorUtils?: {
@@ -121,10 +100,13 @@ export function installGlobalErrorHandler(): void {
 
   const previous = errorUtils.getGlobalHandler?.();
   errorUtils.setGlobalHandler((error, isFatal) => {
-    reportFatalError(error, isFatal ? "global:fatal" : "global:nonfatal");
+    const report = reportFatalError(error, isFatal ? "global:fatal" : "global:nonfatal");
     // Only a fatal error is forwarded, so the platform can crash/terminate.
     if (isFatal) {
-      previous?.(error, isFatal);
+      const safeError = new Error(report.message);
+      safeError.name = report.name;
+      safeError.stack = undefined;
+      previous?.(safeError, isFatal);
     }
   });
   errorUtils.__reloGoHandlerInstalled = true;

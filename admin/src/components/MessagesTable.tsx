@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 import type { SupportThread, SupportThreadStatus } from "../types/database";
 import { ThreadModal } from "./ThreadModal";
 
@@ -57,7 +58,7 @@ export function MessagesTable() {
       .range(0, limit - 1);
 
     if (fetchErr) {
-      if (!background) setError(fetchErr.message);
+      if (!background) setError(ADMIN_ERRORS.loadThreads);
     } else {
       const rows = data ?? [];
       setThreads(rows);
@@ -113,7 +114,7 @@ export function MessagesTable() {
       .range(from, from + PAGE_SIZE - 1);
 
     if (fetchErr) {
-      setError(fetchErr.message);
+      setError(ADMIN_ERRORS.loadThreads);
     } else {
       const chunk = data ?? [];
       setThreads((prev) => {

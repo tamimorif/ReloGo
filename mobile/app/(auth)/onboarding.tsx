@@ -450,7 +450,14 @@ export default function OnboardingScreen() {
             I agree to the{" "}
             <Text
               className="font-semibold text-blue-600"
-              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              onPress={() =>
+                Linking.openURL(PRIVACY_POLICY_URL).catch(() =>
+                  Alert.alert(
+                    "Couldn't open the official website",
+                    "Please try again in a moment.",
+                  ),
+                )
+              }
               accessibilityRole="link"
             >
               Privacy Policy
@@ -458,7 +465,14 @@ export default function OnboardingScreen() {
             and{" "}
             <Text
               className="font-semibold text-blue-600"
-              onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+              onPress={() =>
+                Linking.openURL(TERMS_OF_SERVICE_URL).catch(() =>
+                  Alert.alert(
+                    "Couldn't open the official website",
+                    "Please try again in a moment.",
+                  ),
+                )
+              }
               accessibilityRole="link"
             >
               Terms of Service

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 import type { Database, Province } from "../types/database";
 import { PROVINCE_LABELS } from "../types/database";
 
@@ -29,7 +30,7 @@ export function WaitlistTable() {
       .range(0, PAGE_SIZE - 1)
       .then(({ data, count, error: fetchErr }) => {
         if (fetchErr) {
-          setError(fetchErr.message);
+          setError(ADMIN_ERRORS.loadWaitlist);
         } else {
           const rows = data ?? [];
           setSignups(rows);
@@ -63,7 +64,7 @@ export function WaitlistTable() {
       .range(from, from + PAGE_SIZE - 1);
 
     if (fetchErr) {
-      setError(fetchErr.message);
+      setError(ADMIN_ERRORS.loadWaitlist);
     } else {
       const chunk = data ?? [];
       setSignups((prev) => {

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 
 /**
  * No client-side admin allowlist here on purpose: a VITE_-env list would be
@@ -23,7 +24,7 @@ export function LoginForm() {
     });
 
     if (authError) {
-      setError(authError.message);
+      setError(ADMIN_ERRORS.signIn);
     }
     setLoading(false);
   };

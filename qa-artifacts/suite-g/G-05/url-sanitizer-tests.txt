@@ -1,0 +1,20 @@
+
+> relogo-mobile@1.0.1 test
+> jest --runInBand __tests__/lib/safeOfficialUrl.test.ts
+
+PASS __tests__/lib/safeOfficialUrl.test.ts
+  safeOfficialUrl
+    ✓ accepts public HTTPS URLs (1 ms)
+    ✓ rejects unsafe URL http://example.com
+    ✓ rejects unsafe URL javascript:alert(1) (1 ms)
+    ✓ rejects unsafe URL file:///etc/passwd
+    ✓ rejects unsafe URL not a URL
+    ✓ rejects HTTPS URLs containing credentials: https://user@example.com/official
+    ✓ rejects HTTPS URLs containing credentials: https://:password@example.com/official
+    ✓ rejects HTTPS URLs containing credentials: https://user:password@example.com/official
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        1.381 s
+Ran all test suites matching /__tests__\/lib\/safeOfficialUrl.test.ts/i.

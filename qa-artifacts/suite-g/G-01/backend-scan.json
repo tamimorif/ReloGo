@@ -1,0 +1,22 @@
+{
+  "postgres": {
+    "dump_exit": 0,
+    "fixture_occurrences": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "_supabase": {
+    "dump_exit": 0,
+    "fixture_occurrences": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

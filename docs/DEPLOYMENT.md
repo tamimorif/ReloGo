@@ -13,10 +13,10 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Verify that current iOS build 8 and Android build 5 identify exact green commit `cd3a87c`, then—after explicit upload authorization—complete real-device startup, offline/recovery, PDF, deletion, and privacy QA on those exact artifacts | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 1 | Commit the reviewed 2026-09-14 fixes (still uncommitted on `0c78e56`), then settle the artifact question: recorded builds 8/5 identify `cd3a87c`, which predates the 2026-09-08 commits and branch tip `0c78e56`. Rebuild or record the accepted delta, then—after explicit upload authorization—complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 4 | Apply migration 027 to production outside the `0 2 * * *` UTC cron window, run post-push pgTAP/lint, trigger `.github/workflows/worker.yml` via `workflow_dispatch` (coordinated worker merged to `main` via PR #5), verify 9 automated targets and 2 manual Yukon assignments in step summary, and configure/test alert webhook ownership | [§1](#1-supabase-database), [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
+| 4 | After explicit approval, apply pending migrations 027 and 028 to production, verify monitoring and admin boundaries, then trigger `.github/workflows/worker.yml` on the verified coordinated `main` worker; require all automatic checks and both manual Yukon assignments in the summary, and configure/test alert webhook ownership | [§1](#1-supabase-database), [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
 | 5 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
 
 **Configured cloud mapping:** separate Supabase preview and production projects
@@ -25,29 +25,33 @@ to `admin/`. Development/preview variables target the preview backend and
 production variables target production in both Vercel and the registered EAS
 project. Values remain platform-managed and are not committed.
 
-Current hosted/repository truth (2026-08-17):
+Deployment baseline (2026-08-17); production migration, admin, and default-branch
+worker state rechecked read-only on 2026-09-14; repository and web-deployment
+state rechecked read-only on 2026-09-24:
 
 | Target | State |
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
-| Production Supabase `yskknolxbxfxakgvrcmg` | Active/currently linked; exact 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected with unauthenticated 401; self-cleaning authenticated/non-fallback AI smoke passed and cleaned up |
-| Mobile | Local version 1.0.1 / SDK 55 gates and push CI run `32050117854` pass. Current exact-`cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives. Neither was uploaded or submitted to a store; real-device QA and approval remain. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
-| Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is unchanged/live at `https://relogo-two.vercel.app`; main run `30843906264` passed public web/auth/resolver checks with required backend probes |
-| Worker/uptime | Main run `30843904269` passed the `2.31.0` preflight and created 42 baselines. Hardened run `30845791036` fetched 50 unique URLs for 53 rows, completed 42 rows, added one baseline, and filed three PENDING alerts while 11 rows/10 URLs failed closed. Production remains at 43/53 baselines. Local migration 027 maps nine rows to validated worker-only first-party targets and two Yukon rows to visible 30-day ReloGo operations assignments; it is pending review, hosted rollout, and live rerun. Key rotation is not needed; `ALERT_WEBHOOK_URL` is unset |
+| Production Supabase `yskknolxbxfxakgvrcmg` | Exact 001–026 reverified; 027 monitoring columns absent, 017 admin signup trigger still present; 027/028 pending approval. One existing admin membership, none unconfirmed. Earlier v5 JWT/authenticated smoke remains historical evidence; rerun the release gates after rollout |
+| Mobile | Local version 1.0.1 / SDK 55 gates and push CI run `32050117854` pass. Recorded exact-`cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives, but `tamim`/`main` later moved to `0c78e56` (2026-09-08), so builds 8/5 predate the Phase 1 checklist simplification and Expo 55.0.31 pins and the 2026-09-14 fixes are uncommitted. Neither was uploaded or submitted; the rebuild-or-record decision, real-device QA, and approval remain. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
+| Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is live at `https://relogo-two.vercel.app` and, per 2026-09-24 probes, already serves the current Privacy/Support/Terms pages, while `relo-go` still returns SPA HTML for `/vite.svg` and missing `/assets/*.js` (local favicon/404 fix awaits an explicit deploy); main run `30843906264` passed public web/auth/resolver checks with required backend probes |
+| Worker/uptime | The coordinated worker is already on default branch `main`, but its preflight cannot run against production 026. Migration 027 still requires approved rollout and a live rerun. All nine replacement source rows passed fresh read-only reachability checks; the exact production mapping matches 11 rows. Two Yukon sources remain owned 30-day manual assignments. Historical worker evidence is 43/53 baselines and three PENDING alerts; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
 
 The worker's Ubuntu 22.04 runner and `supabase==2.31.0` exact-origin preflight
 are now on `main`. Run `30843904269` proved that the existing encrypted key and
-schema access work, so do not rotate or request another credential. Its 11
-failed rows/10 URLs were official-site anti-bot, CAPTCHA, or empty-content
-rejections, not authentication.
+schema access worked at that time, so do not rotate or request another credential
+to address the current schema mismatch. Its 11 failed rows/10 URLs were
+official-site anti-bot, CAPTCHA, or empty-content rejections. The current
+coordinated worker cannot pass preflight until migration 027 is hosted.
 
 ## 1. Supabase (database)
 
 Migrations live in `supabase/migrations/` and are the single schema source of
-truth (`001_init.sql` through local `027_worker_source_monitoring.sql`). Never
-edit a hosted schema by hand or rewrite a deployed migration. Migration 027 is
-pending review and has not been applied to any hosted project.
+truth (`001_init.sql` through local `028_explicit_admin_membership.sql`). Never
+edit a hosted schema by hand or rewrite a deployed migration. Migrations 027 and
+028 are pending explicit rollout approval and have not been applied to hosted
+production.
 
 Preview and production both have exact migrations 001–026. Preview was verified
 and deliberately paused. Production's last pre-027 post-push dry run was clean;
@@ -60,11 +64,14 @@ support, and progress tables contain zero rows. Recovery migrations add:
   official sources, reused by mobile/admin/AI;
 - 024: one consent/bootstrap response with profile only for current consent;
 - 025: `AVAILABLE`/`COMPLETED` progress only;
-- 026: rejection of new/updated same-origin/destination moves; and
+- 026: rejection of new/updated same-origin/destination moves;
 - 027 (local/pending): worker-private first-party monitor targets for nine
   previously failed rows, explicit owned manual monitoring for two Yukon rows,
   and a persistence guard that rejects manual rows. It does not change public
-  canonical source links or any live corridor rule.
+  canonical source links or any live corridor rule; and
+- 028 (local/pending): removal of email-based automatic admin grants. Existing
+  memberships remain intact; new grants require explicit trusted provisioning
+  of a reviewed Auth user ID.
 
 Migration 019/policy 1.1 and 023–026 are coordinated with the 1.0.1 client. The
 currently shipped 1.0 binary points to a deleted backend and cannot be rescued,
@@ -87,14 +94,17 @@ supabase db push --dry-run
 ```
 
 After preview is deliberately resumed, its ledger should still end at 026 and
-the current repository dry run should report only pending migration 027. Re-run
-local reset/lint/pgTAP first. Do not push without explicit approval; after an
-approved preview migration, re-run ledger, lint, pgTAP, advisors, and the self-
-cleaning hosted smoke, then pause preview again if no work remains.
+the current repository dry run should report only pending migrations 027 and
+028. Re-run local migration/lint/pgTAP verification first; use rollback-only
+transactions when preserving an existing local database. Do not push without
+explicit approval; after an approved preview migration, re-run ledger, lint,
+pgTAP, advisors, and the self-cleaning hosted smoke, then pause preview again
+if no work remains.
 
 Production is currently linked locally and remains at exact 001–026. Its last
 pre-027 dry run was clean; with this local tranche, a current dry run should
-show exactly migration 027 pending. Record the state with read-only commands:
+show exactly migrations 027 and 028 pending. Explicitly link the intended
+target, then record the state with read-only ledger/dry-run commands:
 
 ```bash
 supabase link --project-ref yskknolxbxfxakgvrcmg
@@ -102,15 +112,16 @@ supabase migration list --linked
 supabase db push --dry-run
 ```
 
-Do not run the push merely because the dry run finds 027. Migration 027 requires
-its own explicit approval, preview verification, and pre/post ledger/dry-run/
-lint/pgTAP/advisor/smoke gates. It must be applied before the coordinated worker
-code, whose preflight selects the new monitoring columns. After the approved
-migration passes its post-push gates, deploy or trigger the coordinated worker
-and require a live Actions summary showing both manual assignments. Neither the
-migration nor worker may auto-change live rules. Stop and report any mismatch;
-do not repair history ad hoc. Never run `supabase config push`: committed config
-contains localhost Auth URLs.
+Do not run the push merely because the dry run finds pending migrations. Both
+027 and 028 require explicit approval and pre/post ledger/dry-run/lint/pgTAP/
+advisor/smoke gates. Use preview verification if preview is deliberately resumed
+for that purpose. The coordinated worker is already on `main`; migration 027
+must be applied before that worker can pass its monitoring-column preflight.
+After the approved migrations pass their post-push gates, trigger the existing
+coordinated worker and require a live Actions summary showing both manual
+assignments. Neither migration nor worker may auto-change live rules. Stop and
+report any mismatch; do not repair history ad hoc. Never run
+`supabase config push`: committed config contains localhost Auth URLs.
 
 > **Note:** Supabase link state is machine-local and intentionally ignored by
 > git. On a new machine, run `supabase login` and `supabase link` even if another
@@ -241,19 +252,23 @@ operations for recurring 30-day manual review:
 | `REGISTER_CHILDREN_SCHOOL` | YT | `https://yukon.ca/en/education-and-schools/plan-elementary-and-high-school/register-your-child-school` | `https://open.yukon.ca/information/d29fd0f4-dd63-4444-94ca-7a1476b76583/resource/49e90760-acb7-40c9-b4a0-4741296a72e0/download/edu-policy-enrolment-students-yukon-schools-2026.pdf` | AUTOMATED | — |
 | `REGISTER_VEHICLE` | YT | `https://yukon.ca/en/driving-and-transportation/driver-licensing/transfer-your-drivers-licence-jurisdiction-outside-yukon` | `NULL` | MANUAL | ReloGo operations / 30d |
 
-### Migration 027: Zero-regression rollout sequence
+### Migrations 027 and 028: Reviewed rollout sequence
 
-To guarantee zero regression when rolling out Migration 027 and activating the
-coordinated worker, adhere to the following sequence:
+Use this sequence after explicit approval for both production migrations and a
+manual worker run. Local verification does not replace hosted post-rollout
+checks.
 
 #### Background and safety barrier
-Pull request #5 merged the coordinated worker code (`worker/changedetect.py`,
-`worker/reporting.py`, `worker/main.py`) to `main`. The scheduled workflow
-`.github/workflows/worker.yml` runs daily at `0 2 * * *` UTC on `main`.
-Importantly, `worker/preflight.py` queries:
+
+Read-only GitHub inspection on 2026-09-14 confirmed that the coordinated worker
+on `main` uses private monitor targets and skips owned manual sources. The
+scheduled workflow `.github/workflows/worker.yml` runs daily at `0 2 * * *` UTC
+on `main`.
+`worker/preflight.py` requires these monitoring columns:
+
 ```python
 client.table("official_sources").select(
-    "id, monitor_url, monitoring_mode, manual_review_owner, manual_review_interval_days"
+    "monitor_url, monitoring_mode, manual_review_owner, manual_review_interval_days"
 ).limit(1).execute()
 ```
 Because Migration 027 has not yet been applied to production Supabase
@@ -263,11 +278,10 @@ prevents the worker from regressing baselines against an unmigrated schema.
 
 #### Step-by-step rollout execution
 
-1. **Schedule maintenance outside cron window**:
-   Execute the migration strictly outside the daily scheduled cron window
-   (`0 2 * * *` UTC). A recommended window is between 04:00 UTC and 06:00 UTC.
-   Never apply schema migrations during or immediately adjacent to `02:00` UTC
-   to prevent race conditions with active cron jobs.
+1. **Check active worker runs**:
+   Confirm no worker run is active before changing the monitoring schema. Choose
+   a window outside the daily `02:00` UTC schedule, and inspect active/manual
+   runs as well; the clock alone does not prove the worker is idle.
 
 2. **Pre-push verification**:
    Confirm linked production target and dry-run output:
@@ -276,14 +290,18 @@ prevents the worker from regressing baselines against an unmigrated schema.
    supabase migration list --linked
    supabase db push --dry-run
    ```
-   Verify that `027_worker_source_monitoring.sql` is the only pending migration.
+   Verify that only `027_worker_source_monitoring.sql` and
+   `028_explicit_admin_membership.sql` are pending. Stop if the target or pending
+   set differs. The fresh read-only production check matched all 11 source rows
+   expected by 027; the migration also checks this exact row count itself.
 
-3. **Apply migration to production**:
+3. **Apply the explicitly approved migrations to production**:
    ```bash
    supabase db push
    ```
-   Confirm the command finishes cleanly and records migration 027 in the
-   hosted schema ledger.
+   Confirm the command finishes cleanly and records 027 then 028 in the hosted
+   schema ledger. Migration 027 clears baselines only for its 11 mapped rows;
+   028 drops the bootstrap trigger/function and preserves existing memberships.
 
 4. **Post-push database validation gates**:
    Run schema lint and the transactional pgTAP test suite:
@@ -297,9 +315,13 @@ prevents the worker from regressing baselines against an unmigrated schema.
    supabase test db --db-url "$POOLER_URL" supabase/tests/
    unset PGPASSWORD POOLER_URL DB_KEYCHAIN_SERVICE
    ```
-   Verify that all pgTAP tests pass (including Migration 027 tests verifying
+   Verify that all pgTAP tests pass (including migration 027 tests verifying
    `monitor_url` check constraints, manual metadata invariants, and RPC
-   guard execution).
+   guard execution, plus 028's explicit admin membership tests). Confirm nine
+   private automatic targets, two manual assignments, unchanged public links
+   and live rules, no bootstrap trigger/function, and unchanged existing admin
+   memberships. Check worker-only column privileges and run advisors and the
+   self-cleaning hosted smoke. Do not print user data or credentials.
 
 5. **Manually trigger worker workflow via workflow_dispatch**:
    Trigger the GitHub Actions workflow manually on branch `main`:
@@ -313,8 +335,9 @@ prevents the worker from regressing baselines against an unmigrated schema.
    Open the triggered workflow run and inspect the step summary:
    - **Preflight**: Confirms connection to production Supabase, resolver
      health, and query access to the new monitoring columns.
-   - **Automated targets**: All 9 newly mapped automatic sources complete
-     successfully and establish initial baselines (or report unchanged/changed)
+   - **Automated targets**: All automatic sources, including the nine newly
+     mapped targets, complete successfully and establish initial baselines
+     (or report unchanged/changed)
      without anti-bot rejections or CAPTCHA errors.
    - **Manual assignments**: The summary table explicitly lists both Yukon
      manual assignments:
@@ -324,11 +347,12 @@ prevents the worker from regressing baselines against an unmigrated schema.
 
 ### Granting admin access
 
-Admin access is governed by the `admin_users` table plus RLS. Migration 017
-automatically registers the two reviewed bootstrap addresses
-(`admin@relogo.app` and `admin@relogo.ca`) when their auth users are created.
-The first admin is already verified in both hosted projects. For a reviewed
-additional admin address, use these steps:
+Admin access is governed by the `admin_users` table plus RLS. Pending migration
+028 retires migration 017's email-based signup trigger entirely: a confirmed
+email alone is insufficient when Auth can auto-confirm signup. Once 028 is
+applied, signup, email changes, and user metadata never grant admin membership.
+Existing memberships are preserved and must be reviewed separately. For a new
+explicitly approved admin, use these steps:
 
 Legacy local bootstrap helpers with password material have been removed, but
 the old value remains in repository history. Treat it as exposed: rotate/revoke
@@ -338,22 +362,22 @@ history-remediation plan rather than casually rewriting shared history.
 1. Create an auth user for the intended internal admin email. Supabase
    Dashboard → **Authentication → Users → Add user** → enter the monitored
    address and a strong unique password.
-2. Add that user to `admin_users` through a privileged database-owner session,
+2. Verify the intended person's identity and control of the account through the
+   trusted provisioning process, then record that exact Auth user ID. Add the
+   reviewed ID to `admin_users` through a privileged database-owner session,
    such as the Dashboard SQL Editor or a secured owner `psql` connection. Do
    not treat the service-role API key as a database password:
 
 ```sql
 INSERT INTO public.admin_users (user_id)
-SELECT id
-FROM auth.users
-WHERE email = 'admin@example.com'
-ON CONFLICT (user_id) DO NOTHING
+VALUES ('<reviewed-auth-user-id>'::uuid)
 RETURNING user_id;
 ```
 
-3. Require exactly one returned row. Sign in through the admin client and
-   verify `is_admin()` returns `true` and an admin-only RPC succeeds. A normal
-   authenticated user must still receive `false`/authorization failure.
+3. Require exactly one returned row. If membership already exists, verify its
+   provenance instead of creating another grant. Sign in through the admin
+   client and verify `is_admin()` returns `true` and an admin-only RPC succeeds.
+   A normal authenticated user must still receive `false`/authorization failure.
 
 Admin access is enforced entirely server-side: the admin app calls the
 `is_admin()` RPC (which checks `admin_users`) and shows a "not authorized"
@@ -391,10 +415,20 @@ operational. See [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 fully static site into `landing/out/`. There is no Node server at runtime --
 do not use `next start`.
 
+The current dependency baseline is Next.js `16.3.5` with `sharp@0.35.4`.
+Keep the manifest and lockfile together and require a clean production audit
+even though server rendering and image optimization are unused in this export.
+
+Before the next Vercel operation, upgrade the outdated `56.1.0` CLI to
+`59.17.0` or newer with `npm i -g vercel@latest` or
+`pnpm add -g vercel@latest`. This is strongly recommended for compatibility
+and improved agent tooling.
+
 ```bash
 cd landing
 cp .env.example .env.local   # local dev: Next.js loads .env.local (not .env)
 npm ci
+npm audit --omit=dev
 npm run build        # static export -> out/
 npx serve out        # optional local preview of the exported site
 ```
@@ -414,7 +448,8 @@ The variables are configured as development/preview → preview Supabase and
 production → production Supabase.
 
 The current public alias is `https://relogo-two.vercel.app`; the landing site is
-unchanged/live, and pull request #2's Vercel preview passed. Main-branch uptime
+live and (per 2026-09-24 probes) already serves the current Privacy/Support/
+Terms pages, and pull request #2's Vercel preview passed. Main-branch uptime
 run `30843906264` reverified its public route markers plus production auth and
 resolver health. The
 custom `relogo.app` domain and monitored support/privacy mailbox are not
@@ -430,8 +465,9 @@ npm run build        # tsc -b && vite build -> dist/
 npm run preview      # optional local preview of the production build
 ```
 
-Vercel setup (`admin/vercel.json` already includes the SPA rewrite to
-`/index.html`):
+Vercel setup (`admin/vercel.json` configures security headers; the dashboard uses
+the root route and has no catch-all rewrite that would turn missing assets into
+HTML responses):
 
 - Linked Vercel project: `relo-go`
 - Root directory: `admin`
@@ -483,17 +519,23 @@ Cloud build completion still cannot replace real-device evidence or approval.
 Prioritize the iOS recovery because broken 1.0 is publicly downloadable there.
 Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
-The mobile production audit patches `js-yaml`, `nanoid`, and `postcss` and uses
-a fail-closed wrapper for two exact `image-size@1.2.1` denial-of-service
-advisories propagated through Metro build tooling. There is no patched
-`image-size` release or compatible npm remedy; the reviewed exception is
-limited to repository-controlled build assets and every other high/critical
-finding fails. The exact `xcode@3.0.1` override still pins the CommonJS-
-compatible `uuid@11.1.1`; keep it narrow and remove it when fixed upstream.
-The final current-tree local mobile gates pass: release configuration,
+The mobile production audit now fails on every high/critical finding and on
+unavailable or malformed advisory data. There is no Metro/`image-size`
+exception. React Native and its community CLI plugin are `0.83.10`; the exact
+`@react-native/community-cli-plugin@0.83.10` override pins only that plugin's
+`metro` and `metro-config` to `0.83.8`. Keep this override scoped and preserve the
+lockfile; do not replace Expo's separate Metro dependency globally. The YAML
+override is `js-yaml@4.3.2`; resolved XML parser branches are
+`@xmldom/xmldom@0.8.15` and `0.9.12`. Existing `nanoid` and `postcss` pins remain.
+The exact `xcode@3.0.1` override still pins the CommonJS-compatible
+`uuid@11.1.1`; keep it narrow and remove it when fixed upstream.
+The historical 2026-08-17 mobile gates passed: release configuration,
 TypeScript, lint, 13 Jest suites with 133/133 tests, iOS export at 1,753
 modules/5.8 MB Hermes bytecode, Android export at 1,774 modules/5.9 MB Hermes
-bytecode, and the fail-closed production audit. Cloud build completion does
+bytecode, and the then-current production audit. These artifacts and counts
+predate the 2026-09-14 fixes; rerun the commands below on the final source tree
+and build replacements from that verified tree before shipping these fixes.
+Cloud build completion does
 not replace real-device QA or store-submission evidence. Do not create duplicate
 builds merely to reproduce their successful status. For internal iOS QA, only
 with explicit owner authorization, upload exact-`cd3a87c` build 8 to TestFlight,
@@ -590,6 +632,30 @@ and account deletion wipe the cache unconditionally.
 
 For local development copy `mobile/.env.example` to `mobile/.env`.
 
+### Local QA while hosted preview is paused
+
+Keep development/preview files separate from production. To use the running
+local Supabase stack without editing any `.env` files, run from the repository
+root (after installing each app's dependencies with Node 22):
+
+```bash
+supabase start
+python3.11 scripts/run-local-app.py admin
+python3.11 scripts/run-local-app.py landing
+python3.11 scripts/run-local-app.py mobile -- --ios --clear
+```
+
+Run each app in its own terminal. The launcher reads local CLI status in memory,
+accepts only a bare HTTP loopback origin and an anonymous public key, and sets
+only the selected app's Supabase variables for that process. Existing environment
+files, hosted projects, and production release settings stay unchanged. Extra
+arguments after `--` go to the usual development server. This loopback setup is
+for desktop browsers and iOS Simulator; physical devices and Android emulators
+need a separately reviewed reachable development address. It does not resume the
+hosted preview or provide its data; local data and authentication come from the
+local stack. Run `python3.11 scripts/test-run-local-app.py` to check the launcher's
+environment isolation without network access.
+
 Before store submission, a human account owner/legal reviewer must confirm the
 draft App Store Connect and Google Play disclosures in `docs/STORE.md`, including
 anonymous account-linked move/progress/support data, Gemini processing, and
@@ -613,13 +679,11 @@ The worker is containerized (`worker/Dockerfile`, `python:3.11-slim` with
 Chromium for Playwright).
 
 Migrations 011 and 023 must be applied first; both are now present in
-production. Local migration 027 must also be applied before the coordinated
-worker changes are run; it is not yet hosted. Do not apply 027 while the daily
-schedule still executes the older default-branch worker: that implementation
-ignores `monitor_url` and could repopulate the nine cleared automatic baselines
-from canonical blocked pages. First schedule the coordinated worker, or
-explicitly pause the old schedule and run the reviewed `tamim` workflow
-manually. The service role can read the
+production. Migration 027 is not yet hosted; the coordinated default-branch
+worker already requires it and currently fails its preflight against production
+026. Follow the approved 027/028 rollout sequence above, then run the existing
+`main` workflow. Its source already honors private targets and manual
+assignments. The service role can read the
 narrow source columns and execute
 `persist_official_source_scrape()` but cannot directly edit source baselines or
 alert rows. The RPC atomically files a PENDING alert and advances its baseline;
@@ -628,11 +692,15 @@ stale compare-and-swap work is discarded and reported.
 The workflow runs `worker/preflight.py` before browser installation. It
 accepts only `https://yskknolxbxfxakgvrcmg.supabase.co`, rejecting preview,
 lookalike hosts, credentials, ports, paths, queries, and fragments before its
-read-only key/schema/resolver checks. Production has the required resolver.
+read-only key/schema/resolver checks. The local preflight now distinguishes
+basic authentication/schema access, required migration 027 metadata, and the
+canonical resolver. A metadata failure instructs the operator to verify 027 and
+worker grants; it never falls back to the old source shape or writes baselines.
+Production has the required resolver.
 `worker/requirements.txt` pins `supabase==2.31.0`. Pull request #2's compile and
 77/77 worker tests passed. Post-merge safeguards fetch duplicate URLs once, serialize
 and pace each origin, and classify access challenges without weakening the
-failure policy; the expanded suite passes 97/97. Main run `30843904269` passed
+failure policy; the expanded suite passed 97/97 at that checkpoint. Main run `30843904269` passed
 the key/schema/resolver preflight and created 42 baselines. Hardened production
 run `30845791036` fetched 50 unique URLs for 53 rows, reused three duplicate
 outcomes, completed 42 rows (`1` baseline, `38` unchanged, `3` changed), and
@@ -649,9 +717,9 @@ instead MANUAL assignments owned by ReloGo operations every 30 days. The
 updated worker excludes those rows from automatic fetching and lists them in
 every Actions summary. The cadence records responsibility only—it is not proof
 of review and does not track overdue work. Challenge/content gates remain fail-
-closed, and the persistence RPC rejects writes to manual rows. These changes
-are local/pending review: no hosted migration, worker deployment, or live rerun
-has occurred.
+closed, and the persistence RPC rejects writes to manual rows. The worker source
+is already on `main`; migration 027 and its first successful hosted worker run
+remain pending approval and execution.
 
 Worker-equivalent reachability does not prove complete semantic coverage. The
 Quebec surrogate contains high-level RAMQ guidance rather than the full RAMQ
@@ -661,11 +729,14 @@ policy omits some registration steps and school authorities. A green Actions
 run means the configured automatic checks completed, not that these content
 gaps disappeared. Keep them in the human content/legal review gate.
 
-Local verification of this tranche passes a fresh reset through migration 027,
-public-schema lint, pgTAP 207/207, worker compile/tests 106/106, database type
-sync, mobile TypeScript, and the admin production build. The API E2E run passed
-247/248 before the local Edge Runtime stopped and returned 503; after restarting
-that local service, the exact remaining anonymous-function test passed.
+The 2026-09-14 local rollout rehearsal applied 027 and 028 inside rollback-only
+transactions: nine automatic replacements, two manual assignments, exactly 11
+cleared baselines and 42 preserved baselines, unchanged public links/live rules,
+and preserved explicit admin membership. All 221 pgTAP assertions passed twice;
+transactional public PL/pgSQL lint found zero issues across 16 routine/trigger
+combinations. All 110 worker tests and nine replacement source fetches passed.
+These checks preserved local data and do not establish a hosted rollout or a
+fresh full API E2E result.
 
 ```bash
 cd worker
@@ -904,6 +975,9 @@ the recovery production deploy and before later mobile releases.
 - `worker-compile`: compiles worker and read-only preflight modules
 - `worker-test`: Python 3.11 pytest suite
 - `types-sync`: verifies the mobile/admin `Database` interfaces are byte-identical
+- `dependency-audit`: rejects every high/critical production dependency finding
+  across all three apps. Mobile additionally validates the advisory response
+  and fails on operational errors; no Metro/`image-size` exception remains.
 
 The web builds use placeholder Supabase env values in CI; real values are
 injected by Vercel at deploy time.
@@ -932,9 +1006,10 @@ service-role key in the uptime probe.
   then publish the monitored address through `NEXT_PUBLIC_SUPPORT_EMAIL`.
 - **Edge Function:** review `support-ai` logs for exceptions, Gemini rate limits,
   policy-consent failures, and fallback surges.
-- **Worker:** hardened run `30845791036` passed preflight and left 43/53
-  baselines; key rotation is not needed. Review and roll out local migration 027
-  before its worker changes, then require a healthy live rerun with both Yukon
+- **Worker:** hardened run `30845791036` passed its earlier preflight and left
+  43/53 baselines. The coordinated `main` worker now fails against production
+  026; key rotation does not repair missing schema. After explicit approval,
+  apply 027/028 and require a healthy live rerun with both Yukon
   manual assignments visible. Configure a webhook and explicit GitHub Actions
   alert owner; `ALERT_WEBHOOK_URL` remains unset.
 - **App uptime:** main run `30843906264` passed the public web, production
@@ -1049,14 +1124,16 @@ print('SUCCESS: Webhook payload delivered.')
 **Action:**
 1. Open the GitHub Actions tab and inspect the failed worker logs.
 2. Determine whether the failure happened during runner setup, authentication,
-   or source fetching; rerun only after the cause is understood.
+   required migration metadata, or source fetching; rerun only after the cause
+   is understood.
    The modern 2.31.0/preflight source is on the default branch. Verify
    the run used that merged dependency before diagnosing a current
    authentication failure or rotating a valid key unnecessarily.
 3. Triage every failed automatic source and verify every manual assignment is
    listed. The last live incident contained 11 failed rows across 10 URLs; the
    local migration 027 treatment is not production evidence until it is
-   reviewed, applied before the coordinated worker, and live-rerun. Do not
+   reviewed, applied to the explicitly targeted project, and verified by a live
+   rerun of the coordinated worker already on `main`. Do not
    silently wait for the next cron or treat a 30-day assignment as proof of
    review.
 4. If a site structure changed, update and test the bounded extraction logic.

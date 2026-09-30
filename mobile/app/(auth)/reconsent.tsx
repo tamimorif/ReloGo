@@ -5,7 +5,7 @@
  * exactly the version shipped by this app. The server chooses the persisted
  * version and timestamp; this screen sends no profile fields or on-device PII.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,7 +24,7 @@ import {
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
 } from "@/lib/legalConsent";
-import { supabase } from "@/lib/supabase";
+import { acceptCurrentPolicies } from "@/lib/policyAcceptance";
 
 export default function ReconsentScreen() {
   const router = useRouter();
@@ -39,9 +39,12 @@ export default function ReconsentScreen() {
   const [accountAction, setAccountAction] = useState<
     "delete" | "signout" | null
   >(null);
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => requestRef.current?.abort(), []);
   const isBusy = isSubmitting || accountAction !== null;
 
   async function handleContinue() {
+    if (requestRef.current) return;
     if (!hasConsented) {
       Alert.alert(
         "Consent Required",
@@ -58,45 +61,27 @@ export default function ReconsentScreen() {
       return;
     }
 
+    const request = new AbortController();
+    requestRef.current = request;
     setIsSubmitting(true);
     try {
-      const { data: acceptedVersion, error } = await supabase.rpc(
-        "accept_current_policies",
-      );
-      if (error || typeof acceptedVersion !== "string") {
-        throw new Error("Policy acceptance was not confirmed");
-      }
-
-      // The server owns the current version. This deliberately does not
-      // compare against the version baked into the installed binary: an older
-      // app can still present the current hosted legal pages and accept the
-      // server-current release.
-      const { data: consentState, error: stateError } = await supabase.rpc(
-        "get_policy_consent_state",
-      );
-      if (
-        stateError ||
-        consentState?.has_current_consent !== true ||
-        !consentState.profile ||
-        consentState.accepted_version !== consentState.current_version ||
-        acceptedVersion !== consentState.current_version
-      ) {
-        throw new Error("Policy acceptance was not confirmed");
-      }
+      const profile = await acceptCurrentPolicies(request.signal);
 
       queryClient.setQueryData(
         ["profile", session.user.id],
-        consentState.profile,
+        profile,
       );
       setHasCurrentConsent(true);
       router.replace("/(tabs)/checklist");
     } catch {
+      if (request.signal.aborted) return;
       Alert.alert(
         "Couldn't save your consent",
         "Check your connection and try again. Your on-device personal info is unchanged.",
       );
     } finally {
-      setIsSubmitting(false);
+      requestRef.current = null;
+      if (!request.signal.aborted) setIsSubmitting(false);
     }
   }
 
@@ -213,7 +198,14 @@ export default function ReconsentScreen() {
             I agree to the current{" "}
             <Text
               className="font-semibold text-blue-600"
-              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              onPress={() =>
+                Linking.openURL(PRIVACY_POLICY_URL).catch(() =>
+                  Alert.alert(
+                    "Couldn't open the official website",
+                    "Please try again in a moment.",
+                  ),
+                )
+              }
               accessibilityRole="link"
             >
               Privacy Policy
@@ -221,7 +213,14 @@ export default function ReconsentScreen() {
             and{" "}
             <Text
               className="font-semibold text-blue-600"
-              onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+              onPress={() =>
+                Linking.openURL(TERMS_OF_SERVICE_URL).catch(() =>
+                  Alert.alert(
+                    "Couldn't open the official website",
+                    "Please try again in a moment.",
+                  ),
+                )
+              }
               accessibilityRole="link"
             >
               Terms of Service
@@ -262,7 +261,7 @@ export default function ReconsentScreen() {
           <TouchableOpacity
             onPress={handleDeleteAccount}
             disabled={isBusy}
-            className="mt-4 h-12 items-center justify-center rounded-xl border border-red-200 bg-red-50"
+            className="mt-4 min-h-12 py-3 items-center justify-center rounded-xl border border-red-200 bg-red-50"
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Delete My Data without accepting the updated policies"
@@ -279,7 +278,7 @@ export default function ReconsentScreen() {
           <TouchableOpacity
             onPress={handleSignOut}
             disabled={isBusy}
-            className="mt-3 h-12 items-center justify-center rounded-xl"
+            className="mt-3 min-h-12 py-3 items-center justify-center rounded-xl"
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Sign out without accepting the updated policies"

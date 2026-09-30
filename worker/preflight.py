@@ -49,14 +49,42 @@ def main() -> int:
         client = create_client(url.rstrip("/"), key)
         sources = (
             client.table("official_sources")
+            .select("id", count="exact")
+            .limit(1)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001 - CLI boundary, sanitized below
+        # Do not echo exception text: upstream clients may include request
+        # headers or URLs. The hosted Actions log needs only a safe diagnosis.
+        print(
+            "ERROR: worker cannot authenticate to the expected ReloGo schema",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        (
+            client.table("official_sources")
             .select(
-                "id, monitor_url, monitoring_mode, manual_review_owner, "
-                "manual_review_interval_days",
-                count="exact",
+                "monitor_url, monitoring_mode, manual_review_owner, "
+                "manual_review_interval_days"
             )
             .limit(1)
             .execute()
         )
+    except Exception:  # noqa: BLE001 - do not expose database error details
+        # Never fall back to the public URL/pre-027 shape: it would ignore
+        # manual assignments and could baseline the wrong monitoring target.
+        print(
+            "ERROR: worker cannot read migration 027 monitoring metadata; "
+            "verify 027_worker_source_monitoring.sql is applied and worker "
+            "read grants are present. Monitoring is stopped; no baselines "
+            "were written.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
         client.rpc(
             "resolve_corridor_rules",
             {
@@ -65,10 +93,8 @@ def main() -> int:
             },
         ).execute()
     except Exception:  # noqa: BLE001 - CLI boundary, sanitized below
-        # Do not echo exception text: upstream clients may include request
-        # headers or URLs. The hosted Actions log needs only a safe diagnosis.
         print(
-            "ERROR: worker cannot authenticate to the expected ReloGo schema",
+            "ERROR: worker cannot read the canonical corridor resolver",
             file=sys.stderr,
         )
         return 1

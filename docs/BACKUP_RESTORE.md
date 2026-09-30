@@ -1,6 +1,6 @@
 # Supabase backup and restore posture for ReloGo
 
-_Last reviewed: 2026-07-31_
+_Last reviewed: 2026-07-31; environment version reference corrected 2026-09-24_
 
 ## Executive summary
 
@@ -13,10 +13,10 @@ Current environment state:
 | Environment | Project | Runtime state | Schema/function state | Backup gate |
 | --- | --- | --- | --- | --- |
 | Preview | `uwfblgllkibbupqyofkl` | Deliberately paused after verification | Migrations 001–026; `support-ai` v3 | Resume only for preview work; verify the Dashboard's available backups before relying on them |
-| Production | `yskknolxbxfxakgvrcmg` | Active | Exact migrations 001–026; `support-ai` v4 ACTIVE/JWT-protected; anonymous auth enabled; user-data tables empty | Plan/retention/PITR selection, funding, and a restore drill remain owner approvals |
+| Production | `yskknolxbxfxakgvrcmg` | Active | Exact migrations 001–026; `support-ai` v5 ACTIVE/JWT-protected; anonymous auth enabled; user-data tables empty | Plan/retention/PITR selection, funding, and a restore drill remain owner approvals |
 
 A backup exercise must not apply migration 027+, redeploy functions, or change
-production configuration. Preview 001–026/v3 and production 001–026/v4 are the
+production configuration. Preview 001–026/v3 and production 001–026/v5 are the
 current environment-specific recovery baselines. Future promotion has a
 separate explicit approval gate in
 [DEPLOYMENT.md](DEPLOYMENT.md).

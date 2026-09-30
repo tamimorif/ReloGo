@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 import type { AdminUserListRow, Province } from "../types/database";
 import { PROVINCE_LABELS } from "../types/database";
 import { UserDetailModal } from "./UserDetailModal";
@@ -50,6 +51,9 @@ export function UsersTable() {
   // call. total_count (returned on every row) gives the full size, so the RPC
   // never has to ship the whole user base in one payload.
   const [totalCount, setTotalCount] = useState(0);
+  // Advance by rows returned, even when concurrent signups overlap pages.
+  const [nextOffset, setNextOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // ── Fetch the first page via the admin RPC ────────────────────────────
@@ -61,11 +65,13 @@ export function UsersTable() {
       })
       .then(({ data, error: fetchErr }) => {
         if (fetchErr) {
-          setError(fetchErr.message);
+          setError(ADMIN_ERRORS.loadUsers);
         } else {
           const page = data ?? [];
           setUsers(page);
           setTotalCount(page[0]?.total_count ?? 0);
+          setNextOffset(page.length);
+          setHasMore(page.length < (page[0]?.total_count ?? 0));
         }
         setLoading(false);
       });
@@ -80,22 +86,34 @@ export function UsersTable() {
   // ── Fetch the next page and append it ─────────────────────────────────
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
+    setError(null);
     const { data, error: fetchErr } = await supabase.rpc("admin_list_users", {
       p_limit: PAGE_SIZE,
-      p_offset: users.length,
+      p_offset: nextOffset,
     });
     if (fetchErr) {
-      setError(fetchErr.message);
+      setError(ADMIN_ERRORS.loadUsers);
     } else {
       const page = data ?? [];
-      setUsers((prev) => [...prev, ...page]);
+      setUsers((prev) => {
+        const seen = new Set(prev.map((user) => user.user_id));
+        return [...prev, ...page.filter((user) => {
+          if (seen.has(user.user_id)) return false;
+          seen.add(user.user_id);
+          return true;
+        })];
+      });
+      const offset = nextOffset + page.length;
+      setNextOffset(offset);
       // total_count can move as new users sign up between pages; keep the
       // newest estimate so the "Load more" cutoff stays accurate. An empty
-      // page means there is nothing left, so stop offering "Load more".
-      setTotalCount(page[0] ? page[0].total_count : users.length);
+      // page means there is nothing left, so stop offering "Load more" without
+      // replacing the total with the (possibly deduplicated) visible count.
+      if (page[0]) setTotalCount(page[0].total_count);
+      setHasMore(page.length > 0 && offset < page[0].total_count);
     }
     setLoadingMore(false);
-  }, [users.length]);
+  }, [nextOffset]);
 
   useEffect(() => {
     fetchUsers();
@@ -127,7 +145,7 @@ export function UsersTable() {
         </div>
         <button
           onClick={refreshUsers}
-          disabled={loading}
+          disabled={loading || loadingMore}
           className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:opacity-50"
         >
           {loading ? "Refreshing…" : "↻ Refresh"}
@@ -244,7 +262,7 @@ export function UsersTable() {
       ) : null}
 
       {/* ── Load more (fetches the next server-side page) ── */}
-      {!loading && users.length < totalCount && (
+      {!loading && hasMore && (
         <div className="mt-4 flex flex-col items-center gap-1">
           <button
             onClick={loadMore}
