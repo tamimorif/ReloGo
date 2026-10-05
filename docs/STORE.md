@@ -479,19 +479,33 @@ npm run check:release
 npm test -- --runInBand
 npm run lint
 npm run typecheck
+npm run audit:production
 ```
+
+**Upload is blocked while the documented mobile production audit is failing.**
+As recorded on 2026-10-05, `npm run audit:production` fails closed (26 high,
+0 critical) on the `braces` GHSA-vfj7-8cjw-p6xm (no patched release) and
+`node-forge` GHSA-86w9-cpqp-85rv advisories. Resolve them, or obtain a
+reviewed, narrowly scoped exception, before any store upload. Do not bypass or
+weaken the audit to make the upload proceed.
 
 #### Step 2: Build and Upload the Current Tree via EAS
 Build a fresh production binary from the committed tree (version `1.0.1`,
-remote-incremented to build 9) and upload it to App Store Connect:
+remote-incremented to build 9), wait for it to finish, verify its source commit
+and `production` profile, then submit that exact EAS build ID. See the canonical
+verified sequence in [DEPLOYMENT.md §4](DEPLOYMENT.md):
 ```bash
 cd /Users/tamimorif/Documents/GitHub/ReloGo/mobile
-npx eas-cli@latest build --platform ios --profile production --non-interactive
-npx eas-cli@latest submit --platform ios --profile production \
-  --latest --non-interactive --no-wait
+npx eas-cli@latest build --platform ios --profile production \
+  --non-interactive --freeze-credentials --wait --json > /tmp/relogo-ios-build.json
+# Verify /tmp/relogo-ios-build.json: profile == "production" and
+# gitCommitHash == $(git rev-parse HEAD), then submit that build's id:
+npx eas-cli@latest submit --platform ios \
+  --id <verified-ios-build-id> --non-interactive
 ```
 Do not submit the historical build IDs (`765965d7-...` / `daa8e42a-...`); they
-predate the current tree.
+predate the current tree, and do not use `--no-wait` followed by `--latest` for
+a release submission.
 
 #### Step 3: Configure App Store Connect Metadata
 Log into [App Store Connect](https://appstoreconnect.apple.com):
@@ -539,9 +553,14 @@ Log into [App Store Connect](https://appstoreconnect.apple.com):
   Once the Google Play Service Account JSON key is provisioned:
   ```bash
   cd /Users/tamimorif/Documents/GitHub/ReloGo/mobile
-  npx eas-cli@latest build --platform android --profile production --non-interactive
-  npx eas-cli@latest submit --platform android --profile production \
-    --latest --non-interactive --no-wait
+  EXPECTED_COMMIT=$(git rev-parse HEAD)
+  npx eas-cli@latest build --platform android --profile production \
+    --non-interactive --freeze-credentials --wait --json > /tmp/relogo-android-build.json
+  # Verify /tmp/relogo-android-build.json: profile == "production",
+  # gitCommitHash == "$EXPECTED_COMMIT", and status == "FINISHED"; then submit
+  # that exact verified build id:
+  npx eas-cli@latest submit --platform android \
+    --id <verified-android-build-id> --non-interactive
   ```
 
 #### Step 2: Configure Google Play Data Safety

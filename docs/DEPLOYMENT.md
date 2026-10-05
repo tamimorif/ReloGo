@@ -571,22 +571,45 @@ eas login
 eas env:list --environment preview
 eas build --profile preview --platform all      # first: internal distribution
 
-# Create exact production artifacts after repository gates pass. This does not
-# upload them to a store or submit them for review:
+# Create exact production artifacts after repository gates pass. Build each
+# platform separately, WAIT for it to finish, and keep the returned build ID.
+# This does not upload anything to a store or submit it for review:
 eas env:list --environment production
-eas build --profile production --platform all --non-interactive \
-  --freeze-credentials --no-wait --json
+eas build --profile production --platform ios --non-interactive \
+  --freeze-credentials --wait --json > /tmp/relogo-ios-build.json
+eas build --profile production --platform android --non-interactive \
+  --freeze-credentials --wait --json > /tmp/relogo-android-build.json
 
-# Only after explicit owner authorization to upload the fresh `fff31da` iOS
-# build (expected build 9) for TestFlight/device QA. This uploads the binary to
-# App Store Connect; it does not submit an App Review release:
+# Verify each finished build's source commit is the reviewed local tip and its
+# profile is `production` before any submission. A mismatch means the artifact
+# is not the reviewed tree; rebuild from the correct commit instead.
+EXPECTED_COMMIT=$(git rev-parse HEAD)
+python3 - "$EXPECTED_COMMIT" <<'PY'
+import json, sys
+expected = sys.argv[1]
+for platform, path in (
+    ("ios", "/tmp/relogo-ios-build.json"),
+    ("android", "/tmp/relogo-android-build.json"),
+):
+    data = json.load(open(path))
+    build = data[0] if isinstance(data, list) else data
+    assert build["profile"] == "production", (platform, build.get("profile"))
+    assert build["gitCommitHash"] == expected, (platform, build.get("gitCommitHash"))
+    assert build["status"] == "FINISHED", (platform, build.get("status"))
+    print(platform, "verified", build["id"], build["gitCommitHash"])
+PY
+
+# Only after explicit owner authorization AND the verification above, upload the
+# exact verified iOS build ID to App Store Connect for TestFlight/device QA.
+# This does not submit an App Review release:
 eas submit --profile production --platform ios \
-  --latest --non-interactive --no-wait
+  --id <verified-ios-build-id> --non-interactive
 
 # Android remains separate. Only after Android device QA, an owner-approved
-# Google Play path/service-account key, and explicit upload authorization:
+# Google Play path/service-account key, explicit upload authorization, and the
+# same commit/profile verification, submit the exact verified Android build ID:
 eas submit --profile production --platform android \
-  --latest --non-interactive --no-wait
+  --id <verified-android-build-id> --non-interactive
 ```
 `mobile/eas.json` explicitly selects the EAS `development`, `preview`, and
 `production` environments and intentionally stores no project values. The
@@ -1093,18 +1116,23 @@ url = os.environ.get('ALERT_WEBHOOK_URL')
 if not url:
     print('ERROR: Set ALERT_WEBHOOK_URL before running test', file=sys.stderr)
     sys.exit(1)
+# Synthetic payload: this is a delivery test, not a real monitoring run.
 stats = {
-    'scraped': 42,
+    'scraped': 1,
     'baseline': 0,
-    'unchanged': 40,
-    'changed': 2,
+    'unchanged': 1,
+    'changed': 0,
     'stale': 0,
     'failed': 0,
-    'manual': 2,
+    'manual': 1,
 }
 manual_sources = [
-    {'agency': 'Government of Yukon', 'url': 'https://yukon.ca/',
-     'owner': 'ReloGo operations', 'interval_days': 30},
+    {
+        'agency': 'SYNTHETIC VERIFICATION PROBE — not a real monitoring run',
+        'url': 'https://example.invalid/relogo-webhook-probe',
+        'owner': 'ReloGo operations',
+        'interval_days': 30,
+    },
 ]
 sent, detail = reporting.send_run_webhook(url, stats, [], [], manual_sources)
 if not sent:
