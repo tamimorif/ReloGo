@@ -2,9 +2,8 @@
 
 An annotated tour of the current shared tree, grouped by app. The recovery
 fixes, migrations 027–028, and QA artifacts are committed in `fff31da`; local
-branch `tamim` also has the status-doc and landing `next@16.3.8` advisory
-follow-up in `3d156ec` (two commits ahead of `main`, one ahead of
-`origin/tamim`, unpushed). Build
+branch `tamim` also has committed, unpushed status-doc and landing
+`next@16.3.8` follow-ups (`3d156ec` and later) on top of `origin/tamim`. Build
 output, `node_modules/`, `.env` files, and other ignored paths are omitted. For
 prose descriptions see [README.md](../../README.md); for current agent context
 see [AI_HANDOFF.md](AI_HANDOFF.md).

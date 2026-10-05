@@ -84,12 +84,12 @@ by the committed `fff31da` tree (see the note below) and must not be uploaded.
 > **Branch-tip note (read-only check 2026-10-05):** `main` points at `0c78e56`
 > (2026-09-08), which adds the Phase 1 checklist simplification (`d64c4cb`), EAS
 > submit `ascAppId` configuration (`e103095`), and the Expo SDK 55.0.31 patch
-> alignment (`df3535b`) on top of `cd3a87c`. The checked-out `tamim` branch is
-> two commits ahead: `fff31da` (2026-09-29) commits the 2026-09-14 verification
-> fixes, migrations 027–028, and the store-readiness work, and `3d156ec`
-> (2026-10-05) reconciles the status docs and refreshes the landing lockfile to
-> `next@16.3.8`. The tree is clean and unpushed (`origin/tamim` is at
-> `fff31da`). Builds
+> alignment (`df3535b`) on top of `cd3a87c`. The checked-out `tamim` branch
+> holds committed, unpushed follow-ups on top of `origin/tamim` (`fff31da`,
+> 2026-09-29): `fff31da` commits the 2026-09-14 verification fixes, migrations
+> 027–028, and the store-readiness work, and `3d156ec` (2026-10-05) reconciles
+> the status docs and refreshes the landing lockfile to `next@16.3.8`. The tree
+> is clean. Builds
 > 8/5 recorded from `cd3a87c` predate this tip, so rebuild (expected iOS build 9
 > / Android versionCode 6) before upload or store QA.
 > The verdicts above describe the recorded artifacts, not the committed tip.

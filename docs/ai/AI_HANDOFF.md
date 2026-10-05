@@ -19,14 +19,14 @@ The final production Edge Function v5, reviewed admin recovery, landing site,
 and backend-aware main uptime are live. The App Store still distributes the
 broken 1.0 binary; 1.0.1 has not shipped. Recovery is not complete because
 real-device/store, hosted rollout of the local source-monitoring fix, and human
-approval gates remain. `main` sits at `0c78e56` (2026-09-08), which includes
-the committed Phase 1 checklist simplification. The checked-out branch `tamim`
-is two commits ahead of `main` and one ahead of `origin/tamim`: `fff31da`
-(2026-09-29) commits the 2026-09-14 recovery fixes, migrations 027–028, the
-store-readiness mobile fixes, and the supporting QA/docs/CI updates, and
-`3d156ec` (2026-10-05) reconciles the status docs and refreshes the landing
-lockfile to `next@16.3.8` (clearing the critical RCE advisory). The working tree
-is clean and nothing has been pushed. The recorded store
+approval gates remain. `main` sits at `0c78e56` (2026-09-08), the base of the
+recovery work. The checked-out branch `tamim` holds committed, unpushed
+follow-up commits on top of `origin/tamim` (`fff31da`, 2026-09-29): `fff31da`
+commits the 2026-09-14 recovery fixes, migrations 027–028, the store-readiness
+mobile fixes, and the supporting QA/docs/CI updates; `3d156ec` (2026-10-05)
+reconciles the status docs and refreshes the landing lockfile to `next@16.3.8`
+(clearing the critical RCE advisory); later commits record the committed state.
+The working tree is clean and nothing has been pushed. The recorded store
 artifacts were built from the earlier `cd3a87c`, so a rebuild from the committed
 `tamim` tip (expected iOS build 9 / Android versionCode 6) is required before
 store QA.
@@ -89,16 +89,16 @@ Environment truth:
 - GitHub: pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel
   checks, both fixed review threads were resolved, and it merged as `e75f449`.
 - Local git state (read-only check 2026-10-05): the checked-out branch `tamim`
-  points at `3d156ec` (2026-10-05) with a clean tree, one commit ahead of
-  `origin/tamim` (`fff31da`, 2026-09-29) and two ahead of `main`/`origin/main`
-  (`0c78e56`, PR #6 merge, 2026-09-08). Three commits follow `cd3a87c`:
-  `d64c4cb` (Phase 1 checklist task cards and roadmap documentation),
-  `e103095` (EAS submit `ascAppId`), and `df3535b` (Expo SDK 55.0.31 patch
-  alignment and audit policy). `fff31da` then commits the 2026-09-14
-  verification fixes, migrations 027–028, the store-readiness mobile fixes, and
-  the supporting QA/docs/CI updates; `3d156ec` reconciles the status docs and
-  refreshes the landing lockfile to `next@16.3.8`. Nothing has been pushed and
-  only the `main` and `tamim` branches exist.
+  is clean and holds committed, unpushed follow-up work on top of `origin/tamim`
+  (`fff31da`, 2026-09-29); `main`/`origin/main` remain at `0c78e56` (PR #6 merge,
+  2026-09-08). Three commits follow `cd3a87c`: `d64c4cb` (Phase 1 checklist task
+  cards and roadmap documentation), `e103095` (EAS submit `ascAppId`), and
+  `df3535b` (Expo SDK 55.0.31 patch alignment and audit policy). `fff31da` then
+  commits the 2026-09-14 verification fixes, migrations 027–028, the
+  store-readiness mobile fixes, and the supporting QA/docs/CI updates;
+  `3d156ec` reconciles the status docs and refreshes the landing lockfile to
+  `next@16.3.8`. Nothing has been pushed and only the `main` and `tamim`
+  branches exist.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
   key/schema/resolver preflight passed, proving the encrypted key works. It
   created 42 baselines and failed closed on 11 source rows. Hardened run
@@ -505,16 +505,15 @@ deno test --config supabase/functions/support-ai/deno.json \
 
 ### Latest established results
 
-- Current git state (read-only check 2026-10-05): local `tamim` == `3d156ec`
-  (clean tree, not pushed), one commit ahead of `origin/tamim` (`fff31da`,
-  2026-09-29) and two ahead of `main` == `origin/main` == `0c78e56` (PR #6
-  merge, 2026-09-08). The 2026-09-08 commits `d64c4cb`, `e103095`, and
-  `df3535b` are on all of these. `fff31da` commits the 2026-09-14 verification
-  fixes, migrations 027–028, the store-readiness mobile fixes, and the
-  supporting QA/docs/CI updates; `3d156ec` reconciles the status docs and
-  refreshes the landing lockfile to `next@16.3.8` (clearing the critical RCE
-  advisory). Only the `main` and `tamim` branches exist. No rebuild, upload,
-  store submission, migration, deploy, or push was performed.
+- Current git state (read-only check 2026-10-05): `main` == `origin/main` ==
+  `0c78e56` (PR #6 merge, 2026-09-08), untouched. Local `tamim` is clean and
+  carries committed, unpushed work on top of `origin/tamim` (`fff31da`,
+  2026-09-29): `fff31da` commits the 2026-09-14 verification fixes, migrations
+  027–028, the store-readiness mobile fixes, and the supporting QA/docs/CI
+  updates; `3d156ec` reconciles the status docs and refreshes the landing
+  lockfile to `next@16.3.8` (clearing the critical RCE advisory); later commits
+  record the committed state. Only the `main` and `tamim` branches exist. No
+  rebuild, upload, store submission, migration, deploy, or push was performed.
 - Read-only web audit (2026-09-24, historical): `relogo-two.vercel.app` served
   the current Privacy/Support/Terms pages with unconfigured-mailbox notices,
   while `relo-go.vercel.app` still returns SPA HTML for `/vite.svg` and missing

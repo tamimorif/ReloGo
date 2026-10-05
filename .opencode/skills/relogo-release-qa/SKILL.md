@@ -59,7 +59,7 @@ an archived screenshot bundle. Last run: **GATE-Z01–Z08 all BLOCKED**.
 | Item | Fact |
 | --- | --- |
 | EAS | project `@tamimorif/relogo`, production channel/runtime 1.0.1 |
-| Current artifacts | iOS build 8 `daa8e42a-…`, Android build 5 `f839dede-…`, both `FINISHED` from `cd3a87c` — recorded before `0c78e56` and the committed recovery tree (`fff31da`, local tip `3d156ec`), so they are superseded; neither uploaded/submitted. Rebuild from the committed `tamim` tip (expected iOS build 9 / Android versionCode 6) before store QA |
+| Current artifacts | iOS build 8 `daa8e42a-…`, Android build 5 `f839dede-…`, both `FINISHED` from `cd3a87c` — recorded before `0c78e56` and the committed recovery tree (`fff31da`, plus unpushed local `tamim` follow-ups), so they are superseded; neither uploaded/submitted. Rebuild from the committed `tamim` tip (expected iOS build 9 / Android versionCode 6) before store QA |
 | Shipped 1.0 | broken and unrecoverable (deleted Supabase ref baked into the Hermes bundle); recovery needs a new 1.0.1 store binary |
 | Vercel | `relogo` → `landing/`, `relo-go` → `admin/`. The local `admin/.vercel/project.json` already names project `relo-go` (root `admin`), so no relink is needed. The 2026-09-24 probe shows `relo-go` still serving SPA HTML for missing assets; the committed `fff31da` favicon/404 fix needs an explicit deploy |
 | Mailbox | no monitored public mailbox/domain — do not publish a support/privacy address until owned and monitored |
