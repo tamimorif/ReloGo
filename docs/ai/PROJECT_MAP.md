@@ -1,7 +1,8 @@
 # ReloGo — Project Map
 
-An annotated tour of the current shared tree, grouped by app. Pending local
-implementation files are included even before the tranche is committed. Build
+An annotated tour of the current shared tree, grouped by app. The recovery
+fixes, migrations 027–028, and QA artifacts are committed in `fff31da` (branch
+`tamim`, one commit ahead of `main`). Build
 output, `node_modules/`, `.env` files, and other ignored paths are omitted. For
 prose descriptions see [README.md](../../README.md); for current agent context
 see [AI_HANDOFF.md](AI_HANDOFF.md).
@@ -119,7 +120,7 @@ admin/
 │   │   └── WaitlistTable.tsx                     ← landing signup visibility
 │   ├── lib/supabase.ts
 │   └── types/database.ts       ← extracted Database interface syncs with mobile
-├── vite.config.ts, vercel.json (SPA rewrite → /index.html)
+├── vite.config.ts, vercel.json (security headers; no SPA catch-all)
 └── tailwind · postcss · tsconfig.json · index.html
 ```
 
@@ -160,7 +161,7 @@ supabase/
 │   ├── 014_persistent_support_human_takeover.sql ← durable human marker
 │   ├── 015_hosted_support_ai_least_privilege.sql ← hosted Edge grant parity
 │   ├── 016_support_thread_user_inbox_index.sql ← support inbox lookup index
-│   ├── 017_admin_bootstrap_trigger.sql ← reviewed admin-email bootstrap trigger
+│   ├── 017_admin_bootstrap_trigger.sql ← historical admin-email bootstrap trigger (retired by local 028)
 │   ├── 018_consent_versioning.sql ← policy version/timestamp columns
 │   ├── 019_policy_reconsent.sql ← server-current consent RPCs, trigger, and RLS gates
 │   ├── 020_content_audit_corrections.sql ← conservative deadline/crawl-state corrections

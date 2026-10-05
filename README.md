@@ -33,9 +33,11 @@ The reviewed recovery source was merged through pull request #2 into `main` at
 `e75f449`; worker hardening and its evidence then merged through pull request
 #3 at `d2db994`. The production database, final support function, reviewed
 admin recovery, and backend-aware uptime checks are live; the landing site is
-live and already serves the current support/legal pages. `tamim` and `main`
-have since fast-forwarded to `0c78e56` (2026-09-08), and the 2026-09-14
-verification fixes remain uncommitted. The App Store still distributes the
+live and already serves the current support/legal pages. `main` sits at
+`0c78e56` (2026-09-08); the checked-out `tamim` branch is one commit ahead at
+`fff31da` (2026-09-29), which commits the 2026-09-14 verification fixes,
+migrations 027–028, and the store-readiness mobile work (working tree clean).
+`main` does not yet contain `fff31da`. The App Store still distributes the
 broken 1.0 release, so real-
 device QA, approved store metadata, and release of 1.0.1 remain the user-facing
 outage gate.
@@ -72,9 +74,12 @@ outage gate.
   profile insert/update, and confirmation waits are each bounded at 10 seconds.
   Real-device QA is still required to measure and approve startup performance;
   a successful cloud build is not device evidence. Its production dependency
-  audit now patches `js-yaml`, `nanoid`, and `postcss`; a fail-closed wrapper
-  accepts only two exact upstream Metro/image-size build-time advisories with
-  no patched release. A narrow `xcode@3.0.1` override still pins `uuid` 11.1.1.
+  audit patches `js-yaml`, `nanoid`, and `postcss`, and rejects every
+  high/critical finding. As of 2026-10-05 it fails closed on two newly published
+  upstream advisories in build/test-only paths (`braces` GHSA-vfj7-8cjw-p6xm,
+  which has no patched release, and `node-forge` GHSA-86w9-cpqp-85rv); this is a
+  release-gate blocker requiring an owner decision and must not be silenced. A
+  narrow `xcode@3.0.1` override still pins `uuid` 11.1.1.
 - The latest full code matrix at `2624ad3` passed mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export (1,752 modules,
   5.8 MB Hermes bytecode), Android export (1,773 modules, 5.9 MB Hermes
@@ -103,9 +108,10 @@ outage gate.
   Neither artifact was uploaded or submitted to a store; real-device QA and
   owner/legal/store approval remain. The commits recorded after `cd3a87c`
   (`d64c4cb` Phase 1 checklist cards, `e103095` EAS `ascAppId`, `df3535b` Expo
-  SDK 55.0.31 pins) are on `tamim`/`main` at `0c78e56`, so the artifacts
-  predate the branch tip — rebuild or record the accepted delta before store QA
-  and upload.
+  SDK 55.0.31 pins) are on `main` at `0c78e56`, and the committed `fff31da`
+  recovery tree is one commit further ahead on `tamim`. Builds 8/5 therefore
+  predate the committed tip — rebuild (expected iOS build 9 / Android
+  versionCode 6) before store QA and upload.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
   live at `https://relogo-two.vercel.app` and already serves the current
   support/legal pages. A 2026-09-24 probe shows `relo-go` still returns SPA
@@ -129,7 +135,7 @@ outage gate.
   manual monitoring. The post-merge worker follow-up fetches duplicate URLs
   once, serializes/paces same-origin requests, and reports managed challenges
   separately while preserving the nonzero fail-closed policy; its worker suite
-  passed 97/97 on the merged tree and 110/110 on the 2026-09-14 tree. Production verification run `30845791036` fetched 50 unique
+  passed 97/97 on the merged tree and 110/110 on the committed `fff31da` tree. Production verification run `30845791036` fetched 50 unique
   URLs for 53 rows, reused three duplicate outcomes, and again completed 42
   rows (`1` new baseline, `38` unchanged, `3` changed) while keeping 11 blocked
   outcomes failed. Production now has 43/53 source baselines; the three changes

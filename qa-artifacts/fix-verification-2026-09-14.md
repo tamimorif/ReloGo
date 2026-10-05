@@ -1,5 +1,10 @@
 # ReloGo — verified fixes, 2026-09-14
 
+> **Superseded (2026-09-29):** these fixes were subsequently committed in
+> `fff31da` (branch `tamim`, one commit ahead of `main` at `0c78e56`). This file
+> remains the historical evidence for that verification tree, not a statement of
+> the current working tree.
+
 Scope: uncommitted working changes based on `tamim` at `0c78e56`.
 The original verification report and pre-existing README/QA edits were preserved.
 Each finding was checked before its fix; historical screenshots are identified

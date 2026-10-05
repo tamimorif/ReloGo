@@ -60,15 +60,16 @@ Rerun before relying on any of these.
 | Errors | Legal links lack `.catch()`. | `Linking.openURL(...)` returned from `onPress` in onboarding/re-consent (checklist does this correctly). |
 | Logging | Raw `console.error` logs error objects. | `_layout.tsx` profile/consent path bypasses `errorReporting`; this is the dev-only LogBox exposure seen in QA test A-06. No PII leak proven. |
 
-**Update 2026-09-14 (uncommitted tree):** the F-02/H-02/H-03 fixes (tab
+**Update 2026-09-14 (committed in `fff31da`):** the F-02/H-02/H-03 fixes (tab
 history, large-text layout, explicit light appearance/status bar), the bounded
 re-consent/profile/support waits, and the PII-safe error reporter are
-implemented on the working tree. Re-verify before relying on this table; a
+implemented in `fff31da`. Re-verify before relying on this table; a
 fresh simulator/device visual pass is still outstanding.
 
 ## Verify
 
 Use `relogo-verify`. Mobile checks: `npm run check:release`, `npm run lint`,
-`npm run typecheck`, `npm test -- --runInBand` (161 tests on the 2026-09-14
-tree; 133 on committed `0c78e56`), and `npm run audit:production` (green on the
-2026-09-14 tree — re-run and commit).
+`npm run typecheck`, `npm test -- --runInBand` (161 tests on committed
+`fff31da`; 133 on `0c78e56`), and `npm run audit:production`. The audit was
+green in `fff31da` but is now **red** (2026-10-05) from new upstream `braces`/
+`node-forge` advisories; do not weaken the gate — see `relogo-verify`.

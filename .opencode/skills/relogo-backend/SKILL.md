@@ -57,11 +57,11 @@ description: Use when working on ReloGo backend pieces — supabase/migrations (
 
 | Location | Risk |
 | --- | --- |
-| `migrations/017_admin_bootstrap_trigger.sql` | The `AFTER INSERT` trigger on `auth.users` grants `admin_users` membership from `NEW.email` **without checking `email_confirmed_at`**. If registration to the bootstrap address is possible (confirmation disabled / unclaimed address), that registrant passes `is_admin()` and reaches admin RLS/RPCs. Conditional on hosted auth config — verify before acting. |
+| `migrations/017_admin_bootstrap_trigger.sql` | The `AFTER INSERT` trigger on `auth.users` grants `admin_users` membership from `NEW.email` **without checking `email_confirmed_at`**. If registration to the bootstrap address is possible (confirmation disabled / unclaimed address), that registrant passes `is_admin()` and reaches admin RLS/RPCs. Conditional on hosted auth config — verify before acting. Local migration 028 drops this trigger and function; until 028 is hosted the risk persists. |
 
 ## Verify
 
-Use `relogo-verify`: contract scripts, worker `py_compile` + pytest (110 on the
-2026-09-14 tree; 106 on committed `0c78e56`), and the Deno fmt/lint/check/test
+Use `relogo-verify`: contract scripts, worker `py_compile` + pytest (110 on
+committed `fff31da`; 106 on `0c78e56`), and the Deno fmt/lint/check/test
 block (16). DB lint/pgTAP/E2E require Docker and reset local data; never target
 a hosted project.

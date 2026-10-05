@@ -1,7 +1,7 @@
 # ReloGo 1.0.1 Store Submission & Verification Package
 
 > **Authoritative Specification & Operational Runbook**
-> Current as of: 2026-09-08 | Target Version: 1.0.1 (Recovery Release)
+> Current as of: 2026-10-05 | Target Version: 1.0.1 (Recovery Release)
 > Repository Root: `/Users/tamimorif/Documents/GitHub/ReloGo`
 > Exclusively Governs: Mobile App Store Submission, Privacy Disclosure Reconciliation, and Real-Device Release Verification.
 
@@ -12,11 +12,14 @@
 ### 1.1 Executive Summary & Target Environment
 The ReloGo 1.0.1 mobile recovery release provides cross-Canada relocation checklists and official government navigation across all 13 provinces and territories. The shipped App Store 1.0 binary (Apple ID `6781947478`, bundle ID `com.relogo.app`) was compiled against Expo SDK 51 and bundled the deleted Supabase project `fxrynmgaymslwcklfena`. Because that binary contains no OTA update capability, recovery requires releasing new store binaries compiled from Expo SDK 55 against active production Supabase (`yskknolxbxfxakgvrcmg`).
 
-Both 1.0.1 production release candidates have been built, archived, and verified via Expo Application Services (EAS) from exact green commit `cd3a87c5433c18d57509af6b0d4d23b1b4e5fe9e`.
+Both recorded 1.0.1 production release candidates (iOS build 8 / Android build
+5) were built, archived, and verified via Expo Application Services (EAS) from
+commit `cd3a87c5433c18d57509af6b0d4d23b1b4e5fe9e`. They are now **superseded**
+by the committed `fff31da` tree (see the note below) and must not be uploaded.
 
 > **Current-tree supersession (2026-09-29):** recorded builds 8 (iOS) and 5
-> (Android) predate the working tree and **must not be uploaded**. The current
-> tree additionally fixes the Android/iOS bundle breaker (stale `expo-router`
+> (Android) predate the committed `fff31da` tree and **must not be uploaded**.
+> The committed tree additionally fixes the Android/iOS bundle breaker (stale `expo-router`
 > resolved via a clean install), pins `expo-updates` 55.0.33 and security
 > overrides (`js-yaml` 4.3.2, `@xmldom/xmldom` 0.8.15/0.9.12, `metro`/
 > `metro-config` 0.83.8), adds the iOS `privacyManifests` required-reason
@@ -24,9 +27,11 @@ Both 1.0.1 production release candidates have been built, archived, and verified
 > `expo-system-ui`, fixes Android edge-to-edge tab-bar insets, and adds
 > `.catch()` to the onboarding/re-consent legal links. Verification on this
 > tree: mobile lint, typecheck, 161/161 Jest tests, `check:release`,
-> `audit:production` (0 high/critical), `expo-doctor` 20/20, and both iOS and
-> Android Hermes exports pass. Rebuild before any upload; expect **iOS build 9**
-> and **Android versionCode 6**.
+> `audit:production` (0 high/critical as recorded 2026-09-29; a 2026-10-05
+> recheck shows the mobile audit is now red on new upstream `braces`/
+> `node-forge` advisories — resolve before shipping), `expo-doctor` 20/20, and
+> both iOS and Android Hermes exports pass. Rebuild before any upload; expect
+> **iOS build 9** and **Android versionCode 6**.
 
 ### 1.2 iOS Production Build 8 Specifications
 - **Platform**: iOS
@@ -66,7 +71,7 @@ Both 1.0.1 production release candidates have been built, archived, and verified
 - **Submission State**: Archive verified and intact. Not yet uploaded to Google Play Console (service account key pending or manual upload required).
 
 ### 1.4 Historical Build Deprecation & Audit Comparison
-| Attribute | Historical iOS Build 7 | Release Candidate iOS Build 8 | Historical Android Build 4 | Release Candidate Android Build 5 |
+| Attribute | Historical iOS Build 7 | Recorded iOS Build 8 (superseded) | Historical Android Build 4 | Recorded Android Build 5 (superseded) |
 | :--- | :--- | :--- | :--- | :--- |
 | **EAS ID** | `765965d7-c7c1-432c-ac1d-302d2f0c5116` | `daa8e42a-c12d-4365-b6ca-ff36732cd858` | `28076f35-1495-466b-af77-97a9339c5ea2` | `f839dede-1f83-4c6a-a928-de258597e6d0` |
 | **Commit** | `e75f449` | `cd3a87c` | `e75f449` | `cd3a87c` |
@@ -74,16 +79,17 @@ Both 1.0.1 production release candidates have been built, archived, and verified
 | **App Store Status** | `VALID` / `IN_BETA_TESTING` (TestFlight) | Pending Upload | Never uploaded | Pending Upload |
 | **Startup Prefetch Fixes** | Missing | **Included** (`cd3a87c`) | Missing | **Included** (`cd3a87c`) |
 | **SDK 55 Dependency Audit** | Unpatched | **Patched & Verified** | Unpatched | **Patched & Verified** |
-| **Candidate Verdict** | **DEPRECATED** (Do not ship) | **APPROVED RELEASE CANDIDATE** | **DEPRECATED** (Do not ship) | **APPROVED RELEASE CANDIDATE** |
+| **Candidate Verdict** | **DEPRECATED** (Do not ship) | **SUPERSEDED** (rebuild required) | **DEPRECATED** (Do not ship) | **SUPERSEDED** (rebuild required) |
 
-> **Branch-tip note (read-only check 2026-09-24):** `tamim` and `main` both
-> point at `0c78e56` (2026-09-08), which adds the Phase 1 checklist
-> simplification (`d64c4cb`), EAS submit `ascAppId` configuration (`e103095`),
-> and the Expo SDK 55.0.31 patch alignment (`df3535b`) on top of `cd3a87c`.
-> Builds 8/5 recorded from `cd3a87c` therefore predate those commits; decide
-> rebuild vs. recorded delta, and commit the uncommitted 2026-09-14 fixes,
-> before upload or store QA. The candidate verdicts above describe the
-> recorded artifacts, not the current branch tip.
+> **Branch-tip note (read-only check 2026-10-05):** `main` points at `0c78e56`
+> (2026-09-08), which adds the Phase 1 checklist simplification (`d64c4cb`), EAS
+> submit `ascAppId` configuration (`e103095`), and the Expo SDK 55.0.31 patch
+> alignment (`df3535b`) on top of `cd3a87c`. The checked-out `tamim` branch is
+> one commit ahead at `fff31da` (2026-09-29), which commits the 2026-09-14
+> verification fixes, migrations 027–028, and the store-readiness work. Builds
+> 8/5 recorded from `cd3a87c` predate `fff31da`, so rebuild from the committed
+> tip (expected iOS build 9 / Android versionCode 6) before upload or store QA.
+> The verdicts above describe the recorded artifacts, not the committed tip.
 
 ### 1.5 Configuration Invariants & Pre-Submission Contracts
 All mobile builds enforce the following strict configuration invariants:
@@ -337,8 +343,8 @@ Configure the Google Play Console Data Safety section with the following exact s
 This runbook must be executed on physical hardware prior to public rollout.
 
 ### Test Environment Setup
-- **iOS Test Device**: Physical iPhone running iOS 17.0+ or iOS 18.0+, installed via TestFlight (Build 8).
-- **Android Test Device**: Physical Android smartphone running Android 13.0+, installed from Build 5 AAB/APK.
+- **iOS Test Device**: Physical iPhone running iOS 17.0+ or iOS 18.0+, installed via TestFlight (fresh build from `fff31da`, expected build 9).
+- **Android Test Device**: Physical Android smartphone running Android 13.0+, installed from the fresh `fff31da` AAB/APK (expected versionCode 6).
 - **Backend Target**: Active Supabase Production (`https://yskknolxbxfxakgvrcmg.supabase.co`).
 
 ---
@@ -460,7 +466,7 @@ This runbook must be executed on physical hardware prior to public rollout.
 
 ## 5. Step-by-Step Store Submission Execution Guide
 
-### 5.1 Apple App Store Submission (iOS Build 8)
+### 5.1 Apple App Store Submission (iOS Build 9)
 
 #### Step 1: Pre-Submission Verification
 Ensure all mobile repository checks pass before uploading:
@@ -503,13 +509,13 @@ Log into [App Store Connect](https://appstoreconnect.apple.com):
 7. **App Review Information**: Paste the Demo Credentials and Privacy Review Notes from Section 3.2.
 
 #### Step 4: Internal TestFlight & Final Review
-1. Enable Build 8 for internal testing.
+1. Enable the fresh build (expected build 9) for internal testing.
 2. Complete the 7-Step Real-Device QA Runbook.
 3. Click **"Submit for Review"**.
 
 ---
 
-### 5.2 Google Play Store Submission (Android Build 5)
+### 5.2 Google Play Store Submission (Android versionCode 6)
 
 > **Do not upload historical build 5** (EAS `f839dede-...`): it predates the
 > current tree. Build a fresh AAB first (`eas build --platform android

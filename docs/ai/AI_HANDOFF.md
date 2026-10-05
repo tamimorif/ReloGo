@@ -1,6 +1,6 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-09-14_
+_Current as of 2026-10-05_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
@@ -19,10 +19,14 @@ The final production Edge Function v5, reviewed admin recovery, landing site,
 and backend-aware main uptime are live. The App Store still distributes the
 broken 1.0 binary; 1.0.1 has not shipped. Recovery is not complete because
 real-device/store, hosted rollout of the local source-monitoring fix, and human
-approval gates remain. `tamim` and `main` both sit at `0c78e56` (2026-09-08),
-which includes the committed Phase 1 checklist simplification; the recorded
-store artifacts were built from the earlier `cd3a87c`, and the 2026-09-14
-verification tree is still uncommitted (read-only check 2026-09-24).
+approval gates remain. `main` sits at `0c78e56` (2026-09-08), which includes
+the committed Phase 1 checklist simplification. The checked-out branch `tamim`
+is one commit ahead at `fff31da` (2026-09-29), which commits the 2026-09-14
+recovery fixes, migrations 027–028, the store-readiness mobile fixes, and the
+supporting QA/docs/CI updates; the working tree is clean. The recorded store
+artifacts were built from the earlier `cd3a87c`, so a rebuild from the committed
+`fff31da` tip (expected iOS build 9 / Android versionCode 6) is required before
+store QA.
 
 The product operates under a clear, phased architectural strategy:
 - **Phase 1 (Current / 1.0.1 MVP — Relocation Navigator & Checklist):**
@@ -76,17 +80,20 @@ Environment truth:
   exact green commit `cd3a87c`: iOS 1.0.1 build 8 (EAS
   `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
   `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive identity and
-  integrity pass; neither current artifact was uploaded or submitted to a
-  store.
+  integrity pass; neither artifact was uploaded or submitted to a store. Both
+  were recorded from `cd3a87c` and are now superseded by the committed
+  `fff31da` tree; rebuild before store QA.
 - GitHub: pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel
   checks, both fixed review threads were resolved, and it merged as `e75f449`.
-- Local git state (read-only check 2026-09-24): the checked-out branch `tamim`
-  and `main` both point at `0c78e56` (also `origin/tamim` and `origin/main`,
-  pushed 2026-09-08). Three commits follow `cd3a87c`: `d64c4cb` (Phase 1
-  checklist task cards and roadmap documentation), `e103095` (EAS submit
-  `ascAppId`), and `df3535b` (Expo SDK 55.0.31 patch alignment and audit
-  policy). No commit has been made since 2026-09-08; the 2026-09-14
-  verification fixes remain uncommitted on top of `0c78e56`.
+- Local git state (read-only check 2026-10-05): the checked-out branch `tamim`
+  and `origin/tamim` both point at `fff31da` (2026-09-29); `main` and
+  `origin/main` point at `0c78e56` (PR #6 merge, 2026-09-08), the parent of
+  `fff31da`, and do not contain it. Three commits follow `cd3a87c`: `d64c4cb`
+  (Phase 1 checklist task cards and roadmap documentation), `e103095` (EAS
+  submit `ascAppId`), and `df3535b` (Expo SDK 55.0.31 patch alignment and audit
+  policy). `fff31da` then commits the 2026-09-14 verification fixes,
+  migrations 027–028, the store-readiness mobile fixes, and the supporting
+  QA/docs/CI updates. Working tree is clean.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
   key/schema/resolver preflight passed, proving the encrypted key works. It
   created 42 baselines and failed closed on 11 source rows. Hardened run
@@ -253,7 +260,11 @@ Deletion also removes the server account and local session.
 - React Native community CLI 0.83.10 has a scoped Metro/metro-config 0.83.8
   override, matching Expo and removing image-size. XML stays on compatible
   patched 0.8.15/0.9.12 paths; js-yaml is pinned to 4.3.2. The mobile audit
-  rejects every high/critical finding; its prior Metro exception is retired.
+  rejects every high/critical finding; its prior Metro exception is retired. A
+  2026-10-05 recheck found two new upstream advisories in the mobile production
+  tree (`braces` GHSA-vfj7-8cjw-p6xm, no patched release; `node-forge`
+  GHSA-86w9-cpqp-85rv) that make `npm run audit:production` fail closed (26
+  high, 0 critical). Do not silence the gate; this needs an owner decision.
 - Never use destructive git commands without explicit authorization.
 
 ## Repository map
@@ -489,18 +500,20 @@ deno test --config supabase/functions/support-ai/deno.json \
 
 ### Latest established results
 
-- Read-only state audit (2026-09-24; no writes, no hosted changes): `tamim` ==
-  `origin/tamim` == `origin/main` == `0c78e56`; the 2026-09-08 commits
-  `d64c4cb`, `e103095`, and `df3535b` are on both branches; no commits exist
-  after 2026-09-08 and the 2026-09-14 verification tree is still uncommitted.
-  Live probes: `relogo-two.vercel.app` serves the current Privacy/Support/Terms
-  pages with unconfigured-mailbox notices, while `relo-go.vercel.app` still
-  returns SPA HTML for `/vite.svg` and missing `/assets/*.js`, so its local
-  favicon/404 fix awaits an explicit deploy to the `relo-go` project. Recorded
-  build metadata (iOS 8 / Android 5 from `cd3a87c`) predates the Phase 1
-  checklist simplification. No rebuild, upload, submission, migration, or
-  deploy was performed.
-- Verification-report fixes (2026-09-14, uncommitted tree based on `0c78e56`):
+- Current git state (read-only check 2026-10-05): `tamim` == `origin/tamim` ==
+  `fff31da` (2026-09-29); `main` == `origin/main` == `0c78e56` (PR #6 merge,
+  2026-09-08), which does not contain `fff31da`. The 2026-09-08 commits
+  `d64c4cb`, `e103095`, and `df3535b` are on both branches. `fff31da` commits the
+  2026-09-14 verification fixes, migrations 027–028, the store-readiness mobile
+  fixes, and the supporting QA/docs/CI updates; working tree clean. No rebuild,
+  upload, store submission, migration, or deploy was performed.
+- Read-only web audit (2026-09-24, historical): `relogo-two.vercel.app` served
+  the current Privacy/Support/Terms pages with unconfigured-mailbox notices,
+  while `relo-go.vercel.app` still returns SPA HTML for `/vite.svg` and missing
+  `/assets/*.js`; the local admin favicon/404 fix is committed in `fff31da` but
+  awaits an explicit deploy to the `relo-go` project. Recorded build metadata
+  (iOS 8 / Android 5 from `cd3a87c`) predates `fff31da` and is superseded.
+- Verification-report fixes (2026-09-14; committed in `fff31da`):
   Node 22 mobile lint/TypeScript, 15 Jest suites/161 tests, release contract,
   online Expo alignment and strict production audit pass (eight moderate,
   no high/critical findings). Final iOS/Android Hermes exports pass with
@@ -543,10 +556,20 @@ deno test --config supabase/functions/support-ai/deno.json \
   confirmation, authenticated non-fallback AI, and cleanup; final `support-ai`
   v5 is ACTIVE with JWT verification, and unauthenticated invocation is
   rejected with 401.
-- Mobile production dependency audit (2026-09-14): no high/critical findings;
-  eight moderate navigation dependency findings remain. Patched js-yaml and
-  compatible XML dependencies plus scoped Metro 0.83.8 eliminate the old
-  image-size exception. Landing and admin production audits report zero.
+- Mobile production dependency audit (2026-09-14, historical): no high/critical
+  findings; eight moderate navigation dependency findings remain. Patched
+  js-yaml and compatible XML dependencies plus scoped Metro 0.83.8 eliminate the
+  old image-size exception. Landing and admin production audits reported zero.
+  This is superseded by the 2026-10-05 recheck below.
+- Dependency advisory recheck (2026-10-05; clean `npm ci`): landing's `next`
+  critical RCE GHSA-vcvr-r3jv-pc5j was cleared by refreshing the lockfile to
+  `next@16.3.8` within the existing `^16.3.5` range; `npm audit --omit=dev` is
+  0 and `npm run build` passes. Mobile `npm run audit:production` now fails
+  closed (26 high, 0 critical) from newly published `braces`
+  GHSA-vfj7-8cjw-p6xm (affected `<=3.0.3`, **no patched release**, reached via
+  micromatch/Tailwind/NativeWind/Jest/Metro) and `node-forge`
+  GHSA-86w9-cpqp-85rv. This is a release-gate blocker requiring an owner/
+  engineering decision; the audit gate must not be weakened.
 - Latest full code matrix at `2624ad3` (2026-08-01): mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
   modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
@@ -614,17 +637,18 @@ deno test --config supabase/functions/support-ai/deno.json \
   admin favicon/missing-asset fix is not deployed there yet. Main uptime run
   `30843906264` passed the public web, production anonymous-auth, and canonical-
   resolver checks. `relogo.app` does not resolve, and no monitored public
-  mailbox exists. The ignored `admin/.vercel` link names project `admin`;
-  relink or target `relo-go` explicitly for future deploys.
+  mailbox exists. The ignored `admin/.vercel/project.json` link already names
+  project `relo-go` with root `admin`; only an explicit deploy of the `tamim`
+  recovery tree to that project remains.
 - EAS project `@tamimorif/relogo` separates development/preview from production.
-  Current production replacements are iOS 1.0.1 build 8 at EAS
+  Recorded production artifacts are iOS 1.0.1 build 8 at EAS
   `daa8e42a-c12d-4365-b6ca-ff36732cd858` and Android 1.0.1 build 5 at EAS
-  `f839dede-1f83-4c6a-a928-de258597e6d0`; both `FINISHED` from exact green
-  commit `cd3a87c` (recorded before the 2026-09-08 commits, so they predate
-  branch tip `0c78e56`), using production channel/runtime 1.0.1 and existing
-  frozen credentials. Archive checks pass. Neither was uploaded or submitted.
-  Earlier iOS production 1.0.1 build 7 is `FINISHED` at EAS
-  `765965d7-c7c1-432c-ac1d-302d2f0c5116`; Android production 1.0.1 build 4 is
+  `f839dede-1f83-4c6a-a928-de258597e6d0`; both `FINISHED` from `cd3a87c`, which
+  predates `0c78e56` and the committed `fff31da` recovery tree, using production
+  channel/runtime 1.0.1 and existing frozen credentials. Archive checks pass.
+  Neither was uploaded or submitted, and both are now superseded by `fff31da`;
+  rebuild before store QA. Earlier iOS production 1.0.1 build 7 is `FINISHED` at
+  EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`; Android production 1.0.1 build 4 is
   also `FINISHED` at EAS `28076f35-1495-466b-af77-97a9339c5ea2`. Both use exact merged
   commit `e75f449`. Production EAS variables pass the release contract and
   frozen iOS/Android signing credentials worked without a password request.
@@ -632,19 +656,18 @@ deno test --config supabase/functions/support-ai/deno.json \
   so EAS device registration is not required; no physical iPhone was connected
   during the 2026-08-17 audit. It is not in App Review. Android build 4 has not
   been submitted, and automated Android submission has no Google Play service-
-  account key. Those earlier artifacts predate the current `tamim` fixes.
+  account key. Those earlier artifacts predate the committed `fff31da` tree.
 
 ## Known limits and next work
 
-1. Commit the reviewed 2026-09-14 fixes first: they are still uncommitted on
-   `0c78e56`. Then settle the artifact question — recorded builds 8/5 were
-   built from `cd3a87c` and predate `d64c4cb` (Phase 1 checklist cards) and
-   `df3535b` (Expo SDK 55.0.31 pins). Either rebuild iOS/Android from the
-   committed tip or record the accepted delta in `docs/STORE.md`. After
-   explicit owner authorization, upload the reviewed iOS artifact to
-   TestFlight and use the reviewed Android artifact for real-device startup,
-   offline/recovery, PDF, deletion, and privacy QA. Do not upload or submit
-   either automatically.
+1. Settle the artifact question by rebuilding iOS/Android from committed tip
+   `fff31da` (expected iOS build 9 / Android versionCode 6). Recorded builds 8/5
+   were built from `cd3a87c` and predate `d64c4cb` (Phase 1 checklist cards),
+   `df3535b` (Expo SDK 55.0.31 pins), and the committed 2026-09-14 recovery
+   fixes; `docs/STORE.md` records them as superseded. After explicit owner
+   authorization, upload the fresh iOS artifact to TestFlight and use the fresh
+   Android artifact for real-device startup, offline/recovery, PDF, deletion,
+   and privacy QA. Do not upload or submit either automatically.
 2. Apply locally verified migrations 027–028 only after explicit authorization.
    Migration 027 maps the
    11 failed rows/10 URLs to nine validated automatic first-party targets plus
@@ -677,6 +700,15 @@ deno test --config supabase/functions/support-ai/deno.json \
    screenshots, Support URL, Apple metadata/device/2FA actions, and provide a
    Google Play service-account key or reviewed manual Android submission path.
 
+10. Resolve the 2026-10-05 mobile dependency-advisory regression. The committed
+    tree's `npm run audit:production` now fails closed on `braces`
+    GHSA-vfj7-8cjw-p6xm (no upstream patch) and `node-forge`
+    GHSA-86w9-cpqp-85rv, both build/test-only transitive paths. Owner/engineering
+    options: wait for an upstream `braces` release, migrate Tailwind/NativeWind
+    (breaking), or add a narrowly scoped, reviewed audit exception. The landing
+    `next` critical was already cleared by the 16.3.8 lockfile refresh. Do not
+    bypass or weaken the audit gate to make CI appear green.
+
 Out of MVP scope unless new evidence justifies reopening: a recoverable AI
 quota lease and workload-specific credentials replacing the shared server-side
 service role. External crash/analytics services also require a separate privacy
@@ -686,11 +718,11 @@ decision.
 
 - Old binary recovery is impossible. Historical iOS 1.0.1 build 7 is `FINISHED`
   from exact merged commit `e75f449`; Android 1.0.1 build 4 is also `FINISHED`
-  from that commit. Both predate the current `tamim` fixes. iOS build 8 and
+  from that commit. Both predate the committed `fff31da` tree. iOS build 8 and
   Android build 5 are `FINISHED` with verified archives but were recorded from
-  `cd3a87c`, which predates branch tip `0c78e56` (2026-09-08); they still need
-  the rebuild-or-record decision, real-device QA, and store approval. OTA can
-  be considered only for a released compatible
+  `cd3a87c`, which predates `0c78e56` and `fff31da`; they are superseded and
+  still need a rebuild from `fff31da`, real-device QA, and store approval. OTA
+  can be considered only for a released compatible
   runtime/channel, never for v1.0.
 - Mobile runtime configuration accepts only clean Supabase origins; production
   release preflight accepts only

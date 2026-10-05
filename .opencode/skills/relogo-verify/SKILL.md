@@ -73,19 +73,19 @@ python3.11 -m pytest tests/e2e/ --strict-markers -ra
 
 | Check | Expected |
 | --- | --- |
-| mobile Jest | 15 suites / 161 tests (2026-09-14 tree); 13/133 on committed `0c78e56` |
-| worker pytest | 110 tests (2026-09-14 tree); 106 on committed `0c78e56` |
+| mobile Jest | 15 suites / 161 tests (committed `fff31da`); 13/133 on `0c78e56` |
+| worker pytest | 110 tests (committed `fff31da`); 106 on `0c78e56` |
 | Deno tests | 16 tests |
 | contract scripts | all `OK:` |
-| mobile exports | iOS 1,569 · Android 1,590 modules (2026-09-14 tree); 1,753/1,774 on committed `0c78e56` |
+| mobile exports | iOS 1,569 · Android 1,590 modules (committed `fff31da`); 1,753/1,774 on `0c78e56` |
 
-## Audit gates — fixed on the 2026-09-14 tree, not yet committed
+## Audit gates — fixed and committed in `fff31da`
 
 Both production-audit failures below were found on base `0c78e56` and are
-fixed on the 2026-09-14 uncommitted tree. Re-run both audits on the final tree
-and commit before treating either as green.
+fixed in committed `fff31da`. Re-run both audits on the current tree to confirm
+they are still green.
 
-| Check | Base `0c78e56` | Fix on the 2026-09-14 tree |
+| Check | Base `0c78e56` | Fix in `fff31da` |
 | --- | --- | --- |
 | `mobile` → `npm run audit:production` | **FAIL (exit 1)** | 8 high names outside the build-tool allowlist (`@expo/xcpretty`, `@istanbuljs/load-nyc-config`, `@xmldom/xmldom`, `js-yaml` 4.3.1). Fixed with js-yaml 4.3.2, XML 0.8.15/0.9.12, and scoped Metro 0.83.8; final audit 0 high/critical, 8 moderate. |
 | `landing` → `npm audit --omit=dev` | **FAIL (exit 1)** | 1 critical + 1 high (`next@16.2.11` RCE advisories GHSA-p293-qw3h-jr36 / GHSA-2xp9-vwfh-vxw4, transitive `sharp@0.35.3`). Fixed with Next 16.3.5 + sharp 0.35.4; final audit 0. |
@@ -93,6 +93,14 @@ and commit before treating either as green.
 Still unverified on that tree: a fresh simulator/device visual pass, a
 reset-based API E2E rerun, production 027/028 rollout, and the admin/web
 deploys.
+
+**2026-10-05 advisory regression:** the mobile production audit is now **red**
+(26 high, 0 critical) on a clean `npm ci` from newly published `braces`
+GHSA-vfj7-8cjw-p6xm (affected `<=3.0.3`, **no patched release**) and
+`node-forge` GHSA-86w9-cpqp-85rv, both build/test-only transitive paths. Do not
+weaken or bypass the gate; this needs an owner/engineering decision. Landing is
+green after a `next@16.3.8` lockfile refresh within `^16.3.5` (critical
+GHSA-vcvr-r3jv-pc5j cleared).
 
 ## Rules
 

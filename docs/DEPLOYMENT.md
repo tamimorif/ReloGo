@@ -13,7 +13,7 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Commit the reviewed 2026-09-14 fixes (still uncommitted on `0c78e56`), then settle the artifact question: recorded builds 8/5 identify `cd3a87c`, which predates the 2026-09-08 commits and branch tip `0c78e56`. Rebuild or record the accepted delta, then—after explicit upload authorization—complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 1 | Rebuild iOS/Android from committed tip `fff31da` (expected iOS build 9 / Android versionCode 6): recorded builds 8/5 identify `cd3a87c`, which predates `0c78e56` and `fff31da`, and are superseded. After explicit upload authorization, complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
 | 4 | After explicit approval, apply pending migrations 027 and 028 to production, verify monitoring and admin boundaries, then trigger `.github/workflows/worker.yml` on the verified coordinated `main` worker; require all automatic checks and both manual Yukon assignments in the summary, and configure/test alert webhook ownership | [§1](#1-supabase-database), [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
@@ -27,13 +27,15 @@ project. Values remain platform-managed and are not committed.
 
 Deployment baseline (2026-08-17); production migration, admin, and default-branch
 worker state rechecked read-only on 2026-09-14; repository and web-deployment
-state rechecked read-only on 2026-09-24:
+state rechecked read-only on 2026-09-24; git state reverified 2026-10-05
+(`tamim` == `origin/tamim` == `fff31da`, `main` == `origin/main` == `0c78e56`,
+working tree clean):
 
 | Target | State |
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
 | Production Supabase `yskknolxbxfxakgvrcmg` | Exact 001–026 reverified; 027 monitoring columns absent, 017 admin signup trigger still present; 027/028 pending approval. One existing admin membership, none unconfirmed. Earlier v5 JWT/authenticated smoke remains historical evidence; rerun the release gates after rollout |
-| Mobile | Local version 1.0.1 / SDK 55 gates and push CI run `32050117854` pass. Recorded exact-`cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives, but `tamim`/`main` later moved to `0c78e56` (2026-09-08), so builds 8/5 predate the Phase 1 checklist simplification and Expo 55.0.31 pins and the 2026-09-14 fixes are uncommitted. Neither was uploaded or submitted; the rebuild-or-record decision, real-device QA, and approval remain. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
+| Mobile | Local version 1.0.1 / SDK 55 gates and push CI run `32050117854` pass. Recorded `cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives, but `0c78e56` and the committed `fff31da` recovery tree both follow `cd3a87c`, so builds 8/5 predate the Phase 1 checklist simplification, Expo 55.0.31 pins, and the committed 2026-09-14 fixes and are superseded. Neither was uploaded or submitted; rebuild from `fff31da` (expected iOS build 9 / Android versionCode 6), then real-device QA and approval. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is live at `https://relogo-two.vercel.app` and, per 2026-09-24 probes, already serves the current Privacy/Support/Terms pages, while `relo-go` still returns SPA HTML for `/vite.svg` and missing `/assets/*.js` (local favicon/404 fix awaits an explicit deploy); main run `30843906264` passed public web/auth/resolver checks with required backend probes |
 | Worker/uptime | The coordinated worker is already on default branch `main`, but its preflight cannot run against production 026. Migration 027 still requires approved rollout and a live rerun. All nine replacement source rows passed fresh read-only reachability checks; the exact production mapping matches 11 rows. Two Yukon sources remain owned 30-day manual assignments. Historical worker evidence is 43/53 baselines and three PENDING alerts; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
@@ -479,10 +481,10 @@ HTML responses):
 The variables are configured with the same preview/production separation.
 The reviewed current recovery build is deployed to production at
 `https://relo-go.vercel.app`, and the manual seven-route public check includes
-its admin marker. Before any future deployment, inspect the local Vercel link:
-`admin/.vercel/project.json` currently names a separate `admin` project, so
-relink or explicitly target the intended `relo-go` project and use a preview
-deployment before promotion.
+its admin marker. The local `admin/.vercel/project.json` link already names
+project `relo-go` with root `admin`, so no relink is required. The committed
+`fff31da` admin favicon/missing-asset fix still needs an explicit deploy of the
+`tamim` recovery tree to that project; use a preview deployment before promotion.
 
 ## 4. Mobile app (Expo SDK 55, EAS)
 
@@ -521,7 +523,14 @@ Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
 The mobile production audit now fails on every high/critical finding and on
 unavailable or malformed advisory data. There is no Metro/`image-size`
-exception. React Native and its community CLI plugin are `0.83.10`; the exact
+exception. A 2026-10-05 recheck found that newly published `braces`
+(GHSA-vfj7-8cjw-p6xm, no patched release) and `node-forge`
+(GHSA-86w9-cpqp-85rv) advisories make `npm run audit:production` fail closed
+(26 high, 0 critical); do not weaken the gate, and treat this as an
+owner/engineering release blocker. The landing `next` critical RCE
+(GHSA-vcvr-r3jv-pc5j) was cleared by refreshing the lockfile to `next@16.3.8`
+within the existing `^16.3.5` range (0 vulnerabilities after `npm ci`).
+React Native and its community CLI plugin are `0.83.10`; the exact
 `@react-native/community-cli-plugin@0.83.10` override pins only that plugin's
 `metro` and `metro-config` to `0.83.8`. Keep this override scoped and preserve the
 lockfile; do not replace Expo's separate Metro dependency globally. The YAML
@@ -532,13 +541,14 @@ The exact `xcode@3.0.1` override still pins the CommonJS-compatible
 The historical 2026-08-17 mobile gates passed: release configuration,
 TypeScript, lint, 13 Jest suites with 133/133 tests, iOS export at 1,753
 modules/5.8 MB Hermes bytecode, Android export at 1,774 modules/5.9 MB Hermes
-bytecode, and the then-current production audit. These artifacts and counts
-predate the 2026-09-14 fixes; rerun the commands below on the final source tree
-and build replacements from that verified tree before shipping these fixes.
-Cloud build completion does
+bytecode, and the then-current production audit. The committed `fff31da` tree
+records 15 suites/161 tests and 1,569/1,590-module exports; rerun the commands
+below on the final source tree and build replacements from `fff31da` before
+shipping these fixes. Cloud build completion does
 not replace real-device QA or store-submission evidence. Do not create duplicate
 builds merely to reproduce their successful status. For internal iOS QA, only
-with explicit owner authorization, upload exact-`cd3a87c` build 8 to TestFlight,
+with explicit owner authorization, upload a fresh `fff31da` build (expected
+build 9) to TestFlight,
 then install it with an App Store Connect internal tester. EAS device
 registration is not required. Before automated Android submission, the owner
 must provide/review a Google Play service-account key; otherwise use a
@@ -566,16 +576,16 @@ eas env:list --environment production
 eas build --profile production --platform all --non-interactive \
   --freeze-credentials --no-wait --json
 
-# Only after explicit owner authorization to upload current iOS build 8 for
-# TestFlight/device QA. This uploads the binary to App Store Connect; it does
-# not submit an App Review release:
+# Only after explicit owner authorization to upload the fresh `fff31da` iOS
+# build (expected build 9) for TestFlight/device QA. This uploads the binary to
+# App Store Connect; it does not submit an App Review release:
 eas submit --profile production --platform ios \
-  --id daa8e42a-c12d-4365-b6ca-ff36732cd858 --non-interactive --no-wait
+  --latest --non-interactive --no-wait
 
 # Android remains separate. Only after Android device QA, an owner-approved
 # Google Play path/service-account key, and explicit upload authorization:
 eas submit --profile production --platform android \
-  --id f839dede-1f83-4c6a-a928-de258597e6d0 --non-interactive --no-wait
+  --latest --non-interactive --no-wait
 ```
 `mobile/eas.json` explicitly selects the EAS `development`, `preview`, and
 `production` environments and intentionally stores no project values. The
@@ -1082,29 +1092,36 @@ url = os.environ.get('ALERT_WEBHOOK_URL')
 if not url:
     print('ERROR: Set ALERT_WEBHOOK_URL before running test', file=sys.stderr)
     sys.exit(1)
-payload = {
-    'summary': 'Verification Probe',
-    'total': 53,
-    'completed': 42,
+stats = {
+    'scraped': 42,
+    'baseline': 0,
     'unchanged': 40,
     'changed': 2,
-    'pending_alerts': 2,
     'stale': 0,
     'failed': 0,
+    'manual': 2,
 }
-reporting.post_webhook(url, payload)
-print('SUCCESS: Webhook payload delivered.')
+manual_sources = [
+    {'agency': 'Government of Yukon', 'url': 'https://yukon.ca/',
+     'owner': 'ReloGo operations', 'interval_days': 30},
+]
+sent, detail = reporting.send_run_webhook(url, stats, [], [], manual_sources)
+if not sent:
+    print(f'ERROR: Webhook delivery failed ({detail})', file=sys.stderr)
+    sys.exit(1)
+print(f'SUCCESS: Webhook delivered ({detail}).')
 "
 ```
 
 #### 4. Failure handling and resilience architecture
-- **Non-blocking delivery**: In `worker/reporting.py`, the `post_webhook()`
-  function wraps HTTP POST requests in a `try / except Exception` block. If the
-  webhook endpoint times out (10-second request bound), returns an HTTP 4xx/5xx
-  status, or suffers a network drop, it logs a warning (`logger.warning("Failed
-  to post alert webhook: %s", err)`) and continues without throwing. Webhook
-  outages will **never** cause the worker to abort, fail a healthy scrape, or
-  prevent database baseline persistence.
+- **Non-blocking delivery**: In `worker/reporting.py`, the `send_run_webhook()`
+  function builds the message, JSON-encodes it, POSTs with a 10-second timeout,
+  and wraps all of it in a single `try / except Exception` block. If the webhook
+  endpoint times out, returns an HTTP 4xx/5xx status, or suffers a network drop,
+  it returns `(False, <exception type>)` without raising, and the caller logs a
+  warning that never echoes the webhook URL or its token. Webhook outages will
+  **never** cause the worker to abort, fail a healthy scrape, or prevent
+  database baseline persistence.
 - **Dual-alert notification behavior**: The GitHub Actions workflow
   `.github/workflows/worker.yml` contains two notification paths:
   1. Application-level rich summary sent by Python `reporting.py` at the end
