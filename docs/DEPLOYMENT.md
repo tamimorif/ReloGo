@@ -28,8 +28,8 @@ project. Values remain platform-managed and are not committed.
 Deployment baseline (2026-08-17); production migration, admin, and default-branch
 worker state rechecked read-only on 2026-09-14; repository and web-deployment
 state rechecked read-only on 2026-09-24; git state reverified 2026-10-05
-(`tamim` == `origin/tamim` == `fff31da`, `main` == `origin/main` == `0c78e56`,
-working tree clean):
+(local `tamim` == `3d156ec`, clean and unpushed; `origin/tamim` == `fff31da`;
+`main` == `origin/main` == `0c78e56`; only these two branches exist):
 
 | Target | State |
 | --- | --- |

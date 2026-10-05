@@ -1,7 +1,8 @@
 # ReloGo — verified fixes, 2026-09-14
 
 > **Superseded (2026-09-29):** these fixes were subsequently committed in
-> `fff31da` (branch `tamim`, one commit ahead of `main` at `0c78e56`). This file
+> `fff31da` (branch `tamim`; the local tip is now `3d156ec`, two commits ahead
+> of `main` at `0c78e56` and unpushed). This file
 > remains the historical evidence for that verification tree, not a statement of
 > the current working tree.
 

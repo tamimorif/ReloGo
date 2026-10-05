@@ -103,9 +103,13 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   or submitted to a store. `main` advanced to `0c78e56` (2026-09-08) with the
   Phase 1 checklist simplification (`d64c4cb`), EAS `ascAppId` submit
   configuration (`e103095`), and Expo SDK 55.0.31 patch alignment (`df3535b`).
-  The 2026-09-14 recovery fixes and store-readiness work are now committed on
-  `tamim` at `fff31da` (2026-09-29), one commit ahead of `main`. Builds 8/5
-  predate `fff31da`, so a fresh rebuild from the committed tip (expected iOS
+  The 2026-09-14 recovery fixes, migrations 027–028, and store-readiness work
+  are committed on `tamim` at `fff31da` (2026-09-29); a follow-up local commit
+  `3d156ec` (2026-10-05) reconciles the status docs and refreshes the landing
+  lockfile to `next@16.3.8` (clearing the critical RCE advisory). Local `tamim`
+  is two commits ahead of `main` and one ahead of `origin/tamim`; nothing was
+  pushed. Builds 8/5 predate the tip, so a fresh rebuild from the committed
+  `tamim` tip (expected iOS
   build 9 / Android versionCode 6) is required before store QA; `docs/STORE.md`
   records builds 8/5 as superseded.
 - Startup no longer waits behind a static native splash for remote work.
@@ -343,7 +347,7 @@ Local evidence does not replace real-device or store-submission evidence.
 
 | Scope | Latest established evidence |
 | --- | --- |
-| Current git state (2026-10-05, read-only) | `tamim` == `origin/tamim` == `fff31da` (2026-09-29); `main` == `origin/main` == `0c78e56` (PR #6 merge, 2026-09-08), which does not contain `fff31da`; working tree clean. `fff31da` commits the 2026-09-14 verification fixes, migrations 027–028, the store-readiness mobile fixes, admin/landing/worker updates, QA artifacts, skills, and CI/doc updates |
+| Current git state (2026-10-05, read-only) | Local `tamim` == `3d156ec` (2026-10-05; clean tree, not pushed); `origin/tamim` == `fff31da` (2026-09-29); `main` == `origin/main` == `0c78e56` (PR #6 merge, 2026-09-08). Local `tamim` is two commits ahead of `main` (recovery fixes/migrations in `fff31da`; status-doc reconciliation plus landing `next@16.3.8` advisory fix in `3d156ec`) and one ahead of `origin/tamim`. Only the `main` and `tamim` branches exist. No push, merge, migration, or deploy was performed |
 | Read-only git/deployment audit (2026-09-24, historical) | At that time `tamim` == `origin/tamim` == `origin/main` == `0c78e56`; the 2026-09-08 commits `d64c4cb`/`e103095`/`df3535b` were on both branches; landing served the current Privacy/Support/Terms pages while the admin missing-asset probe still returned SPA HTML; builds 8/5 recorded from `cd3a87c` predated the tip. Superseded by `fff31da` |
 | Verification-report fixes (2026-09-14; committed in `fff31da`) | Mobile lint/types, 15 suites/161 tests, final iOS/Android exports (1,569/1,590 modules) and strict audit pass (8 moderate, no high/critical); admin/landing builds and production audits pass, admin regressions 15/15; worker 110/110, Deno 16/16, transactional pgTAP 221/221 twice and public lint clean. Contract/launcher tests pass. Fresh visual/device confirmation and full API E2E remain unverified; production 027/028 and web rollout still require approval. See [evidence](../qa-artifacts/fix-verification-2026-09-14.md) |
 | Current `tamim` recovery recheck (2026-08-17) | Node 22 clean installs; mobile release/dependency checks, TypeScript, lint, 13 Jest suites with 133/133 tests, and 1,753-module iOS/1,774-module Android exports pass; admin/landing lint/build pass; worker 106/106 and Deno 16/16 pass; fresh reset through 027, public lint, pgTAP 207/207, API E2E 248/248, contracts, and production-backed public uptime pass. Push CI run `32050117854` passed the full matrix from `cd3a87c` |
@@ -368,7 +372,8 @@ Local evidence does not replace real-device or store-submission evidence.
 
 The recovery database result was established locally, production carries the
 final schema/function, main uptime is backend-aware and green, the reviewed
-tree is committed (recovery fixes/migrations in `fff31da`), and recorded
+tree is committed (recovery fixes/migrations in `fff31da`; local `tamim` tip
+`3d156ec` adds the status-doc and landing-lockfile follow-up), and recorded
 exact-`cd3a87c` iOS build 8/Android build 5 both finished but are superseded. The
 release still requires rebuilding from `fff31da`, fresh-artifact real-device QA,
 approved store metadata, an explicitly authorized TestFlight/store upload, and
@@ -627,7 +632,7 @@ work, and no worker path can modify live rules.
 
 ### Phase 3 — mobile preview and full end-to-end QA
 
-Status: **store artifacts recorded from `cd3a87c` only; a rebuild from committed tip `fff31da` is required; real-device QA not complete.**
+Status: **store artifacts recorded from `cd3a87c` only; a rebuild from the committed `tamim` tip (`3d156ec`) is required; real-device QA not complete.**
 
 - Recorded iOS production store build 8 is `FINISHED` (superseded): version/runtime
   1.0.1, exact commit `cd3a87c`, EAS

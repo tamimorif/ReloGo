@@ -34,10 +34,12 @@ The reviewed recovery source was merged through pull request #2 into `main` at
 #3 at `d2db994`. The production database, final support function, reviewed
 admin recovery, and backend-aware uptime checks are live; the landing site is
 live and already serves the current support/legal pages. `main` sits at
-`0c78e56` (2026-09-08); the checked-out `tamim` branch is one commit ahead at
-`fff31da` (2026-09-29), which commits the 2026-09-14 verification fixes,
-migrations 027–028, and the store-readiness mobile work (working tree clean).
-`main` does not yet contain `fff31da`. The App Store still distributes the
+`0c78e56` (2026-09-08); the checked-out `tamim` branch is two commits ahead:
+`fff31da` (2026-09-29) commits the 2026-09-14 verification fixes, migrations
+027–028, and the store-readiness mobile work, and `3d156ec` (2026-10-05)
+reconciles the status docs and refreshes the landing lockfile to `next@16.3.8`.
+The tree is clean and nothing has been pushed (`origin/tamim` is at `fff31da`).
+The App Store still distributes the
 broken 1.0 release, so real-
 device QA, approved store metadata, and release of 1.0.1 remain the user-facing
 outage gate.
