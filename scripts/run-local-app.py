@@ -68,12 +68,63 @@ def prepare_launch(app, status, inherited_env, arguments):
     return [*command, "--", *arguments], env
 
 
+IOS_SIMULATOR_MISSING = (
+    "Cannot open the iOS Simulator: Simulator.app is missing from this Xcode "
+    "installation.\n"
+    "`xcode-select` already points at Xcode, so that is not the problem. Restore "
+    "Simulator.app by updating/reinstalling Xcode (App Store > Updates) or by "
+    "copying it from an Xcode .xip into "
+    "<Xcode>/Contents/Developer/Applications/Simulator.app, then verify with: "
+    "open -Ra Simulator\n"
+    "To run against Android meanwhile: "
+    "python3.11 scripts/run-local-app.py mobile -- --android"
+)
+
+
+def ios_simulator_available(platform_name=None):
+    """Mirror Expo's Simulator app lookup: LaunchServices or the Xcode bundle."""
+    if (platform_name or sys.platform) != "darwin":
+        return False
+    try:
+        opened = subprocess.run(
+            ["open", "-Ra", "Simulator"], capture_output=True, text=True, timeout=10
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        opened = None
+    if opened is not None and opened.returncode == 0:
+        return True
+    try:
+        developer = subprocess.run(
+            ["xcode-select", "--print-path"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if developer.returncode:
+        return False
+    return (Path(developer.stdout.strip()) / "Applications" / "Simulator.app").exists()
+
+
+def ios_preflight_error(app, arguments, platform_name=None):
+    if (platform_name or sys.platform) != "darwin":
+        return None
+    if app == "mobile" and "--ios" in arguments and not ios_simulator_available(platform_name):
+        return IOS_SIMULATOR_MISSING
+    return None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("app", choices=APP_SETTINGS)
     parser.add_argument("arguments", nargs=argparse.REMAINDER, help="Arguments forwarded to the app's dev server after --")
     args = parser.parse_args(argv)
     forwarded = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
+    preflight_error = ios_preflight_error(args.app, forwarded)
+    if preflight_error:
+        print(preflight_error, file=sys.stderr)
+        return 1
     try:
         # Status contains server secrets too: capture it in memory and never
         # forward its raw output (including stderr) to the terminal or a file.

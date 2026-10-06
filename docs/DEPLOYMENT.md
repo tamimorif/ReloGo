@@ -683,12 +683,15 @@ Run each app in its own terminal. The launcher reads local CLI status in memory,
 accepts only a bare HTTP loopback origin and an anonymous public key, and sets
 only the selected app's Supabase variables for that process. Existing environment
 files, hosted projects, and production release settings stay unchanged. Extra
-arguments after `--` go to the usual development server. This loopback setup is
-for desktop browsers and iOS Simulator; physical devices and Android emulators
-need a separately reviewed reachable development address. It does not resume the
+arguments after `--` go to the usual development server. On macOS the launcher
+checks for `Simulator.app` before forwarding `--ios` and fails fast with restore
+instructions when it is missing from the Xcode installation, instead of Expo's
+misleading `xcode-select` error. Android emulators can reuse the loopback URL
+after `adb reverse tcp:54321 tcp:54321`; physical devices need a separately
+reviewed reachable HTTPS address. This loopback setup does not resume the
 hosted preview or provide its data; local data and authentication come from the
 local stack. Run `python3.11 scripts/test-run-local-app.py` to check the launcher's
-environment isolation without network access.
+environment isolation and iOS preflight without network access.
 
 Before store submission, a human account owner/legal reviewer must confirm the
 draft App Store Connect and Google Play disclosures in `docs/STORE.md`, including

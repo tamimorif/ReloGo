@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -78,6 +79,55 @@ class LocalLauncherTests(unittest.TestCase):
         with patch.object(launcher.subprocess, "run", return_value=result), patch.object(launcher.os, "execvpe") as execute, contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(launcher.main(["mobile", "--", "--ios"]), 1)
             execute.assert_not_called()
+
+
+class IosSimulatorPreflightTests(unittest.TestCase):
+    def test_non_darwin_is_unavailable_without_probing(self):
+        with patch.object(launcher.subprocess, "run") as run:
+            self.assertFalse(launcher.ios_simulator_available(platform_name="linux"))
+            run.assert_not_called()
+
+    def test_simulator_detected_via_launch_services(self):
+        found = SimpleNamespace(returncode=0, stdout="", stderr="")
+        with patch.object(launcher.subprocess, "run", return_value=found) as run:
+            self.assertTrue(launcher.ios_simulator_available(platform_name="darwin"))
+            run.assert_called_once()
+
+    def test_simulator_detected_from_developer_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Applications" / "Simulator.app").mkdir(parents=True)
+            missing = SimpleNamespace(returncode=1, stdout="", stderr="")
+            developer = SimpleNamespace(returncode=0, stdout=tmp, stderr="")
+            with patch.object(launcher.subprocess, "run", side_effect=[missing, developer]):
+                self.assertTrue(launcher.ios_simulator_available(platform_name="darwin"))
+
+    def test_simulator_missing_when_launch_services_and_bundle_fail(self):
+        missing = SimpleNamespace(returncode=1, stdout="", stderr="")
+        with patch.object(launcher.subprocess, "run", side_effect=[missing, missing]):
+            self.assertFalse(launcher.ios_simulator_available(platform_name="darwin"))
+
+    def test_ios_preflight_only_checks_mobile_ios_on_darwin(self):
+        with patch.object(launcher, "ios_simulator_available", return_value=False) as available:
+            self.assertIsNone(launcher.ios_preflight_error("mobile", ["--ios"], platform_name="linux"))
+            self.assertIsNone(launcher.ios_preflight_error("mobile", ["--clear"], platform_name="darwin"))
+            self.assertIsNone(launcher.ios_preflight_error("admin", ["--ios"], platform_name="darwin"))
+            self.assertEqual(
+                launcher.ios_preflight_error("mobile", ["--ios"], platform_name="darwin"),
+                launcher.IOS_SIMULATOR_MISSING,
+            )
+        self.assertEqual(available.call_count, 1)
+
+    def test_missing_simulator_blocks_before_supabase_and_launch(self):
+        stderr = io.StringIO()
+        with patch.object(launcher, "ios_preflight_error", return_value=launcher.IOS_SIMULATOR_MISSING), \
+             patch.object(launcher.subprocess, "run") as run, \
+             patch.object(launcher.os, "execvpe") as execute, \
+             contextlib.redirect_stderr(stderr):
+            self.assertEqual(launcher.main(["mobile", "--", "--ios"]), 1)
+            run.assert_not_called()
+            execute.assert_not_called()
+        self.assertIn("Simulator.app", stderr.getvalue())
+        self.assertIn("open -Ra Simulator", stderr.getvalue())
 
 
 if __name__ == "__main__":
