@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 // Fail closed when the advisory service is unavailable or reports any
-// high/critical finding. The former Metro/image-size exception is retired.
+// high/critical finding outside the reviewed exceptions in
+// production-audit-policy.js. The former blanket Metro/image-size exception
+// remains retired.
 const { spawnSync } = require("node:child_process");
 const { evaluateProductionAudit } = require("./production-audit-policy");
 
