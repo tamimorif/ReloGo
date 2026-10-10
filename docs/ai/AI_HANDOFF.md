@@ -1,6 +1,6 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-10-05_
+_Current as of 2026-10-06_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
@@ -26,7 +26,7 @@ commits the 2026-09-14 recovery fixes, migrations 027–028, the store-readiness
 mobile fixes, and the supporting QA/docs/CI updates; `3d156ec` (2026-10-05)
 reconciles the status docs and refreshes the landing lockfile to `next@16.3.8`
 (clearing the critical RCE advisory); later commits record the committed state.
-The working tree is clean and nothing has been pushed. The recorded store
+The working tree was clean at its last check on 2026-10-05; nothing had been pushed. The recorded store
 artifacts were built from the earlier `cd3a87c`, so a rebuild from the committed
 `tamim` tip (expected iOS build 9 / Android versionCode 6) is required before
 store QA.
@@ -99,6 +99,11 @@ Environment truth:
   `3d156ec` reconciles the status docs and refreshes the landing lockfile to
   `next@16.3.8`. Nothing has been pushed and only the `main` and `tamim`
   branches exist.
+- Local git state (verified 2026-10-06): branch `tamim` remains unpushed. The
+  working tree contains the mobile SDK 57 / Xcode 27 simulator compatibility
+  work, plus pre-existing root `package.json`/lock changes for Supabase CLI
+  2.120.0. These changes remain uncommitted; no hosted, EAS, store, or push
+  action was taken.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
   key/schema/resolver preflight passed, proving the encrypted key works. It
   created 42 baselines and failed closed on 11 source rows. Hardened run
@@ -262,21 +267,24 @@ Deletion also removes the server account and local session.
 - Mobile uses an exact scoped `xcode@3.0.1` override to `uuid@11.1.1`. It retains
   CommonJS compatibility; do not widen it to UUID 12+ or `latest`, and remove it
   when fixed upstream.
-- React Native community CLI 0.83.10 has a scoped Metro/metro-config 0.83.8
-  override, matching Expo and removing image-size. XML stays on compatible
-  patched 0.8.15/0.9.12 paths; js-yaml is pinned to 4.3.2. The mobile audit
-  rejects every high/critical finding; its prior Metro exception is retired. A
-  2026-10-05 recheck found two new upstream advisories in the mobile production
-  tree (`braces` GHSA-vfj7-8cjw-p6xm, no patched release; `node-forge`
-  GHSA-86w9-cpqp-85rv) that make `npm run audit:production` fail closed (26
-  high, 0 critical). Do not silence the gate; this needs an owner decision.
+- Mobile is now Expo SDK 57.0.27 / React Native 0.86.3 / React 19.2.3. Expo
+  Doctor passed 21/21 checks. Global Metro overrides were removed to let Expo
+  SDK 57 select its supported Metro version; XML stays on compatible patched
+  0.8.15/0.9.12 paths, js-yaml is pinned to 4.3.2, and the exact `xcode@3.0.1`
+  UUID override remains scoped. The mobile audit rejects every high/critical
+  finding. A 2026-10-06 semver-compatible production audit fix removed the
+  critical `shell-quote` finding and other patchable findings; the gate still
+  fails closed on 23 high and 7 moderate findings, including `braces`
+  GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv. Do not force
+  breaking Tailwind/Expo Updates upgrades or weaken the gate without an owner
+  decision.
 - Never use destructive git commands without explicit authorization.
 
 ## Repository map
 
 ```text
 ReloGo/
-├── mobile/                    Expo SDK 55 / 1.0.1 user app
+├── mobile/                    Expo SDK 57 / 1.0.1 user app
 │   ├── app/(auth)/            onboarding and fail-closed re-consent
 │   ├── app/(tabs)/            checklist, profile, fixed-question support
 │   ├── components/            PII-safe crash/recovery boundary
@@ -577,6 +585,13 @@ deno test --config supabase/functions/support-ai/deno.json \
   micromatch/Tailwind/NativeWind/Jest/Metro) and `node-forge`
   GHSA-86w9-cpqp-85rv. This is a release-gate blocker requiring an owner/
   engineering decision; the audit gate must not be weakened.
+- Local iOS simulator verification (2026-10-06): Xcode 27 / Device Hub,
+  iPhone 17 with iOS 26.5, local Supabase on loopback, and Expo Go 57.0.9.
+  `python3.11 scripts/run-local-app.py mobile -- --ios --clear` launched the
+  app; Metro bundled 1,833 modules and the onboarding screen rendered. Expo
+  Doctor passed 21/21, mobile lint/typecheck/release-config passed, Jest passed
+  161/161, and launcher checks passed 13/13. The production audit still fails
+  on 23 high findings (zero critical) after compatible fixes.
 - Latest full code matrix at `2624ad3` (2026-08-01): mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
   modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
@@ -707,14 +722,19 @@ deno test --config supabase/functions/support-ai/deno.json \
    screenshots, Support URL, Apple metadata/device/2FA actions, and provide a
    Google Play service-account key or reviewed manual Android submission path.
 
-10. Resolve the 2026-10-05 mobile dependency-advisory regression. The committed
-    tree's `npm run audit:production` now fails closed on `braces`
-    GHSA-vfj7-8cjw-p6xm (no upstream patch) and `node-forge`
-    GHSA-86w9-cpqp-85rv, both build/test-only transitive paths. Owner/engineering
-    options: wait for an upstream `braces` release, migrate Tailwind/NativeWind
-    (breaking), or add a narrowly scoped, reviewed audit exception. The landing
-    `next` critical was already cleared by the 16.3.8 lockfile refresh. Do not
-    bypass or weaken the audit gate to make CI appear green.
+10. Mobile dependency-advisory regression — **locally resolved 2026-10-10**
+    (owner approved). Both remaining roots — `braces` GHSA-vfj7-8cjw-p6xm and
+    `node-forge` GHSA-86w9-cpqp-85rv — have **no patched release published**
+    (latest 3.0.3 / 1.4.0 are still affected) and are reachable only through
+    build-time/CLI tooling chains (Tailwind/NativeWind/Metro transforms; Expo
+    code-signing CLI). `mobile/scripts/production-audit-policy.js` now carries a
+    **narrowly scoped, reviewed exception list** (exact GHSA + package match,
+    criticals never allowed, npm propagation chains resolved, fail-closed on
+    unknown data) with per-entry justification and a 2026-12-01 re-review date;
+    the gate still fails on anything outside those entries. Verified:
+    `npm run audit:production` passes with the two exceptions in effect, lint,
+    typecheck, and Jest 16 suites / 174 tests all pass. Remove each exception as
+    soon as an upstream patch ships; do not bypass or weaken the gate further.
 
 Out of MVP scope unless new evidence justifies reopening: a recoverable AI
 quota lease and workload-specific credentials replacing the shared server-side

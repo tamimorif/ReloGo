@@ -1,7 +1,7 @@
 # ReloGo Deployment Guide
 
 Pinned stack: Next.js 16 (static export) for the landing page, Vite 5 for the
-admin dashboard, Expo SDK 55 / React Native 0.83 / EAS for mobile, Supabase
+admin dashboard, Expo SDK 57 / React Native 0.86 / EAS for mobile, Supabase
 (Postgres + Auth + RLS) for the backend, and a Python 3.11 Playwright worker for
 rule monitoring.
 
@@ -13,9 +13,9 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Rebuild iOS/Android from committed tip `fff31da` (expected iOS build 9 / Android versionCode 6): recorded builds 8/5 identify `cd3a87c`, which predates `0c78e56` and `fff31da`, and are superseded. After explicit upload authorization, complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-55-eas) |
-| 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-55-eas) |
+| 1 | Rebuild iOS/Android from the reviewed SDK 57 tree after it is committed and the production audit gate is resolved. Recorded builds 8/5 identify `cd3a87c`, predate later recovery changes, and use the older SDK 55 dependency line. After explicit upload authorization, complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-57-eas) |
+| 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-57-eas) |
+| 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-57-eas) |
 | 4 | After explicit approval, apply pending migrations 027 and 028 to production, verify monitoring and admin boundaries, then trigger `.github/workflows/worker.yml` on the verified coordinated `main` worker; require all automatic checks and both manual Yukon assignments in the summary, and configure/test alert webhook ownership | [§1](#1-supabase-database), [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
 | 5 | Fund/test backups, establish mailbox/domain and incident ownership, and resume preview v3 only for isolated preview QA | [§8](#8-incident-runbook-and-monitoring) |
 
@@ -36,7 +36,7 @@ branches exist):
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
 | Production Supabase `yskknolxbxfxakgvrcmg` | Exact 001–026 reverified; 027 monitoring columns absent, 017 admin signup trigger still present; 027/028 pending approval. One existing admin membership, none unconfirmed. Earlier v5 JWT/authenticated smoke remains historical evidence; rerun the release gates after rollout |
-| Mobile | Local version 1.0.1 / SDK 55 gates and push CI run `32050117854` pass. Recorded `cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives, but `0c78e56` and the committed `fff31da` recovery tree both follow `cd3a87c`, so builds 8/5 predate the Phase 1 checklist simplification, Expo 55.0.31 pins, and the committed 2026-09-14 fixes and are superseded. Neither was uploaded or submitted; rebuild from `fff31da` (expected iOS build 9 / Android versionCode 6), then real-device QA and approval. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
+| Mobile | The active local 1.0.1 tree now targets Expo SDK 57.0.27 / React Native 0.86.3 and launched on the Xcode 27 iPhone 17 simulator against local Supabase; changes remain uncommitted. Recorded `cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives, but use the older SDK 55 dependency line and predate later recovery changes. Neither was uploaded or submitted; rebuild from the reviewed SDK 57 tree after commit and audit-gate resolution, then complete real-device QA and approval. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is live at `https://relogo-two.vercel.app` and, per 2026-09-24 probes, already serves the current Privacy/Support/Terms pages, while `relo-go` still returns SPA HTML for `/vite.svg` and missing `/assets/*.js` (local favicon/404 fix awaits an explicit deploy); main run `30843906264` passed public web/auth/resolver checks with required backend probes |
 | Worker/uptime | The coordinated worker is already on default branch `main`, but its preflight cannot run against production 026. Migration 027 still requires approved rollout and a live rerun. All nine replacement source rows passed fresh read-only reachability checks; the exact production mapping matches 11 rows. Two Yukon sources remain owned 30-day manual assignments. Historical worker evidence is 43/53 baselines and three PENDING alerts; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
@@ -487,7 +487,7 @@ project `relo-go` with root `admin`, so no relink is required. The committed
 `fff31da` admin favicon/missing-asset fix still needs an explicit deploy of the
 `tamim` recovery tree to that project; use a preview deployment before promotion.
 
-## 4. Mobile app (Expo SDK 55, EAS)
+## 4. Mobile app (Expo SDK 57, EAS)
 
 Build profiles are defined in `mobile/eas.json` (`development`, `preview`,
 `production`; EAS CLI `>= 12.0.0`, remote app version source with
@@ -500,7 +500,7 @@ Expo Updates runtime, and there are zero OTA updates for it. Backend-dependent
 onboarding/checklist behavior is broken in the downloadable release. Do not
 attempt an `eas update` hotfix for that binary.
 
-The recovery app is 1.0.1 / SDK 55 and now has app-version-based runtime
+The recovery app is 1.0.1 / SDK 57 and now has app-version-based runtime
 versioning, Expo Updates configuration, and a build-time release preflight.
 This helps future compatible releases; it does not retroactively update 1.0.
 Earlier production/store builds from exact merged `main` `e75f449` both
@@ -524,18 +524,17 @@ Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
 The mobile production audit now fails on every high/critical finding and on
 unavailable or malformed advisory data. There is no Metro/`image-size`
-exception. A 2026-10-05 recheck found that newly published `braces`
-(GHSA-vfj7-8cjw-p6xm, no patched release) and `node-forge`
-(GHSA-86w9-cpqp-85rv) advisories make `npm run audit:production` fail closed
-(26 high, 0 critical); do not weaken the gate, and treat this as an
-owner/engineering release blocker. The landing `next` critical RCE
+exception. A 2026-10-06 SDK 57 recheck shows that `npm run audit:production`
+still fails closed (23 high, 7 moderate, 0 critical) after semver-compatible
+updates cleared the critical `shell-quote` finding. `braces`
+(GHSA-vfj7-8cjw-p6xm) and `node-forge` (GHSA-86w9-cpqp-85rv) remain among the
+high findings; do not weaken the gate, and treat this as an owner/engineering
+release blocker. The landing `next` critical RCE
 (GHSA-vcvr-r3jv-pc5j) was cleared by refreshing the lockfile to `next@16.3.8`
 within the existing `^16.3.5` range (0 vulnerabilities after `npm ci`).
-React Native and its community CLI plugin are `0.83.10`; the exact
-`@react-native/community-cli-plugin@0.83.10` override pins only that plugin's
-`metro` and `metro-config` to `0.83.8`. Keep this override scoped and preserve the
-lockfile; do not replace Expo's separate Metro dependency globally. The YAML
-override is `js-yaml@4.3.2`; resolved XML parser branches are
+React Native and its community CLI plugin are `0.86.3`; SDK 57 manages its
+Metro versions, so no global Metro override is present. The YAML override is
+`js-yaml@4.3.2`; resolved XML parser branches are
 `@xmldom/xmldom@0.8.15` and `0.9.12`. Existing `nanoid` and `postcss` pins remain.
 The exact `xcode@3.0.1` override still pins the CommonJS-compatible
 `uuid@11.1.1`; keep it narrow and remove it when fixed upstream.
@@ -684,9 +683,11 @@ accepts only a bare HTTP loopback origin and an anonymous public key, and sets
 only the selected app's Supabase variables for that process. Existing environment
 files, hosted projects, and production release settings stay unchanged. Extra
 arguments after `--` go to the usual development server. On macOS the launcher
-checks for `Simulator.app` before forwarding `--ios` and fails fast with restore
-instructions when it is missing from the Xcode installation, instead of Expo's
-misleading `xcode-select` error. Android emulators can reuse the loopback URL
+checks for `Simulator.app` in older Xcode versions or `DeviceHub.app` under the
+selected Xcode bundle in Xcode 27 before forwarding `--ios`. It fails fast with
+toolchain/runtime instructions when neither is present, instead of Expo's
+misleading `xcode-select` error. Xcode 27 requires Expo SDK 57 or newer for
+scene support. Android emulators can reuse the loopback URL
 after `adb reverse tcp:54321 tcp:54321`; physical devices need a separately
 reviewed reachable HTTPS address. This loopback setup does not resume the
 hosted preview or provide its data; local data and authentication come from the

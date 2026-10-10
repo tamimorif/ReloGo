@@ -38,7 +38,7 @@ or exposed to the admin dashboard.
 
 | Area | Responsibility | Current stack |
 | --- | --- | --- |
-| `mobile/` | User product, checklist navigator, local PII vault, support | Expo SDK 55, React Native 0.83, React 19 |
+| `mobile/` | User product, checklist navigator, local PII vault, support | Expo SDK 57.0.27, React Native 0.86.3, React 19.2.3 |
 | `landing/` | Marketing, legal, support, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
@@ -86,7 +86,9 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   Expo Updates runtime. Backend-dependent onboarding and checklist flows are
   therefore broken in the currently downloadable release; 1.0.1 has not
   shipped.
-- The recovery release is version 1.0.1 on Expo SDK 55. Pull request #2 merged
+- The recovery release is version 1.0.1. Its original dependency line was Expo
+  SDK 55; the active local tree now targets SDK 57.0.27, React Native 0.86.3,
+  and React 19.2.3 for Xcode 27 compatibility. Pull request #2 merged
   the reviewed tree to `main` at `e75f449`. Earlier iOS production build 7
   (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) finished successfully from that
   exact commit. Earlier Android production build 4
@@ -161,21 +163,18 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 - Local UI corrections use tab history for Back, flexible large-text support
   layout, and explicit status-bar contrast for the app's light appearance.
   Fresh simulator/device confirmation of those visual changes remains open.
-- Expo SDK 55 dependencies aligned; native iOS/Android Hermes exports pass.
-- Patched `js-yaml`, `nanoid`, and `postcss` transitives are pinned. XML uses
-  compatible patched 0.8.15/0.9.12 versions. React Native community CLI has a
-  scoped Metro/metro-config 0.83.8 override matching Expo; image-size is removed.
-  The mobile audit rejects every high/critical finding; the old build-tool
-  exception is retired. Eight moderate navigation dependency findings remain.
-  A 2026-10-05 recheck found two newly published upstream advisories in the
-  mobile production tree: `braces` (GHSA-vfj7-8cjw-p6xm, affected `<=3.0.3`,
-  **no patched release**) reached through micromatch/Tailwind/NativeWind/Jest/
-  Metro build tooling, and `node-forge` (GHSA-86w9-cpqp-85rv). A clean
-  `npm ci` then `npm run audit:production` now fails closed (26 high, 0
-  critical). The gate is deliberately not weakened; this needs an owner/
-  engineering decision (await an upstream `braces` patch, migrate the build
-  tooling, or add a scoped, reviewed exception). The exact
-  `xcode@3.0.1` → `uuid@11.1.1` override remains in place.
+- The original SDK 55 dependency set passed native iOS/Android Hermes exports.
+  The current local tree is aligned to Expo SDK 57.0.27 / React Native 0.86.3 /
+  React 19.2.3; Expo Doctor passes 21/21. Patched `js-yaml`, `nanoid`, and
+  `postcss` transitives remain pinned. XML uses compatible patched 0.8.15/0.9.12
+  versions. SDK 57's Metro versions are used without the old global Metro
+  overrides, and image-size remains removed. The mobile audit rejects every
+  high/critical finding. A 2026-10-06 semver-compatible fix cleared the critical
+  `shell-quote` advisory, but the gate still fails closed (23 high, 7 moderate,
+  0 critical), including `braces` GHSA-vfj7-8cjw-p6xm and `node-forge`
+  GHSA-86w9-cpqp-85rv. Do not force breaking Tailwind/Expo Updates upgrades or
+  weaken the gate without an owner decision. The exact `xcode@3.0.1` →
+  `uuid@11.1.1` override remains in place.
 - A top-level PII-safe crash boundary (`AppErrorBoundary`) and global error
   handler discard arbitrary exception content and allow only fixed diagnostic
   metadata. Alphabetic names/addresses, custom error names, stacks and contexts
@@ -346,7 +345,8 @@ Local evidence does not replace real-device or store-submission evidence.
 
 | Scope | Latest established evidence |
 | --- | --- |
-| Current git state (2026-10-05 check) | `main` == `origin/main` == `0c78e56` (PR #6 merge, 2026-09-08). Local `tamim` is clean and carries committed, unpushed work on top of `origin/tamim` (`fff31da`, 2026-09-29): recovery fixes/migrations and supporting updates in `fff31da`, then status-doc reconciliation plus the landing `next@16.3.8` advisory lockfile refresh, then a follow-up recording the committed state. Only the `main` and `tamim` branches exist. No push, merge, migration, or deploy was performed |
+| Current git state (2026-10-05 check; historical) | `main` == `origin/main` == `0c78e56` (PR #6 merge, 2026-09-08). Local `tamim` was clean and carried committed, unpushed work on top of `origin/tamim` (`fff31da`, 2026-09-29): recovery fixes/migrations and supporting updates in `fff31da`, then status-doc reconciliation plus the landing `next@16.3.8` advisory lockfile refresh, then a follow-up recording the committed state. Only the `main` and `tamim` branches exist. No push, merge, migration, or deploy was performed |
+| Local simulator verification (2026-10-06) | The uncommitted mobile SDK 57 tree launched through `scripts/run-local-app.py` on Xcode 27 / Device Hub, iPhone 17 / iOS 26.5, Expo Go 57.0.9, with local Supabase on loopback. Metro bundled 1,833 modules and onboarding rendered. Expo Doctor 21/21, lint, typecheck, release configuration, Jest 161/161, and launcher checks 13/13 passed. The production audit remains blocked on 23 high / 7 moderate findings, zero critical; no EAS build, store upload, push, or hosted change was made |
 | Read-only git/deployment audit (2026-09-24, historical) | At that time `tamim` == `origin/tamim` == `origin/main` == `0c78e56`; the 2026-09-08 commits `d64c4cb`/`e103095`/`df3535b` were on both branches; landing served the current Privacy/Support/Terms pages while the admin missing-asset probe still returned SPA HTML; builds 8/5 recorded from `cd3a87c` predated the tip. Superseded by `fff31da` |
 | Verification-report fixes (2026-09-14; committed in `fff31da`) | Mobile lint/types, 15 suites/161 tests, final iOS/Android exports (1,569/1,590 modules) and strict audit pass (8 moderate, no high/critical); admin/landing builds and production audits pass, admin regressions 15/15; worker 110/110, Deno 16/16, transactional pgTAP 221/221 twice and public lint clean. Contract/launcher tests pass. Fresh visual/device confirmation and full API E2E remain unverified; production 027/028 and web rollout still require approval. See [evidence](../qa-artifacts/fix-verification-2026-09-14.md) |
 | Current `tamim` recovery recheck (2026-08-17) | Node 22 clean installs; mobile release/dependency checks, TypeScript, lint, 13 Jest suites with 133/133 tests, and 1,753-module iOS/1,774-module Android exports pass; admin/landing lint/build pass; worker 106/106 and Deno 16/16 pass; fresh reset through 027, public lint, pgTAP 207/207, API E2E 248/248, contracts, and production-backed public uptime pass. Push CI run `32050117854` passed the full matrix from `cd3a87c` |
@@ -355,7 +355,8 @@ Local evidence does not replace real-device or store-submission evidence.
 | Hosted preview recovery | Exact ledger 001–026; JWT-protected `support-ai` v3; hosted smoke passed before preview was deliberately paused |
 | Production backend | Active at exact ledger 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected; unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, authenticated non-fallback AI, and cleanup |
 | Mobile dependency audit (2026-09-14, historical) | Zero high/critical findings; eight moderate navigation findings remain. The prior Metro/image-size exception is retired after a scoped compatible Metro update. Landing/admin production audits report zero. Superseded by new upstream advisories below |
-| Dependency advisory recheck (2026-10-05) | Landing `next@16.3.8` lockfile refresh clears the critical RCE GHSA-vcvr-r3jv-pc5j (`npm audit --omit=dev` = 0; `npm ci`/build pass). Mobile `npm run audit:production` now fails closed (26 high, 0 critical) from newly published `braces` GHSA-vfj7-8cjw-p6xm (no patched release) and `node-forge` GHSA-86w9-cpqp-85rv; requires an owner/engineering decision |
+| Dependency advisory recheck (2026-10-05; historical) | Landing `next@16.3.8` lockfile refresh clears the critical RCE GHSA-vcvr-r3jv-pc5j (`npm audit --omit=dev` = 0; `npm ci`/build pass). Mobile `npm run audit:production` failed closed (26 high, 0 critical) from newly published `braces` GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv |
+| Mobile dependency follow-up (2026-10-06) | Semver-compatible production lockfile fixes clear the critical `shell-quote` finding. Mobile `npm run audit:production` still fails closed (23 high, 7 moderate, 0 critical), including `braces` and `node-forge`; do not force incompatible major upgrades or weaken the gate |
 | Prior committed `tamim` baseline (2026-07-21) | Mobile 85/85, worker 69/69, support helpers 9/9, pgTAP 164/164, API E2E 243/243, both native Hermes exports and web/admin builds passed |
 | Latest full code matrix at `2624ad3` (2026-08-01) | Mobile release configuration, TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export 1,752 modules/5.8 MB Hermes bytecode, Android export 1,773 modules/5.9 MB Hermes bytecode, and production audit 0; admin and landing lint/build; Deno format/lint/type checks and tests 16/16; worker compile and tests 77/77; contract sync, workflow YAML, shell syntax, and diff checks passed |
 | Focused documentation-tree recheck (2026-08-03) | Mobile 116/116, TypeScript, release configuration, worker 77/77, Gemini transport 4/4, Python dependency consistency, uptime shell syntax, and `git diff --check` passed; code paths are unchanged from `2624ad3` |
@@ -490,10 +491,12 @@ binaries, real-device QA, CI, or the remaining release phases below.
   webhook ownership also remains.
   `relogo.app` does not resolve and no monitored public support/privacy mailbox
   exists.
-- The BC government PDF workflow now runs end to end on SDK 55 in the iOS
+- The BC government PDF workflow was verified end to end on SDK 55 in the iOS
   Simulator (download, audited hash check, on-device fill, review prompt,
-  share sheet). It has still not been exercised on an EAS binary, on a real
-  device, or on Android — where the ten-minute share-target cache grace and the
+  share sheet). The SDK 57 / Xcode 27 simulator check currently confirms app
+  launch and onboarding only; repeat the PDF workflow on the rebuilt SDK 57
+  app before release. It has not been exercised on a current EAS binary, a real
+  device, or Android — where the ten-minute share-target cache grace and the
   chooser-cancellation path remain unobserved.
 - The initial independent content audit covered all 53 source URLs and all 24
   seeded numeric deadlines. Its historical probe had 15 unusable results; the
@@ -524,15 +527,14 @@ binaries, real-device QA, CI, or the remaining release phases below.
   the local migration 027 source-monitoring treatment remains pending review,
   hosted rollout, and a live Actions rerun. Webhook delivery remains unresolved.
   `ALERT_WEBHOOK_URL` is unset.
-- Mobile's audit regressed on 2026-10-05 to 26 high/0 critical from two newly
-  published upstream advisories (`braces` GHSA-vfj7-8cjw-p6xm, which has no
-  patched release, and `node-forge` GHSA-86w9-cpqp-85rv), both reached through
-  build/test tooling rather than shipped runtime code. The exact `xcode@3.0.1` →
-  `uuid@11.1.1` override remains and is intentionally narrow because UUID 12
-  removes CommonJS; recheck and remove that override when an upstream
-  Expo/xcode release supports a fixed dependency directly. Resolve the
-  `braces`/`node-forge` advisories with an owner decision before treating the
-  mobile release gate as green.
+- Mobile's audit regressed on 2026-10-05 to 26 high/0 critical. A compatible
+  2026-10-06 lockfile fix removed the critical `shell-quote` finding; the
+  current audit reports 23 high/7 moderate/0 critical, including `braces`
+  GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv. The exact
+  `xcode@3.0.1` → `uuid@11.1.1` override remains intentionally narrow because
+  UUID 12 removes CommonJS; recheck and remove it when an upstream Expo/xcode
+  release supports a fixed dependency directly. Resolve remaining advisories
+  with an owner decision before treating the mobile release gate as green.
 - Mobile now captures crashes/errors on-device in a PII-safe form (redacted,
   never transmitted) behind a top-level boundary. Wiring an external crash
   service remains a deliberate, privacy-reviewed decision; do not add one that
@@ -710,7 +712,7 @@ Status: **in progress.**
   source-monitoring treatment; deepen origin and destination rules; and obtain
   human/legal approval for conditional content.
 - Remaining: release the reviewed web/mobile recovery only after preview/device
-  gates; then test policy re-consent, resolver sources, and the BC PDF on SDK 55
+  gates; then test policy re-consent, resolver sources, and the BC PDF on SDK 57
   EAS builds and real devices against the now-current production backend.
 - Remaining: Complete Apple/Google accounts and replace the existing pre-final
   screenshots with store-ready captures from the release candidate.
