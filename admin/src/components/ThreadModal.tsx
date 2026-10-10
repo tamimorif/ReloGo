@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 import type {
   SupportMessage,
   SupportMessageSender,
@@ -94,12 +95,12 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
       if (cancelled) return;
 
       if (threadRes.error) {
-        setError(threadRes.error.message);
+        setError(ADMIN_ERRORS.loadThread);
       } else {
         setThread(threadRes.data);
       }
       if (msgRes.error) {
-        setError(msgRes.error.message);
+        setError(ADMIN_ERRORS.loadMessages);
       } else {
         setMessages(msgRes.data ?? []);
       }
@@ -172,7 +173,7 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
       .eq("id", threadId);
 
     if (updateErr) {
-      setError(updateErr.message);
+      setError(ADMIN_ERRORS.takeOverThread);
       setThread({ ...thread, status: prev }); // rollback
     }
     setBusyAction(null);
@@ -193,7 +194,7 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
       .eq("id", threadId);
 
     if (updateErr) {
-      setError(updateErr.message);
+      setError(ADMIN_ERRORS.resolveThread);
       setThread({ ...thread, status: prev }); // rollback
     }
     setBusyAction(null);
@@ -214,7 +215,7 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
       .single();
 
     if (insertErr) {
-      setError(insertErr.message);
+      setError(ADMIN_ERRORS.sendReply);
       setSending(false);
       return;
     }
@@ -236,7 +237,7 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
       .update({ status: nextStatus })
       .eq("id", threadId);
     if (bumpErr) {
-      setError(bumpErr.message);
+      setError(ADMIN_ERRORS.updateRepliedThread);
     } else if (thread) {
       setThread({ ...thread, status: nextStatus });
     }

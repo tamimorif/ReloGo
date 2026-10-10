@@ -3,10 +3,14 @@
  */
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         tabBarActiveTintColor: "#2563EB",
         tabBarInactiveTintColor: "#94a3b8",
@@ -14,9 +18,9 @@ export default function TabsLayout() {
           backgroundColor: "#ffffff",
           borderTopColor: "#e2e8f0",
           borderTopWidth: 1,
-          paddingBottom: 8,
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
-          height: 88,
+          height: 64 + insets.bottom,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -26,6 +30,7 @@ export default function TabsLayout() {
           backgroundColor: "#2563EB",
         },
         headerTintColor: "#ffffff",
+        headerTitleAllowFontScaling: false,
         headerTitleStyle: {
           fontWeight: "bold",
           fontSize: 18,
@@ -38,11 +43,11 @@ export default function TabsLayout() {
           title: "Checklist",
           // The checklist renders its own large-title header in-screen.
           headerShown: false,
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+          tabBarIcon: ({ color, size }) => (
             <Ionicons
               name="checkbox-outline"
               size={size}
-              color={color}
+              color={color as string}
             />
           ),
         }}
@@ -52,11 +57,11 @@ export default function TabsLayout() {
         options={{
           title: "Profile",
           headerTitle: "My Profile",
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+          tabBarIcon: ({ color, size }) => (
             <Ionicons
               name="person-circle-outline"
               size={size}
-              color={color}
+              color={color as string}
             />
           ),
         }}

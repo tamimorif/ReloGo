@@ -1,6 +1,6 @@
 # ReloGo — canonical project plan
 
-_Last updated: 2026-08-17_
+_Last updated: 2026-10-05_
 
 This is the single source of truth for the product concept, implemented state,
 remaining work, phased roadmap, and definition of done. Operational commands
@@ -38,11 +38,11 @@ or exposed to the admin dashboard.
 
 | Area | Responsibility | Current stack |
 | --- | --- | --- |
-| `mobile/` | User product, checklist navigator, local PII vault, support | Expo SDK 55, React Native 0.83, React 19 |
+| `mobile/` | User product, checklist navigator, local PII vault, support | Expo SDK 57.0.27, React Native 0.86.3, React 19.2.3 |
 | `landing/` | Marketing, legal, support, waitlist | Next.js 16 static export, React 19 |
 | `admin/` | Human operations | Vite 5, React 18 |
 | `worker/` | Official-source monitoring | Python 3.11, Playwright |
-| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Repository migrations 001–027 (027 pending review), Deno Edge Function |
+| `supabase/` | Auth, database, RLS/RPCs, Realtime, AI function | Repository migrations 001–028 (027–028 unhosted), Deno Edge Function |
 
 There is no monorepo build layer. Each JavaScript app has an independent
 lockfile and environment. Supabase migrations are the schema source of truth;
@@ -86,7 +86,9 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   Expo Updates runtime. Backend-dependent onboarding and checklist flows are
   therefore broken in the currently downloadable release; 1.0.1 has not
   shipped.
-- The recovery release is version 1.0.1 on Expo SDK 55. Pull request #2 merged
+- The recovery release is version 1.0.1. Its original dependency line was Expo
+  SDK 55; the active local tree now targets SDK 57.0.27, React Native 0.86.3,
+  and React 19.2.3 for Xcode 27 compatibility. Pull request #2 merged
   the reviewed tree to `main` at `e75f449`. Earlier iOS production build 7
   (`765965d7-c7c1-432c-ac1d-302d2f0c5116`) finished successfully from that
   exact commit. Earlier Android production build 4
@@ -97,11 +99,20 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   real-device QA and a Google Play service-account key or reviewed manual
   Android path remain. Both artifacts predate the current `tamim` startup-
   prefetch and dependency-audit fixes, so neither is the current release
-  candidate. Current replacements were built from exact green commit
-  `cd3a87c`: iOS 1.0.1 build 8 (EAS
-  `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
-  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Neither current
-  artifact was uploaded or submitted to a store.
+  candidate. Recorded replacements were built from `cd3a87c`: iOS 1.0.1 build 8
+  (EAS `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
+  `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Neither was uploaded
+  or submitted to a store. `main` advanced to `0c78e56` (2026-09-08) with the
+  Phase 1 checklist simplification (`d64c4cb`), EAS `ascAppId` submit
+  configuration (`e103095`), and Expo SDK 55.0.31 patch alignment (`df3535b`).
+  The 2026-09-14 recovery fixes, migrations 027–028, and store-readiness work
+  are committed on `tamim` at `fff31da` (2026-09-29); follow-up unpushed commits
+  (status-doc reconciliation and the landing `next@16.3.8` refresh) sit on top,
+  while `main` and `origin/tamim` remain at `0c78e56` and `fff31da`,
+  respectively. Builds 8/5 predate the tip, so a fresh rebuild from the
+  committed `tamim` tip (expected iOS
+  build 9 / Android versionCode 6) is required before store QA; `docs/STORE.md`
+  records builds 8/5 as superseded.
 - Startup no longer waits behind a static native splash for remote work.
   Session storage reads the encrypted value and key concurrently; session
   restore is bounded at 3 seconds and consent/profile bootstrap at 5 seconds,
@@ -146,17 +157,28 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   real-device download/render/review/share verification remains.
 - Realtime support transcript, fixed questions, AI replies, human takeover,
   resolve/reopen behavior, and local fallback escalation.
-- Expo SDK 55 dependencies aligned; native iOS/Android Hermes exports pass.
-- Patched `js-yaml`, `nanoid`, and `postcss` transitives are pinned. npm still
-  reports two high-severity `image-size@1.2.1` denial-of-service advisories
-  through Expo/Metro build-tool paths, with no patched release or compatible
-  npm fix. A fail-closed mobile audit accepts only those exact advisories at
-  that exact version because Metro sees only repository-controlled build
-  assets; any other high/critical finding fails CI. The exact
-  `xcode@3.0.1` → `uuid@11.1.1` override remains in place.
+- Profile, re-consent and support reads/writes have bounded, cancellable waits.
+  Lost-response support failures require authoritative refresh before retry;
+  subscription reconciliation covers the initial read-to-Realtime gap.
+- Local UI corrections use tab history for Back, flexible large-text support
+  layout, and explicit status-bar contrast for the app's light appearance.
+  Fresh simulator/device confirmation of those visual changes remains open.
+- The original SDK 55 dependency set passed native iOS/Android Hermes exports.
+  The current local tree is aligned to Expo SDK 57.0.27 / React Native 0.86.3 /
+  React 19.2.3; Expo Doctor passes 21/21. Patched `js-yaml`, `nanoid`, and
+  `postcss` transitives remain pinned. XML uses compatible patched 0.8.15/0.9.12
+  versions. SDK 57's Metro versions are used without the old global Metro
+  overrides, and image-size remains removed. The mobile audit rejects every
+  high/critical finding. A 2026-10-06 semver-compatible fix cleared the critical
+  `shell-quote` advisory, but the gate still fails closed (23 high, 7 moderate,
+  0 critical), including `braces` GHSA-vfj7-8cjw-p6xm and `node-forge`
+  GHSA-86w9-cpqp-85rv. Do not force breaking Tailwind/Expo Updates upgrades or
+  weaken the gate without an owner decision. The exact `xcode@3.0.1` →
+  `uuid@11.1.1` override remains in place.
 - A top-level PII-safe crash boundary (`AppErrorBoundary`) and global error
-  handler capture only redacted, non-PII diagnostics on-device and never
-  transmit them; redaction is unit-tested.
+  handler discard arbitrary exception content and allow only fixed diagnostic
+  metadata. Alphabetic names/addresses, custom error names, stacks and contexts
+  cannot pass through the reporter. No diagnostics are transmitted.
 - ESLint is a CI gate (`eslint-config-expo` flat config, `mobile-lint` job),
   passing with 0 errors.
 - Unused mobile-web configuration removed.
@@ -169,9 +191,11 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   rate-limited user gets real feedback; a duplicate email still returns
   `accepted`, so membership is never revealed.
 - Privacy Policy, Terms, a Support route, metadata, favicon/social image,
-  robots, and sitemap are implemented and committed on `tamim`. The Support/legal
-  changes are not yet present on the currently deployed landing build, which
-  still serves the earlier `main` build.
+  robots, and sitemap are implemented and committed on `tamim`. A read-only
+  check on 2026-09-24 confirmed the deployed landing at
+  `https://relogo-two.vercel.app` already serves Privacy v1.1 plus the
+  Support/Terms pages, including the honest "not yet configured" notices shown
+  while `NEXT_PUBLIC_SUPPORT_EMAIL` is unset.
 - Next.js 16/React 19 upgrade, production dependency audit, lint, static build,
   fail-fast environment validation, and deployment security headers.
 
@@ -184,6 +208,10 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   reply, resolve, and protected deployment headers.
 - Live-rule edits and alert status changes are no longer direct table updates;
   approval and dismissal use narrow atomic RPCs.
+- Local fixes replace raw Auth/database errors with authored recovery messages,
+  deduplicate overlapping user pages while advancing the database offset, and
+  add a unique alert-order tiebreaker. A real favicon and removal of the unused
+  catch-all routing rule let missing static assets return 404 after deployment.
 
 ### Worker
 
@@ -216,13 +244,14 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
 
 ### Backend and CI
 
-- Ordered repository migrations 001–027 cover schema, seed data, RLS, deletion,
+- Ordered repository migrations 001–028 cover schema, seed data, RLS, deletion,
   admin authorization, admin bootstrap, consent/re-consent, support, waitlist,
   worker state, atomic workflows, conservative content corrections,
   server-side admin pagination (021), and enumeration-safe waitlist signup
   feedback (022).
-  Migration 017 auto-registers admin emails
-  (`admin@relogo.app` / `admin@relogo.ca`) via a trigger on `auth.users` insert.
+  Hosted migration 017 auto-registers admin emails via an Auth insert trigger.
+  Locally verified migration 028 removes that grant path entirely and preserves
+  existing memberships; future admin access requires trusted explicit provisioning.
 - Migration 019 makes policy acceptance timestamps server-authored, adds a
   narrow re-consent RPC/state boundary, and gates normal user data on the
   server-current policy version. Migration 020 removes exact-day arithmetic
@@ -259,11 +288,16 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   exact production origin. Pull request #2 final head `f34b64a` passed all 19
   GitHub/Vercel checks and merged to `main` as `e75f449` after its two fixed
   review threads were resolved.
-- The dependency audit gates on high/critical. Landing/admin production audits
-  report zero. Mobile's `audit:production` wrapper fails closed except for the
-  two exact, reviewed upstream Metro/image-size build-time advisories; clean
-  install and both native exports cover the patched transitive overrides and
-  the temporary `xcode@3.0.1` → `uuid@11.1.1` pin.
+- The dependency audit gates on every high/critical finding for all three apps.
+  Mobile also validates the audit response and fails on registry errors; its
+  former Metro/image-size exception is retired. Clean installations and native
+  exports validate the patched build-tool overrides. On 2026-10-05 the landing
+  `next` critical RCE (GHSA-vcvr-r3jv-pc5j) was patched by refreshing the
+  lockfile to `next@16.3.8` within the existing `^16.3.5` range (`npm ci`,
+  build, and `npm audit --omit=dev` are zero); the mobile audit regressed to
+  26 high/0 critical from the two new `braces`/`node-forge` advisories above and
+  cannot be made green without an owner decision or a breaking build-tool
+  migration.
 
 ### Cloud foundation
 
@@ -279,15 +313,19 @@ RLS and narrow SECURITY DEFINER RPCs are the authorization boundary.
   exact migrations 001–026 with final JWT-protected `support-ai` v5. The
   last pre-027 post-push dry run was clean; unauthenticated function invocation
   returns 401; anonymous
-  auth is enabled; and the self-cleaning hosted smoke passed anonymous auth,
-  resolver output with five tasks/five HTTPS official sources, a minimal
-  onboarding profile insert, authoritative consent/profile confirmation,
-  authenticated non-fallback AI, and cleanup.
+  auth is enabled; and the self-cleaning smoke passed anonymous auth, resolver
+  output with five tasks/five HTTPS sources, a minimal onboarding profile
+  insert, authoritative consent/profile confirmation, authenticated
+  non-fallback AI, and cleanup.
 - The reviewed current admin recovery build is deployed to production at
-  `https://relo-go.vercel.app`; landing is unchanged and live at
-  `https://relogo-two.vercel.app`. Main-branch uptime run `30843906264` passed
-  the production web, anonymous-auth, and canonical-resolver checks with
-  backend probes required.
+  `https://relo-go.vercel.app`; landing is live at
+  `https://relogo-two.vercel.app` and, per read-only probes on 2026-09-24,
+  already serves the current Privacy/Support/Terms pages. The same probes show
+  `relo-go.vercel.app` still returns SPA HTML for `/vite.svg` and missing
+  `/assets/*.js`, so the local admin favicon/404 fix needs an explicit deploy
+  to that project. Main-branch uptime run `30843906264` passed the production
+  web, anonymous-auth, and canonical-resolver checks with backend probes
+  required.
 - The latest reviewed hosted advisor results had no errors; six
   multiple-permissive-policy warnings were intentional. Re-run production
   lint, pgTAP, advisors, and authenticated smoke against 001–026 in final
@@ -307,31 +345,39 @@ Local evidence does not replace real-device or store-submission evidence.
 
 | Scope | Latest established evidence |
 | --- | --- |
+| Current git state (2026-10-05 check; historical) | `main` == `origin/main` == `0c78e56` (PR #6 merge, 2026-09-08). Local `tamim` was clean and carried committed, unpushed work on top of `origin/tamim` (`fff31da`, 2026-09-29): recovery fixes/migrations and supporting updates in `fff31da`, then status-doc reconciliation plus the landing `next@16.3.8` advisory lockfile refresh, then a follow-up recording the committed state. Only the `main` and `tamim` branches exist. No push, merge, migration, or deploy was performed |
+| Local simulator verification (2026-10-06) | The uncommitted mobile SDK 57 tree launched through `scripts/run-local-app.py` on Xcode 27 / Device Hub, iPhone 17 / iOS 26.5, Expo Go 57.0.9, with local Supabase on loopback. Metro bundled 1,833 modules and onboarding rendered. Expo Doctor 21/21, lint, typecheck, release configuration, Jest 161/161, and launcher checks 13/13 passed. The production audit remains blocked on 23 high / 7 moderate findings, zero critical; no EAS build, store upload, push, or hosted change was made |
+| Read-only git/deployment audit (2026-09-24, historical) | At that time `tamim` == `origin/tamim` == `origin/main` == `0c78e56`; the 2026-09-08 commits `d64c4cb`/`e103095`/`df3535b` were on both branches; landing served the current Privacy/Support/Terms pages while the admin missing-asset probe still returned SPA HTML; builds 8/5 recorded from `cd3a87c` predated the tip. Superseded by `fff31da` |
+| Verification-report fixes (2026-09-14; committed in `fff31da`) | Mobile lint/types, 15 suites/161 tests, final iOS/Android exports (1,569/1,590 modules) and strict audit pass (8 moderate, no high/critical); admin/landing builds and production audits pass, admin regressions 15/15; worker 110/110, Deno 16/16, transactional pgTAP 221/221 twice and public lint clean. Contract/launcher tests pass. Fresh visual/device confirmation and full API E2E remain unverified; production 027/028 and web rollout still require approval. See [evidence](../qa-artifacts/fix-verification-2026-09-14.md) |
 | Current `tamim` recovery recheck (2026-08-17) | Node 22 clean installs; mobile release/dependency checks, TypeScript, lint, 13 Jest suites with 133/133 tests, and 1,753-module iOS/1,774-module Android exports pass; admin/landing lint/build pass; worker 106/106 and Deno 16/16 pass; fresh reset through 027, public lint, pgTAP 207/207, API E2E 248/248, contracts, and production-backed public uptime pass. Push CI run `32050117854` passed the full matrix from `cd3a87c` |
 | Current recovery database baseline | Fresh local reset applies 001–026; public-schema lint clean; pgTAP 198/198; focused resolver/integrity API E2E 5/5 |
 | Local migration 027 monitoring fix | Eleven failed rows across 10 unique URLs were mapped without weakening challenge gates: nine worker-only first-party automatic targets passed worker-equivalent reachability checks; two Yukon rows are explicit 30-day ReloGo operations assignments. Fresh reset through 027, lint, pgTAP 207/207, API E2E 248/248, worker 106/106, type sync/mobile TypeScript, and admin build pass. This records target reachability only; the migration and coordinated worker remain pending review, hosted rollout, and a live Actions rerun |
 | Hosted preview recovery | Exact ledger 001–026; JWT-protected `support-ai` v3; hosted smoke passed before preview was deliberately paused |
 | Production backend | Active at exact ledger 001–026; last pre-027 dry run clean; final `support-ai` v5 ACTIVE/JWT-protected; unauthenticated 401; self-cleaning smoke passed anonymous auth, resolver 5 tasks/5 HTTPS sources, minimal onboarding profile insert, authoritative consent/profile confirmation, authenticated non-fallback AI, and cleanup |
-| Mobile dependency audit | `js-yaml`, `nanoid`, and `postcss` advisories patched; fail-closed gate accepts only two exact upstream Metro/image-size build-time advisories at reviewed `image-size@1.2.1`; landing/admin production audits report zero |
+| Mobile dependency audit (2026-09-14, historical) | Zero high/critical findings; eight moderate navigation findings remain. The prior Metro/image-size exception is retired after a scoped compatible Metro update. Landing/admin production audits report zero. Superseded by new upstream advisories below |
+| Dependency advisory recheck (2026-10-05; historical) | Landing `next@16.3.8` lockfile refresh clears the critical RCE GHSA-vcvr-r3jv-pc5j (`npm audit --omit=dev` = 0; `npm ci`/build pass). Mobile `npm run audit:production` failed closed (26 high, 0 critical) from newly published `braces` GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv |
+| Mobile dependency follow-up (2026-10-06) | Semver-compatible production lockfile fixes clear the critical `shell-quote` finding. Mobile `npm run audit:production` still fails closed (23 high, 7 moderate, 0 critical), including `braces` and `node-forge`; do not force incompatible major upgrades or weaken the gate |
 | Prior committed `tamim` baseline (2026-07-21) | Mobile 85/85, worker 69/69, support helpers 9/9, pgTAP 164/164, API E2E 243/243, both native Hermes exports and web/admin builds passed |
 | Latest full code matrix at `2624ad3` (2026-08-01) | Mobile release configuration, TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export 1,752 modules/5.8 MB Hermes bytecode, Android export 1,773 modules/5.9 MB Hermes bytecode, and production audit 0; admin and landing lint/build; Deno format/lint/type checks and tests 16/16; worker compile and tests 77/77; contract sync, workflow YAML, shell syntax, and diff checks passed |
 | Focused documentation-tree recheck (2026-08-03) | Mobile 116/116, TypeScript, release configuration, worker 77/77, Gemini transport 4/4, Python dependency consistency, uptime shell syntax, and `git diff --check` passed; code paths are unchanged from `2624ad3` |
 | Post-merge worker safeguards | Duplicate-URL fan-out, per-origin serialization/pacing, Cloudflare/Radware classification, task cleanup, baseline-safety reporting, compile, and 97/97 worker tests pass. Production run `30845791036` verified 50 unique fetches/3 reused outcomes and kept 11 failures visible; failure policy remains nonzero for any failed/stale source |
 | Pull request #2 / CI | Final head `f34b64a`; 19/19 GitHub and Vercel checks passed; both review threads resolved; merged to `main` as `e75f449` |
 | Pull request #3 / worker hardening | Final head `3f063e9`; 19/19 checks passed; sole review thread fixed/resolved; merged to `main` as `d2db994` |
-| Current iOS store artifact | Version 1.0.1 build 8 `FINISHED`, EAS `daa8e42a-c12d-4365-b6ca-ff36732cd858`, exact green commit `cd3a87c`; IPA 19,516,089 bytes, SHA-256 `22514a7ee6672aa2b27942994b21a10a9a64b23a24eba17b7a845afd518d7bfc`; archive/bundle/channel/runtime verified; not uploaded to TestFlight or submitted |
-| Current Android store artifact | Version 1.0.1 build 5 `FINISHED`, EAS `f839dede-1f83-4c6a-a928-de258597e6d0`, exact green commit `cd3a87c`; AAB 68,966,684 bytes, SHA-256 `afad9d7cd505c2f0c0e516a1f7eddb02ef71748de2e21d0125b735e4b1a15343`; archive/package/ABI/runtime verified; not uploaded or submitted |
+| Recorded iOS store artifact (superseded) | Version 1.0.1 build 8 `FINISHED`, EAS `daa8e42a-c12d-4365-b6ca-ff36732cd858`, exact commit `cd3a87c` (predates `fff31da`; rebuild required); IPA 19,516,089 bytes, SHA-256 `22514a7ee6672aa2b27942994b21a10a9a64b23a24eba17b7a845afd518d7bfc`; archive/bundle/channel/runtime verified; not uploaded to TestFlight or submitted |
+| Recorded Android store artifact (superseded) | Version 1.0.1 build 5 `FINISHED`, EAS `f839dede-1f83-4c6a-a928-de258597e6d0`, exact commit `cd3a87c` (predates `fff31da`; rebuild required); AAB 68,966,684 bytes, SHA-256 `afad9d7cd505c2f0c0e516a1f7eddb02ef71748de2e21d0125b735e4b1a15343`; archive/package/ABI/runtime verified; not uploaded or submitted |
 | Earlier iOS store artifact | Build 7 `FINISHED`, EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`, exact `e75f449`; uploaded and `VALID`/`IN_BETA_TESTING` in internal TestFlight, but predates the current `tamim` changes and is not the current candidate |
 | Earlier Android store artifact | Build 4 `FINISHED`, EAS `28076f35-1495-466b-af77-97a9339c5ea2`, exact `e75f449`; predates the current `tamim` changes and is not the current candidate |
-| Web/worker/uptime recovery | Admin recovery live; landing unchanged/live; main uptime run `30843906264` passed required backend probes. Hardened worker run `30845791036` passed preflight, fetched 50 unique URLs for 53 rows, completed 42 rows, and left 11 outcomes failed closed; 43/53 sources now have baselines, three new alerts are PENDING human review, key rotation is not needed, and the webhook is unset |
+| Web/worker/uptime recovery | Admin recovery live; landing live and (per 2026-09-24 probes) already serving the current Privacy/Support/Terms pages while the admin favicon/404 fix still awaits a `relo-go` deploy; main uptime run `30843906264` passed required backend probes. Hardened worker run `30845791036` passed preflight, fetched 50 unique URLs for 53 rows, completed 42 rows, and left 11 outcomes failed closed; 43/53 sources now have baselines, three new alerts are PENDING human review, key rotation is not needed, and the webhook is unset |
 | Backup/restore | Runbook corrected; funding/retention decision and a measured restore drill remain |
 
 The recovery database result was established locally, production carries the
 final schema/function, main uptime is backend-aware and green, the reviewed
-tree is merged, and current exact-`cd3a87c` iOS build 8/Android build 5 both
-finished. The release still requires current-artifact real-device QA, approved
-store metadata, an explicitly authorized TestFlight/store upload, and App
-Review submission evidence.
+tree is committed (recovery fixes/migrations in `fff31da` plus unpushed local
+`tamim` docs/lockfile follow-ups), and recorded
+exact-`cd3a87c` iOS build 8/Android build 5 both finished but are superseded. The
+release still requires rebuilding from `fff31da`, fresh-artifact real-device QA,
+approved store metadata, an explicitly authorized TestFlight/store upload, and
+App Review submission evidence.
 
 ### iOS Simulator run (2026-07-21)
 
@@ -409,8 +455,10 @@ binaries, real-device QA, CI, or the remaining release phases below.
   Those two artifacts predate the current `tamim` startup/dependency changes
   and are not current release candidates. Current exact-`cd3a87c` iOS build 8
   and Android build 5 both `FINISHED` successfully with verified archives, but
-  real-device QA and store approval remain. Automated Google Play
-  submission needs an
+  they were recorded from `cd3a87c`, which predates both `0c78e56` and the
+  committed `fff31da` recovery tree; a rebuild from `fff31da` (expected iOS
+  build 9 / Android versionCode 6), real-device QA, and store approval remain.
+  Automated Google Play submission needs an
   owner-provided service-account key or reviewed manual submission path.
 - The production backend promotion is complete at exact 001–026/final function
   v5. The authenticated production support smoke passed non-fallback AI and
@@ -435,17 +483,20 @@ binaries, real-device QA, CI, or the remaining release phases below.
   the working tree, but the value remains in Git history. Rotate/revoke the
   hosted admin credentials and decide the reviewed history-remediation approach
   before release.
-- The reviewed admin recovery build is live, landing is unchanged/live, and
-  main backend-aware uptime passed. Worker authentication and 43 baselines are
-  established, but the local migration 027 treatment of the 11 failed source-
-  row outcomes still needs review, hosted rollout, and a live rerun; webhook
-  ownership also remains.
+- The reviewed admin recovery build is live, landing is live and (per
+  2026-09-24 probes) already serving the current Privacy/Support/Terms pages,
+  and main backend-aware uptime passed. Worker authentication and 43 baselines
+  are established, but the local migration 027 treatment of the 11 failed
+  source-row outcomes still needs review, hosted rollout, and a live rerun;
+  webhook ownership also remains.
   `relogo.app` does not resolve and no monitored public support/privacy mailbox
   exists.
-- The BC government PDF workflow now runs end to end on SDK 55 in the iOS
+- The BC government PDF workflow was verified end to end on SDK 55 in the iOS
   Simulator (download, audited hash check, on-device fill, review prompt,
-  share sheet). It has still not been exercised on an EAS binary, on a real
-  device, or on Android — where the ten-minute share-target cache grace and the
+  share sheet). The SDK 57 / Xcode 27 simulator check currently confirms app
+  launch and onboarding only; repeat the PDF workflow on the rebuilt SDK 57
+  app before release. It has not been exercised on a current EAS binary, a real
+  device, or Android — where the ten-minute share-target cache grace and the
   chooser-cancellation path remain unobserved.
 - The initial independent content audit covered all 53 source URLs and all 24
   seeded numeric deadlines. Its historical probe had 15 unusable results; the
@@ -476,10 +527,14 @@ binaries, real-device QA, CI, or the remaining release phases below.
   the local migration 027 source-monitoring treatment remains pending review,
   hosted rollout, and a live Actions rerun. Webhook delivery remains unresolved.
   `ALERT_WEBHOOK_URL` is unset.
-- Mobile's audit is clean after the exact `xcode@3.0.1` → `uuid@11.1.1`
-  override. It is intentionally narrow because UUID 12 removes CommonJS;
-  recheck and remove the override when an upstream Expo/xcode release supports
-  a fixed dependency directly.
+- Mobile's audit regressed on 2026-10-05 to 26 high/0 critical. A compatible
+  2026-10-06 lockfile fix removed the critical `shell-quote` finding; the
+  current audit reports 23 high/7 moderate/0 critical, including `braces`
+  GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv. The exact
+  `xcode@3.0.1` → `uuid@11.1.1` override remains intentionally narrow because
+  UUID 12 removes CommonJS; recheck and remove it when an upstream Expo/xcode
+  release supports a fixed dependency directly. Resolve remaining advisories
+  with an owner decision before treating the mobile release gate as green.
 - Mobile now captures crashes/errors on-device in a PII-safe form (redacted,
   never transmitted) behind a top-level boundary. Wiring an external crash
   service remains a deliberate, privacy-reviewed decision; do not add one that
@@ -528,9 +583,9 @@ Status: **backend environments recovered; operational gates incomplete.**
 - Completed: deployed final function v5 and passed authenticated non-fallback
   production smoke plus unauthenticated 401.
 - Remaining: preserve explicit targeting for every future hosted change.
-  Migration 027 exists locally and is pending review; preview and production
-  remain at 001–026, so apply 027 before its coordinated worker code only after
-  explicit approval.
+  Migrations 027–028 are locally verified but unhosted; preview and production
+  remain at 001–026. Default-branch worker code already requires 027 and cannot
+  monitor until that migration is explicitly authorized and applied.
 - Remaining: choose/fund a backup posture and complete a measured restore drill.
 - Remaining: rotate/revoke the exposed bootstrap admin credentials and complete
   a reviewed Git-history remediation decision.
@@ -543,8 +598,9 @@ are reviewed, and backup/credential gates are closed.
 
 Status: **in progress.**
 
-- Completed: The reviewed admin recovery is live, the landing site is
-  unchanged/live, and main uptime run `30843906264` passed the production web,
+- Completed: The reviewed admin recovery is live, the landing site is live and
+  (per 2026-09-24 probes) already serves the current Privacy/Support/Terms
+  pages, and main uptime run `30843906264` passed the production web,
   anonymous-auth, and canonical-resolver checks.
 - Completed: GitHub Actions variables are corrected. The required
   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` secret names exist.
@@ -564,11 +620,11 @@ Status: **in progress.**
   overdue reviews. No live rule is auto-changed.
 - Remaining: Apply migration 027 before deploying/running the coordinated
   worker, then obtain a healthy live Actions run without weakening CAPTCHA or
-  content gates. The existing default-branch schedule still runs the older
-  worker, which ignores `monitor_url` and could repopulate cleared automatic
-  baselines from the wrong URL. Do not apply 027 until the coordinated worker
-  is scheduled, or the old schedule is explicitly paused and the reviewed
-  `tamim` workflow will be run manually. Configure/test webhook delivery;
+  content gates. A fresh 2026-09-14 check confirms the default branch already
+  contains the coordinated worker, but production remains at 026 with no monitoring
+  columns. The resulting monitoring outage requires authorized 027 rollout,
+  followed by 028 to retire email-based admin grants, and a live worker rerun.
+  Configure/test webhook delivery;
   `ALERT_WEBHOOK_URL` is unset.
 - Remaining: Verify waitlist signup → admin visibility and source change → PENDING alert → human approval/dismissal.
 
@@ -577,14 +633,14 @@ work, and no worker path can modify live rules.
 
 ### Phase 3 — mobile preview and full end-to-end QA
 
-Status: **current-tree store artifacts finished; real-device QA not complete.**
+Status: **store artifacts recorded from `cd3a87c` only; a rebuild from the committed `tamim` tip is required; real-device QA not complete.**
 
-- Current iOS production store build 8 is `FINISHED`: version/runtime 1.0.1,
-  exact green commit `cd3a87c`, EAS
+- Recorded iOS production store build 8 is `FINISHED` (superseded): version/runtime
+  1.0.1, exact commit `cd3a87c`, EAS
   `daa8e42a-c12d-4365-b6ca-ff36732cd858`. Archive identity and integrity pass;
   it has not been uploaded to TestFlight or submitted for App Review.
-- Current Android production store build 5 is `FINISHED`: version/runtime
-  1.0.1, exact green commit `cd3a87c`, EAS
+- Recorded Android production store build 5 is `FINISHED` (superseded):
+  version/runtime 1.0.1, exact commit `cd3a87c`, EAS
   `f839dede-1f83-4c6a-a928-de258597e6d0`. Archive identity and integrity pass;
   it has not been uploaded or submitted to Google Play.
 
@@ -595,8 +651,8 @@ Status: **current-tree store artifacts finished; real-device QA not complete.**
 - Earlier Android production store build 4 is `FINISHED`: version 1.0.1, exact
   merged commit `e75f449`, EAS
   `28076f35-1495-466b-af77-97a9339c5ea2`.
-- These artifacts predate the current `tamim` startup and dependency fixes and
-  must not be used as current release candidates. Android build 4 has not been
+- These recorded artifacts predate the committed `fff31da` tree and must not be
+  used as current release candidates; rebuild first. Android build 4 has not been
   submitted to Google Play. Build/TestFlight
   processing is not device or App Review evidence. If isolated preview QA is
   still required, resume preview and
@@ -606,9 +662,9 @@ Status: **current-tree store artifacts finished; real-device QA not complete.**
   publicly downloadable there. Google Play does not currently expose
   `com.relogo.app`; Android recovery work can run in parallel or immediately
   afterward, but a public-store 404 alone does not prove publication history.
-- After receiving explicit owner authorization, upload current iOS build 8 to
-  App Store Connect/TestFlight and install that exact build with an internal
-  tester Apple ID.
+- After receiving explicit owner authorization, upload a fresh iOS build from
+  committed `fff31da` (expected build 9) to App Store Connect/TestFlight and
+  install that exact build with an internal tester Apple ID.
   EAS device registration is not required for TestFlight; keep Apple
   account/2FA actions with the owner.
 - Measure cold and warm startup on representative phones and slow networks;
@@ -656,7 +712,7 @@ Status: **in progress.**
   source-monitoring treatment; deepen origin and destination rules; and obtain
   human/legal approval for conditional content.
 - Remaining: release the reviewed web/mobile recovery only after preview/device
-  gates; then test policy re-consent, resolver sources, and the BC PDF on SDK 55
+  gates; then test policy re-consent, resolver sources, and the BC PDF on SDK 57
   EAS builds and real devices against the now-current production backend.
 - Remaining: Complete Apple/Google accounts and replace the existing pre-final
   screenshots with store-ready captures from the release candidate.

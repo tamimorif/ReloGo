@@ -56,6 +56,25 @@ describe("startup timeout", () => {
     );
 
     parent.abort();
-    await expect(result).rejects.toThrow("aborted");
+    await expect(result).rejects.toThrow("cancelled");
+  });
+});
+
+
+describe("cancellation even when transport ignores abort", () => {
+  it("does not start work for an already-cancelled caller", async () => {
+    const parent = new AbortController();
+    parent.abort();
+    const operation = jest.fn();
+    await expect(withAbortableTimeout(operation, 100, parent.signal)).rejects.toThrow("cancelled");
+    expect(operation).not.toHaveBeenCalled();
+  });
+
+  it("settles immediately when an in-flight operation ignores cancellation", async () => {
+    const parent = new AbortController();
+    const result = withAbortableTimeout(() => new Promise(() => undefined), 100_000, parent.signal);
+    await Promise.resolve();
+    parent.abort();
+    await expect(result).rejects.toThrow("cancelled");
   });
 });

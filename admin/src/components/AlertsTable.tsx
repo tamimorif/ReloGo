@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 import { safeHttpUrl } from "../lib/safeUrl";
 import type { AlertWithSource } from "../types/database";
 import { EditRuleModal } from "./EditRuleModal";
@@ -23,10 +24,11 @@ export function AlertsTable() {
       )
       .eq("status", "PENDING")
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(0, PAGE_SIZE - 1)
       .then(({ data, error: fetchErr }) => {
         if (fetchErr) {
-          setError(fetchErr.message);
+          setError(ADMIN_ERRORS.loadAlerts);
         } else {
           const rows = (data as unknown as AlertWithSource[]) ?? [];
           setAlerts(rows);
@@ -55,10 +57,11 @@ export function AlertsTable() {
       )
       .eq("status", "PENDING")
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
 
     if (fetchErr) {
-      setError(fetchErr.message);
+      setError(ADMIN_ERRORS.loadAlerts);
     } else {
       const chunk = (data as unknown as AlertWithSource[]) ?? [];
       setAlerts((prev) => {
@@ -81,7 +84,7 @@ export function AlertsTable() {
     });
 
     if (dismissErr) {
-      setError(dismissErr.message);
+      setError(ADMIN_ERRORS.dismissAlert);
       return;
     }
     // Remove from local state

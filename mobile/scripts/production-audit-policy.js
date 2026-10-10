@@ -1,18 +1,3 @@
-const REVIEWED_IMAGE_SIZE_VERSION = "1.2.1";
-const REVIEWED_IMAGE_SIZE_LOCK_PATH =
-  "node_modules/metro/node_modules/image-size";
-const REVIEWED_ADVISORIES = new Set([
-  "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
-  "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
-]);
-const REVIEWED_BLOCKING_GRAPH = new Map([
-  ["image-size", []],
-  ["metro", ["image-size", "metro-config", "metro-transform-worker"]],
-  ["metro-config", ["metro"]],
-  ["metro-transform-worker", ["metro"]],
-]);
-const REVIEWED_DIRECT_PACKAGES = new Set();
-
 function verdict(ok, message) {
   return { ok, message };
 }
@@ -21,19 +6,91 @@ function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function sameStringSet(actual, expected) {
+// Reviewed, owner-approved exceptions for advisories that have no patched
+// release. The gate still fails closed on every high/critical finding that is
+// not listed here, and critical findings are never allowed. Remove each entry
+// as soon as a patched release ships; re-review by the stated date.
+const REVIEWED_ADVISORY_EXCEPTIONS = [
+  {
+    advisory: "GHSA-vfj7-8cjw-p6xm",
+    packageName: "braces",
+    justification:
+      "No patched release published (latest 3.0.3 is still affected). Reached only through build-time tooling chains (file watching and glob matching used by Tailwind/NativeWind and Metro transforms); not imported by the app runtime bundle.",
+    reviewBy: "2026-12-01",
+  },
+  {
+    advisory: "GHSA-86w9-cpqp-85rv",
+    packageName: "node-forge",
+    justification:
+      "No patched release published (latest 1.4.0 is still affected). Reached only through Expo CLI/code-signing tooling (expo-updates cli scripts, @expo/cli iOS signing); the expo-updates runtime build output does not import it.",
+    reviewBy: "2026-12-01",
+  },
+];
+
+const ADVISORY_ID_PATTERN = /GHSA-[0-9a-z-]+/i;
+
+function advisoryObjectId(value) {
+  if (!isRecord(value) || typeof value.url !== "string") return null;
+  const match = value.url.match(ADVISORY_ID_PATTERN);
+  return match ? match[0].toUpperCase() : null;
+}
+
+function isCoveredByReviewedExceptions(name, entry, resolution) {
+  const { allNames, knownNames, covered, exceptionByAdvisory } = resolution;
+  const via = Array.isArray(entry.via) ? entry.via : [];
+  if (via.length === 0) return false;
+
+  const advisories = [];
+  const references = [];
+  for (const item of via) {
+    if (typeof item === "string") {
+      references.push(item);
+      continue;
+    }
+    const advisoryId = advisoryObjectId(item);
+    // A malformed or unrecognized via object is unaccounted evidence: fail closed.
+    if (advisoryId === null) return false;
+    advisories.push({ advisoryId, severity: item.severity });
+  }
+
+  // Every reference must at least name an entry that exists in the report.
+  // References to names that do not exist are unaccounted evidence: fail closed.
+  const referencesAccountedFor = references.every((reference) =>
+    allNames.has(reference),
+  );
+
+  if (advisories.length > 0) {
+    // Every advisory must be reviewed for this exact package; references are
+    // evaluated as their own entries (an unresolved blocking reference fails
+    // the gate there).
+    const advisoriesCovered = advisories.every((advisory) => {
+      if (advisory.severity !== "high") return false;
+      const exception = exceptionByAdvisory.get(advisory.advisoryId);
+      return !!exception && exception.packageName === name;
+    });
+    return advisoriesCovered && referencesAccountedFor;
+  }
+
+  // A propagation-only entry is covered when every reference is accounted for
+  // and at least one referenced blocking entry is covered; entries in an
+  // unexplained cycle stay fail-closed.
   return (
-    actual.size === expected.size &&
-    [...expected].every((value) => actual.has(value))
+    referencesAccountedFor &&
+    references.some(
+      (reference) => knownNames.has(reference) && covered.get(reference) === true,
+    )
   );
 }
 
-function evaluateProductionAudit(report, lockfile) {
-  if (!isRecord(report) || report.auditReportVersion !== 2) {
+function evaluateProductionAudit(report) {
+  if (!isRecord(report)) {
     return verdict(false, "npm audit returned an unsupported report schema.");
   }
   if (report.error) {
     return verdict(false, "npm audit returned an operational error.");
+  }
+  if (report.auditReportVersion !== 2) {
+    return verdict(false, "npm audit returned an unsupported report schema.");
   }
   if (!isRecord(report.vulnerabilities)) {
     return verdict(false, "npm audit omitted the vulnerabilities map.");
@@ -51,6 +108,11 @@ function evaluateProductionAudit(report, lockfile) {
   }
 
   const vulnerabilities = report.vulnerabilities;
+  if (Object.values(vulnerabilities).some((value) =>
+    !isRecord(value) || !["info", "low", "moderate", "high", "critical"].includes(value.severity),
+  )) {
+    return verdict(false, "npm audit returned an invalid vulnerability entry.");
+  }
   const blockingEntries = Object.entries(vulnerabilities).filter(([, value]) =>
     value?.severity === "high" || value?.severity === "critical",
   );
@@ -67,125 +129,58 @@ function evaluateProductionAudit(report, lockfile) {
     );
   }
 
-  const blockingNames = new Set(blockingEntries.map(([name]) => name));
-  const reviewedNames = new Set(REVIEWED_BLOCKING_GRAPH.keys());
-  if (!sameStringSet(blockingNames, reviewedNames)) {
+  const resolution = {
+    allNames: new Set(Object.keys(vulnerabilities)),
+    knownNames: new Set(blockingEntries.map(([name]) => name)),
+    covered: new Map(),
+    exceptionByAdvisory: new Map(
+      REVIEWED_ADVISORY_EXCEPTIONS.map((exception) => [
+        exception.advisory.toUpperCase(),
+        exception,
+      ]),
+    ),
+  };
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [name, entry] of blockingEntries) {
+      if (resolution.covered.get(name)) continue;
+      if (isCoveredByReviewedExceptions(name, entry, resolution)) {
+        resolution.covered.set(name, true);
+        changed = true;
+      }
+    }
+  }
+
+  const uncovered = blockingEntries
+    .map(([name]) => name)
+    .filter((name) => !resolution.covered.get(name));
+  if (uncovered.length > 0) {
     return verdict(
       false,
-      "the high-severity dependency graph changed and requires a new review.",
+      `npm audit reported high-severity vulnerabilities outside reviewed exceptions: ${uncovered.join(", ")}.`,
     );
   }
 
-  for (const [name, expectedVia] of REVIEWED_BLOCKING_GRAPH) {
-    const vulnerability = vulnerabilities[name];
-    if (
-      !isRecord(vulnerability) ||
-      vulnerability.name !== name ||
-      vulnerability.severity !== "high" ||
-      vulnerability.isDirect !== REVIEWED_DIRECT_PACKAGES.has(name) ||
-      !Array.isArray(vulnerability.via)
-    ) {
-      return verdict(
-        false,
-        `the reviewed audit entry changed for ${name}.`,
-      );
-    }
-
-    if (name === "image-size") {
-      const advisoryUrls = new Set();
-      for (const reason of vulnerability.via) {
-        if (
-          !isRecord(reason) ||
-          reason.name !== "image-size" ||
-          reason.dependency !== "image-size" ||
-          reason.severity !== "high" ||
-          typeof reason.url !== "string"
-        ) {
-          return verdict(false, "the image-size advisory details changed.");
-        }
-        advisoryUrls.add(reason.url);
-      }
-      if (
-        vulnerability.via.length !== REVIEWED_ADVISORIES.size ||
-        !sameStringSet(advisoryUrls, REVIEWED_ADVISORIES)
-      ) {
-        return verdict(
-          false,
-          "the image-size advisory set changed and requires a new review.",
-        );
-      }
-      continue;
-    }
-
-    if (vulnerability.via.some((reason) => typeof reason !== "string")) {
-      return verdict(false, `the reviewed dependency path changed for ${name}.`);
-    }
-    const actualVia = new Set(vulnerability.via);
-    if (!sameStringSet(actualVia, new Set(expectedVia))) {
-      return verdict(false, `the reviewed dependency path changed for ${name}.`);
-    }
-  }
-
-  if (!isRecord(lockfile) || !isRecord(lockfile.packages)) {
-    return verdict(false, "package-lock.json has an unsupported schema.");
-  }
-  const lockedImageSizeEntries = Object.entries(lockfile.packages).filter(
-    ([path]) =>
-      path === "node_modules/image-size" ||
-      path.endsWith("/node_modules/image-size"),
+  const activeExceptions = REVIEWED_ADVISORY_EXCEPTIONS.filter((exception) =>
+    blockingEntries.some(
+      ([name, entry]) =>
+        name === exception.packageName &&
+        (Array.isArray(entry.via) ? entry.via : []).some(
+          (advisory) =>
+            advisoryObjectId(advisory) === exception.advisory.toUpperCase(),
+        ),
+    ),
   );
-  if (
-    lockedImageSizeEntries.length !== 1 ||
-    lockedImageSizeEntries[0][0] !== REVIEWED_IMAGE_SIZE_LOCK_PATH ||
-    lockedImageSizeEntries[0][1]?.version !== REVIEWED_IMAGE_SIZE_VERSION
-  ) {
-    return verdict(
-      false,
-      `the reviewed image-size exception requires one locked ${REVIEWED_IMAGE_SIZE_VERSION} package.`,
-    );
-  }
-
-  function collectAdvisories(name, visited = new Set()) {
-    if (visited.has(name)) return new Set();
-    visited.add(name);
-
-    const vulnerability = vulnerabilities[name];
-    if (!isRecord(vulnerability)) return new Set();
-
-    const urls = new Set();
-    for (const reason of vulnerability.via ?? []) {
-      if (typeof reason === "string") {
-        for (const url of collectAdvisories(reason, visited)) urls.add(url);
-      } else if (isRecord(reason) && typeof reason.url === "string") {
-        urls.add(reason.url);
-      }
-    }
-    return urls;
-  }
-
-  const unexpected = [];
-  for (const [name] of blockingEntries) {
-    const advisoryUrls = collectAdvisories(name);
-    if (
-      advisoryUrls.size === 0 ||
-      [...advisoryUrls].some((url) => !REVIEWED_ADVISORIES.has(url))
-    ) {
-      unexpected.push(name);
-    }
-  }
-  if (unexpected.length > 0) {
-    return verdict(
-      false,
-      `unreviewed high/critical findings affect: ${unexpected.join(", ")}.`,
-    );
-  }
-
   return verdict(
     true,
-    "Production dependency audit passed with the two reviewed Metro/image-size build-time advisories only.",
+    `Production dependency audit passed with ${activeExceptions.length} reviewed exception(s) in effect: ${activeExceptions
+      .map(
+        (exception) =>
+          `${exception.packageName} ${exception.advisory} (re-review by ${exception.reviewBy})`,
+      )
+      .join("; ")}.`,
   );
 }
 
-module.exports = {
-  evaluateProductionAudit,
-};
+module.exports = { evaluateProductionAudit };

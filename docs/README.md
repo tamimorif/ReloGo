@@ -10,6 +10,11 @@ Use one of these two entry points:
 Supporting references:
 
 - [DEPLOYMENT.md](DEPLOYMENT.md) — detailed deployment commands and platform setup.
+- [QA_TEST_PLAYBOOK.md](QA_TEST_PLAYBOOK.md) — every user-reachable behavior and
+  visual test case for the mobile app, landing site, and admin dashboard.
+- [Local QA report and evidence](../qa-artifacts/README.md) — partial run from
+  2026-09-13, including observed defects, playbook discrepancies, and unverified
+  cases; testing stopped at the user's request without release sign-off.
 - [BACKUP_RESTORE.md](BACKUP_RESTORE.md) — proposed backup posture and guarded
   restore runbooks; funding and a restore drill are still pending.
 - [ai/PROJECT_MAP.md](ai/PROJECT_MAP.md) — annotated file tree.

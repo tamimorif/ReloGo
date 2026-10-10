@@ -35,21 +35,37 @@ export async function withAbortableTimeout<T>(
   parentSignal?: AbortSignal,
 ): Promise<T> {
   const controller = new AbortController();
-  const abortFromParent = () => controller.abort();
-
-  if (parentSignal?.aborted) {
+  let rejectAbort: (reason: Error) => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
+  const abortFromParent = () => {
     controller.abort();
-  } else {
-    parentSignal?.addEventListener("abort", abortFromParent, { once: true });
-  }
+    rejectAbort(new Error("Operation cancelled"));
+  };
+  parentSignal?.addEventListener("abort", abortFromParent, { once: true });
 
   try {
     return await withStartupTimeout(
-      Promise.resolve().then(() => operation(controller.signal)),
+      Promise.race([
+        aborted,
+        Promise.resolve().then(() => {
+          // Do not start a new request after cancellation, including when an
+          // auth operation that cannot be aborted resumes after its deadline.
+          if (parentSignal?.aborted) abortFromParent();
+          assertRequestActive(controller.signal);
+          return operation(controller.signal);
+        }),
+      ]),
       timeoutMs,
       () => controller.abort(),
     );
   } finally {
     parentSignal?.removeEventListener("abort", abortFromParent);
   }
+}
+
+/** Check between awaits when a library operation does not accept a signal. */
+export function assertRequestActive(signal: AbortSignal): void {
+  if (signal.aborted) throw new Error("Operation cancelled");
 }

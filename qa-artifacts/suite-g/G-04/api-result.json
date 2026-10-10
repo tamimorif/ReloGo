@@ -1,0 +1,8 @@
+{
+  "profile_status": 201,
+  "arbitrary_insert_http": 403,
+  "error_code": "42501",
+  "rejected": true,
+  "constraint_named": false,
+  "cleanup_status": 204
+}

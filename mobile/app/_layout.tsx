@@ -20,7 +20,7 @@ import {
 } from "@/lib/supabase";
 import { sweepTemporaryPDFs } from "@/lib/pdfCleanup";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
-import { installGlobalErrorHandler } from "@/lib/errorReporting";
+import { installGlobalErrorHandler, reportFatalError } from "@/lib/errorReporting";
 import { withStartupTimeout } from "@/lib/startupTimeout";
 import { prefetchChecklistQueries } from "@/lib/checklistQueries";
 
@@ -82,7 +82,7 @@ function RootLayoutInner() {
   const [profileCheckFailed, setProfileCheckFailed] = useState(false);
 
   const router = useRouter();
-  const segments = useSegments();
+  const segments: string[] = useSegments();
 
   // Monotonic sequence so a slow, stale profile check can never overwrite
   // the result of a newer check or a child screen's completed mutation.
@@ -206,7 +206,7 @@ function RootLayoutInner() {
       }
 
       if (error) {
-        console.error("Error checking profile:", error);
+        reportFatalError(error, "auth");
         setProfileCheckFailed(true);
         return;
       }
@@ -236,7 +236,7 @@ function RootLayoutInner() {
       if (seq !== profileCheckSeq.current) {
         return; // a newer check superseded this one — discard stale failure
       }
-      console.error("Profile check failed:", err);
+      reportFatalError(err, "auth");
       setProfileCheckFailed(true);
     } finally {
       // A stale request must not dismiss the loading state owned by a newer
@@ -412,7 +412,7 @@ function RootLayoutInner() {
           setHasCurrentConsent: publishHasCurrentConsent,
         }}
       >
-        <StatusBar style="auto" />
+        <StatusBar style={segments[0] === "(auth)" || segments[1] === "profile" ? "light" : "dark"} />
         <Slot />
       </AuthContext.Provider>
     </QueryClientProvider>
@@ -424,6 +424,7 @@ function RootLayoutInner() {
 export default function RootLayout() {
   return (
     <AppErrorBoundary>
+      <StatusBar style="dark" />
       <RootLayoutInner />
     </AppErrorBoundary>
   );

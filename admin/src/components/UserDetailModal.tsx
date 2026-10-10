@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 import { safeHttpsUrl } from "../lib/safeUrl";
 import type { AdminUserDetail, TaskStatus } from "../types/database";
 import { PROVINCE_LABELS } from "../types/database";
@@ -51,7 +52,7 @@ export function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
 
       if (cancelled) return;
       if (fetchErr) {
-        setError(fetchErr.message);
+        setError(ADMIN_ERRORS.loadUserDetail);
       } else {
         setDetail(data as AdminUserDetail);
       }

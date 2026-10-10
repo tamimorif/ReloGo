@@ -1,0 +1,1321 @@
+{
+  "run": {
+    "date_local": "2026-09-13",
+    "timezone": "America/Toronto",
+    "capture_date_utc": "2026-09-14",
+    "git_commit": "0c78e56a245a260ba08b1a60606ac02b668c31ef",
+    "branch": "tamim",
+    "playbook": "docs/QA_TEST_PLAYBOOK.md",
+    "completion": "Stopped at user request; release not signed off",
+    "backend": "Local Supabase only, 127.0.0.1:54321; migrations 001–027",
+    "mobile": "iPhone 16 Pro simulator, iOS 26.5, Expo Go development runner",
+    "web": "Local Chrome admin; screenshots 1440x778",
+    "screenshots_retained": 203,
+    "temporary_files_removed": 16
+  },
+  "summary": {
+    "BLOCKED": 55,
+    "PASS": 63,
+    "FAIL": 11
+  },
+  "tests": [
+    {
+      "id": "A-01",
+      "description": "Native splash and cold launch",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-a/A-01/01-CFG-01-launch.png",
+        "suite-a/A-01/02-CFG-01-expo-loading.png",
+        "suite-a/A-01/03-CFG-01-onboarding.png"
+      ],
+      "notes": "Expo Go loader captured; standalone native splash and 300ms/3s launch timing cannot be certified from this development runner."
+    },
+    {
+      "id": "A-02",
+      "description": "Missing configuration recovery",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-a/A-02/01-CFG-01-missing-config.png"
+      ],
+      "notes": "Missing config shows exact controlled recovery copy."
+    },
+    {
+      "id": "A-03",
+      "description": "Malformed configuration recovery",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-a/A-03/01-CFG-01-malformed-config.png"
+      ],
+      "notes": "Malformed origin shows exact controlled recovery copy."
+    },
+    {
+      "id": "A-04",
+      "description": "Session timeout",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Session-specific timeout requires an expired/stalled session fixture; current unexpired session restores locally and reaches profile timeout."
+    },
+    {
+      "id": "A-05",
+      "description": "Retry session restoration",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "A-04 session-error prerequisite not established."
+    },
+    {
+      "id": "A-06",
+      "description": "Profile timeout and recovery",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-a/A-06/01-CFG-01-0.0s.png",
+        "suite-a/A-06/02-CFG-01-1.3s.png",
+        "suite-a/A-06/03-CFG-01-2.6s.png",
+        "suite-a/A-06/04-CFG-01-4.0s.png",
+        "suite-a/A-06/05-CFG-01-5.3s.png",
+        "suite-a/A-06/06-CFG-01-6.6s.png",
+        "suite-a/A-06/07-CFG-01-7.8s.png",
+        "suite-a/A-06/08-CFG-01-9.0s.png",
+        "suite-a/A-06/09-CFG-01-10.3s.png",
+        "suite-a/A-06/10-CFG-01-11.5s.png",
+        "suite-a/A-06/11-CFG-01-2026-09-14T03-10-29.656Z.png"
+      ],
+      "notes": "Recovery copy and retry appear, but Expo Go LogBox exposes internal Profile check failed: Error: Startup operation timed out. Development-run error sanitization defect; release behavior unverified."
+    },
+    {
+      "id": "A-07",
+      "description": "Retry profile loading",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-a/A-07/01-CFG-01-2026-09-14T03-10-44.608Z.png"
+      ],
+      "notes": "Restoring local REST service and Retry returns to checklist."
+    },
+    {
+      "id": "A-08",
+      "description": "Render error boundary",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "No source-free render-crash injection fixture available; app source preserved."
+    },
+    {
+      "id": "B-01",
+      "description": "Onboarding defaults",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-01/01-CFG-01-20260914T030257Z.png"
+      ],
+      "notes": "Expected defaults, grey submit, empty pickers, unchecked consent, both switches off."
+    },
+    {
+      "id": "B-02",
+      "description": "Province list and scrolling",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-b/B-02/01-CFG-01-20260914T030315Z.png"
+      ],
+      "notes": "All 13 ordered options and bounded list observed; smooth nested scrolling not established by automation."
+    },
+    {
+      "id": "B-03",
+      "description": "Mutually exclusive pickers",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-03/01-CFG-01-20260914T030349Z.png"
+      ],
+      "notes": "Pickers are mutually exclusive."
+    },
+    {
+      "id": "B-04",
+      "description": "Change province selection",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-04/01-CFG-01-20260914T030405Z.png",
+        "suite-b/B-04/02-CFG-01-20260914T030424Z.png"
+      ],
+      "notes": "Ontario selection changes to Alberta and collapses."
+    },
+    {
+      "id": "B-05",
+      "description": "Date picker and past dates",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-05/01-CFG-01-20260914T030437Z.png"
+      ],
+      "notes": "Inline iOS calendar; dates before Sep 13 disabled."
+    },
+    {
+      "id": "B-06",
+      "description": "Missing origin alert",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-06/01-CFG-01-20260914T030513Z.png"
+      ],
+      "notes": "Exact missing-origin alert."
+    },
+    {
+      "id": "B-07",
+      "description": "Missing destination alert",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-07/01-CFG-01-20260914T030606Z.png"
+      ],
+      "notes": "Exact missing-destination alert."
+    },
+    {
+      "id": "B-08",
+      "description": "Destination-only validation",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-08/01-CFG-01-2026-09-14T03-06-33.427Z.png",
+        "suite-b/B-08/02-CFG-01-2026-09-14T03-06-43.028Z.png",
+        "suite-b/B-08/03-CFG-01-2026-09-14T03-06-45.575Z.png"
+      ],
+      "notes": "Destination-only form produces missing-origin alert."
+    },
+    {
+      "id": "B-09",
+      "description": "Same-jurisdiction validation",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-09/01-CFG-01-2026-09-14T03-07-02.028Z.png",
+        "suite-b/B-09/02-CFG-01-2026-09-14T03-07-13.474Z.png",
+        "suite-b/B-09/03-CFG-01-2026-09-14T03-07-15.684Z.png",
+        "suite-b/B-09/04-CFG-01-2026-09-14T03-07-17.808Z.png",
+        "suite-b/B-09/05-CFG-01-2026-09-14T03-07-19.836Z.png"
+      ],
+      "notes": "ON to ON rejected with exact copy."
+    },
+    {
+      "id": "B-10",
+      "description": "Consent gate and zero account creation",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-10/01-CFG-01-2026-09-14T03-07-38.949Z.png",
+        "suite-b/B-10/02-CFG-01-2026-09-14T03-07-40.996Z.png",
+        "suite-b/B-10/03-CFG-01-2026-09-14T03-07-43.216Z.png",
+        "suite-b/B-10/04-CFG-01-2026-09-14T03-07-45.248Z.png",
+        "suite-b/B-10/05-CFG-01-2026-09-14T03-07-47.283Z.png",
+        "suite-b/B-10/backend-counts.txt",
+        "suite-b/B-10/baseline-counts.txt"
+      ],
+      "notes": "Exact consent alert; auth users=0, profiles=0 verified."
+    },
+    {
+      "id": "B-11",
+      "description": "Enable consent",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-11/01-CFG-01-2026-09-14T03-08-13.733Z.png"
+      ],
+      "notes": "Checked box and submit turn blue."
+    },
+    {
+      "id": "B-12",
+      "description": "Withdraw consent",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-12/01-CFG-01-2026-09-14T03-08-15.929Z.png"
+      ],
+      "notes": "Unchecked box and submit return to grey."
+    },
+    {
+      "id": "B-13",
+      "description": "Privacy and Terms links",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-13/01-CFG-01-2026-09-14T03-08-36.752Z.png",
+        "suite-b/B-13/02-CFG-01-2026-09-14T03-08-47.842Z.png",
+        "suite-b/B-13/03-CFG-01-2026-09-14T03-09-03.075Z.png",
+        "suite-b/B-13/04-CFG-01-2026-09-14T03-09-08.596Z.png",
+        "suite-b/B-13/05-CFG-01-2026-09-14T03-09-11.009Z.png",
+        "suite-b/B-13/06-CFG-01-2026-09-14T03-09-20.006Z.png"
+      ],
+      "notes": "Privacy and Terms open Safari; form preserved. Local legal origin per setup replaces hosted URL named in assertion."
+    },
+    {
+      "id": "B-14",
+      "description": "Create corridor and checklist",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-b/B-14/01-CFG-01-2026-09-14T03-09-29.231Z.png",
+        "suite-b/B-14/02-CFG-01-2026-09-14T03-09-31.297Z.png",
+        "suite-b/B-14/03-CFG-01-2026-09-14T03-09-33.886Z.png",
+        "suite-b/B-14/04-CFG-01-2026-09-14T03-09-45.500Z.png",
+        "suite-b/B-14/05-CFG-01-2026-09-14T03-09-48.755Z.png",
+        "suite-b/B-14/06-CFG-01-2026-09-14T03-09-52.247Z.png",
+        "suite-b/B-14/07-CFG-01-2026-09-14T03-09-55.240Z.png",
+        "suite-b/B-14/08-CFG-01-2026-09-14T03-09-58.322Z.png",
+        "suite-b/B-14/09-CFG-01-2026-09-14T03-10-01.200Z.png",
+        "suite-b/B-14/backend-profile.txt"
+      ],
+      "notes": "Anonymous account, non-PII profile and five-task checklist observed. The brief spinner and disabled-submit state were not independently established; complete assertion remains unverified."
+    },
+    {
+      "id": "B-15",
+      "description": "Offline onboarding recovery",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-b/B-15/01-CFG-01-2026-09-14T03-13-48.872Z.png",
+        "suite-b/B-15/02-CFG-01-2026-09-14T03-13-50.948Z.png",
+        "suite-b/B-15/03-CFG-01-2026-09-14T03-13-53.059Z.png",
+        "suite-b/B-15/04-CFG-01-2026-09-14T03-13-55.135Z.png",
+        "suite-b/B-15/05-CFG-01-2026-09-14T03-14-03.703Z.png",
+        "suite-b/B-15/06-CFG-01-2026-09-14T03-14-05.394Z.png",
+        "suite-b/B-15/07-CFG-01-2026-09-14T03-14-25.865Z.png",
+        "suite-b/B-15/08-CFG-01-2026-09-14T03-14-27.720Z.png"
+      ],
+      "notes": "Offline friendly error and preserved form; retry online succeeds."
+    },
+    {
+      "id": "B-16",
+      "description": "Compact onboarding and keyboard",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "C-01",
+      "description": "Stale consent routing",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-01/01-CFG-01-2026-09-14T03-11-15.730Z.png"
+      ],
+      "notes": "Stale consent routes to policy update, tabs hidden."
+    },
+    {
+      "id": "C-02",
+      "description": "Re-consent layout",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-02/01-CFG-01-2026-09-14T03-11-16.020Z.png"
+      ],
+      "notes": "Expected policy update hero, privacy card, unchecked consent and teardown controls."
+    },
+    {
+      "id": "C-03",
+      "description": "Consent-required alert",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-03/01-CFG-01-2026-09-14T03-11-24.317Z.png"
+      ],
+      "notes": "Exact consent-required alert."
+    },
+    {
+      "id": "C-04",
+      "description": "Accept current policies",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-04/01-CFG-01-2026-09-14T03-11-38.296Z.png",
+        "suite-c/C-04/02-CFG-01-2026-09-14T03-11-40.445Z.png",
+        "suite-c/C-04/consent.txt"
+      ],
+      "notes": "Accept records server timestamp and version 1.1 and routes to checklist."
+    },
+    {
+      "id": "C-05",
+      "description": "Delete confirmation",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-05/01-CFG-01-2026-09-14T03-12-04.855Z.png"
+      ],
+      "notes": "Exact destructive confirmation and Cancel/Delete Everything controls."
+    },
+    {
+      "id": "C-06",
+      "description": "Cancel deletion",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-06/01-CFG-01-2026-09-14T03-12-12.911Z.png",
+        "suite-c/C-06/02-CFG-01-2026-09-14T03-12-20.915Z.png"
+      ],
+      "notes": "Cancel returns to re-consent and retains account."
+    },
+    {
+      "id": "C-07",
+      "description": "Delete from re-consent",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-c/C-07/01-CFG-01-2026-09-14T03-13-22.367Z.png",
+        "suite-c/C-07/02-CFG-01-2026-09-14T03-13-23.696Z.png",
+        "suite-c/C-07/03-CFG-01-2026-09-14T03-13-46.536Z.png",
+        "suite-c/C-07/backend-counts.txt"
+      ],
+      "notes": "Deletion returned to onboarding and auth/profile/progress counts were zero. This re-consent fixture had no populated vault; profile deletion with a populated vault was separately observed in E-11."
+    },
+    {
+      "id": "C-08",
+      "description": "Sign-out confirmation",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-08/01-CFG-01-2026-09-14T03-12-23.337Z.png"
+      ],
+      "notes": "Exact sign-out warning shown."
+    },
+    {
+      "id": "C-09",
+      "description": "Sign out from re-consent",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-c/C-09/01-CFG-01-2026-09-14T03-14-50.065Z.png",
+        "suite-c/C-09/02-CFG-01-2026-09-14T03-14-51.454Z.png",
+        "suite-c/C-09/03-CFG-01-2026-09-14T03-15-11.910Z.png"
+      ],
+      "notes": "Sign-out returned to onboarding. This re-consent fixture had no populated vault; profile sign-out with saved values was separately observed in E-10."
+    },
+    {
+      "id": "C-10",
+      "description": "Offline deletion recovery",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-c/C-10/01-CFG-01-2026-09-14T03-12-46.250Z.png",
+        "suite-c/C-10/02-CFG-01-2026-09-14T03-12-48.907Z.png",
+        "suite-c/C-10/backend-counts.txt"
+      ],
+      "notes": "Offline deletion produces exact friendly error; account retained and retry deletion succeeds."
+    },
+    {
+      "id": "C-11",
+      "description": "Deep link with stale consent",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-c/C-11/01-CFG-01-2026-09-14T03-13-20.598Z.png",
+        "suite-c/C-11/deep-link.txt"
+      ],
+      "notes": "Expo Go does not register relogo scheme; simctl returns LSApplicationWorkspaceErrorDomain 115."
+    },
+    {
+      "id": "D-01",
+      "description": "Checklist header and progress",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-01/01-CFG-01-2026-09-14T03-16-25.175Z.png",
+        "suite-d/D-01/setup1-CFG-01-2026-09-14T03-15-14.364Z.png",
+        "suite-d/D-01/setup2-CFG-01-2026-09-14T03-15-16.588Z.png",
+        "suite-d/D-01/setup3-CFG-01-2026-09-14T03-15-18.740Z.png",
+        "suite-d/D-01/setup4-CFG-01-2026-09-14T03-15-20.821Z.png",
+        "suite-d/D-01/setup5-CFG-01-2026-09-14T03-15-22.738Z.png",
+        "suite-d/D-01/setup6-CFG-01-2026-09-14T03-15-24.713Z.png",
+        "suite-d/D-01/setup7-CFG-01-2026-09-14T03-15-26.776Z.png",
+        "suite-d/D-01/setup8-CFG-01-2026-09-14T03-15-29.234Z.png"
+      ],
+      "notes": "D1 Ontario to British Columbia route, move date and 0% progress observed."
+    },
+    {
+      "id": "D-02",
+      "description": "Section grouping",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-02/01-CFG-01-2026-09-14T03-16-25.486Z.png"
+      ],
+      "notes": "DUE SOON (1), then NO DEADLINE (4), with section counts and dividers."
+    },
+    {
+      "id": "D-03",
+      "description": "Overdue fixture",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-d/D-03/01-CFG-01-2026-09-14T03-17-38.784Z.png"
+      ],
+      "notes": "D4 move 30 days ago produces no overdue tasks: ON licence deadline is 60 days. Playbook fixture mismatch; older-date fixture shows correct red overdue styling."
+    },
+    {
+      "id": "D-04",
+      "description": "Overdue and requirement badges",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-04/01-CFG-01-2026-09-14T03-17-39.211Z.png",
+        "suite-d/D-04/02-older-fixture-CFG-01-2026-09-14T03-18-18.509Z.png"
+      ],
+      "notes": "Red overdue badge/count and amber Required badge observed using a move date 90 days earlier; canonical D4 was insufficient (D-03)."
+    },
+    {
+      "id": "D-05",
+      "description": "Due-today boundary",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-05/01-CFG-01-2026-09-14T03-18-48.504Z.png"
+      ],
+      "notes": "Temporary exact SK to MB zero-day licence rule: due today remains Due Soon. Fixture removed afterward."
+    },
+    {
+      "id": "D-06",
+      "description": "No-deadline badge",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-06/01-CFG-01-2026-09-14T03-16-25.696Z.png"
+      ],
+      "notes": "No fixed deadline chip and NO DEADLINE grouping observed."
+    },
+    {
+      "id": "D-07",
+      "description": "Expand task details",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-07/01-CFG-01-2026-09-14T03-16-27.896Z.png"
+      ],
+      "notes": "Chevron and expanded description/source details observed."
+    },
+    {
+      "id": "D-08",
+      "description": "Expand multiple cards",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-08/01-CFG-01-2026-09-14T03-16-39.011Z.png"
+      ],
+      "notes": "Two task cards remained expanded together."
+    },
+    {
+      "id": "D-09",
+      "description": "Official source row",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-09/01-CFG-01-2026-09-14T03-16-28.569Z.png"
+      ],
+      "notes": "Official-source heading, blue agency link and external-link icon observed."
+    },
+    {
+      "id": "D-10",
+      "description": "Open official HTTPS source",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-10/01-CFG-01-2026-09-14T03-16-53.921Z.png",
+        "suite-d/D-10/02-CFG-01-2026-09-14T03-16-59.789Z.png"
+      ],
+      "notes": "ICBC source opened its official HTTPS page in Safari. Unsafe displayed-link recovery remains unverified in D-11."
+    },
+    {
+      "id": "D-11",
+      "description": "Unsafe source recovery",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Canonical resolver filters unsafe official URLs before UI; no unsafe displayed-link fixture without modifying application path."
+    },
+    {
+      "id": "D-12",
+      "description": "Complete task",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-12/01-CFG-01-2026-09-14T03-18-59.237Z.png"
+      ],
+      "notes": "Checked task moved to COMPLETED with strikethrough and updated progress."
+    },
+    {
+      "id": "D-13",
+      "description": "Undo completion",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-13/01-CFG-01-2026-09-14T03-19-02.078Z.png"
+      ],
+      "notes": "Unchecking restored the original urgency group and incomplete styling."
+    },
+    {
+      "id": "D-14",
+      "description": "Offline toggle rollback",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-14/01-CFG-01-2026-09-14T03-19-20.384Z.png"
+      ],
+      "notes": "Offline toggle rolled back and showed Update failed / Couldn't save your progress. Please try again."
+    },
+    {
+      "id": "D-15",
+      "description": "100% celebration",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-15/01-CFG-01-2026-09-14T03-19-43.812Z.png",
+        "suite-d/D-15/02-CFG-01-2026-09-14T03-19-46.161Z.png",
+        "suite-d/D-15/03-CFG-01-2026-09-14T03-19-48.196Z.png",
+        "suite-d/D-15/04-CFG-01-2026-09-14T03-19-50.173Z.png",
+        "suite-d/D-15/05-CFG-01-2026-09-14T03-19-52.282Z.png"
+      ],
+      "notes": "All five tasks completed; trophy banner and 100% progress observed."
+    },
+    {
+      "id": "D-16",
+      "description": "Remove celebration",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-16/01-CFG-01-2026-09-14T03-20-01.478Z.png"
+      ],
+      "notes": "Unchecking one task removed celebration and changed progress to 80%."
+    },
+    {
+      "id": "D-17",
+      "description": "Pull to refresh",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-d/D-17/01-CFG-01-2026-09-14T03-20-03.532Z.png"
+      ],
+      "notes": "Automated scroll gesture did not establish native pull-to-refresh spinner; no pass claimed."
+    },
+    {
+      "id": "D-18",
+      "description": "Vehicle-disabled rules",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-d/D-18/01-CFG-01-2026-09-14T03-20-31.503Z.png"
+      ],
+      "notes": "Playbook discrepancy: vehicle=false omitted registration but retained Exchange Your Driver's Licence. Confirm intended licence eligibility before changing behavior."
+    },
+    {
+      "id": "D-19",
+      "description": "Dependents-disabled rules",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-19/01-CFG-01-2026-09-14T03-21-13.828Z.png"
+      ],
+      "notes": "D2 Alberta to British Columbia with dependents=false omitted school/child-benefit tasks."
+    },
+    {
+      "id": "D-20",
+      "description": "Empty checklist",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-d/D-20/01-CFG-01-2026-09-14T03-21-36.430Z.png"
+      ],
+      "notes": "Temporary zero-rule fixture showed No tasks yet and hid progress. The original 53 rules were restored afterward."
+    },
+    {
+      "id": "E-01",
+      "description": "Profile layout and tabs",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-01/01-CFG-01-2026-09-14T03-21-56.149Z.png"
+      ],
+      "notes": "My Profile, Move details, Personal info and Account sections; only Checklist and Profile tabs visible."
+    },
+    {
+      "id": "E-02",
+      "description": "Stored move details",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-02/01-CFG-01-2026-09-14T03-21-57.057Z.png"
+      ],
+      "notes": "Pickers, date and switches matched the stored move metadata."
+    },
+    {
+      "id": "E-03",
+      "description": "Same-jurisdiction update",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-03/01-CFG-01-2026-09-14T03-22-14.488Z.png",
+        "suite-e/E-03/02-CFG-01-2026-09-14T03-22-17.042Z.png",
+        "suite-e/E-03/03-CFG-01-2026-09-14T03-22-19.661Z.png"
+      ],
+      "notes": "Same-jurisdiction save showed the specified validation alert."
+    },
+    {
+      "id": "E-04",
+      "description": "Save move details",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-04/01-CFG-01-2026-09-14T03-22-36.295Z.png",
+        "suite-e/E-04/02-CFG-01-2026-09-14T03-22-38.982Z.png",
+        "suite-e/E-04/03-CFG-01-2026-09-14T03-22-41.688Z.png",
+        "suite-e/E-04/04-CFG-01-2026-09-14T03-23-07.730Z.png"
+      ],
+      "notes": "Alberta to Ontario move update saved and checklist changed without manual refresh."
+    },
+    {
+      "id": "E-05",
+      "description": "Five personal-information fields",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-05/01-CFG-01-2026-09-14T03-24-17.566Z.png"
+      ],
+      "notes": "Exactly five fields, green privacy notice, two masked identifier inputs. iOS strong-password suggestion unexpectedly appeared during first secure-field entry."
+    },
+    {
+      "id": "E-06",
+      "description": "Save dummy fixtures on device",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-06/01-CFG-01-2026-09-14T03-23-13.537Z.png",
+        "suite-e/E-06/02-CFG-01-2026-09-14T03-23-25.645Z.png",
+        "suite-e/E-06/03-CFG-01-2026-09-14T03-23-28.467Z.png",
+        "suite-e/E-06/04-CFG-01-2026-09-14T03-23-31.672Z.png",
+        "suite-e/E-06/04-retry-CFG-01-2026-09-14T03-24-02.766Z.png",
+        "suite-e/E-06/05-CFG-01-2026-09-14T03-24-16.586Z.png",
+        "suite-e/E-06/06-CFG-01-2026-09-14T03-24-20.268Z.png",
+        "suite-e/E-06/backend-privacy.json"
+      ],
+      "notes": "Saved-on-device confirmation; full local postgres and analytics data scans each found zero occurrences of all five fixtures. SecureStore prefix confirmed in implementation; encrypted OS metadata not independently readable."
+    },
+    {
+      "id": "E-07",
+      "description": "Persist values across relaunch",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-07/01-CFG-01-2026-09-14T03-25-03.267Z.png",
+        "suite-e/E-07/02-CFG-01-2026-09-14T03-25-05.326Z.png",
+        "suite-e/E-07/03-CFG-01-2026-09-14T03-25-35.427Z.png"
+      ],
+      "notes": "Force quit and relaunch restore all five entries; identifier inputs remain masked."
+    },
+    {
+      "id": "E-08",
+      "description": "Clear one saved field",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-08/01-CFG-01-2026-09-14T03-25-40.165Z.png",
+        "suite-e/E-08/02-CFG-01-2026-09-14T03-25-43.291Z.png",
+        "suite-e/E-08/03-CFG-01-2026-09-14T03-26-16.632Z.png",
+        "suite-e/E-08/04-CFG-01-2026-09-14T03-26-20.633Z.png"
+      ],
+      "notes": "Cleared full name stayed empty after save and relaunch."
+    },
+    {
+      "id": "E-09",
+      "description": "Open support",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-09/01-CFG-01-2026-09-14T03-26-23.375Z.png"
+      ],
+      "notes": "Help & support opened the contact screen."
+    },
+    {
+      "id": "E-10",
+      "description": "Sign out and clear vault",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-10/01-CFG-01-2026-09-14T03-26-54.432Z.png",
+        "suite-e/E-10/02-CFG-01-2026-09-14T03-27-01.072Z.png",
+        "suite-e/E-10/03-CFG-01-2026-09-14T03-27-14.088Z.png",
+        "suite-e/E-10/04-CFG-01-2026-09-14T03-27-45.909Z.png",
+        "suite-e/E-10/05-CFG-01-2026-09-14T03-27-49.709Z.png",
+        "suite-e/E-10/setup1-CFG-01-2026-09-14T03-27-16.458Z.png",
+        "suite-e/E-10/setup2-CFG-01-2026-09-14T03-27-18.600Z.png",
+        "suite-e/E-10/setup3-CFG-01-2026-09-14T03-27-20.689Z.png",
+        "suite-e/E-10/setup4-CFG-01-2026-09-14T03-27-22.775Z.png",
+        "suite-e/E-10/setup5-CFG-01-2026-09-14T03-27-24.919Z.png",
+        "suite-e/E-10/setup6-CFG-01-2026-09-14T03-27-27.641Z.png"
+      ],
+      "notes": "Correct warning and onboarding after sign-out; a fresh session displayed empty personal-information fields. Direct encrypted-key enumeration was unavailable."
+    },
+    {
+      "id": "E-11",
+      "description": "Delete account and clear vault",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-e/E-11/01-CFG-01-2026-09-14T03-28-40.870Z.png",
+        "suite-e/E-11/02-CFG-01-2026-09-14T03-29-07.057Z.png",
+        "suite-e/E-11/03-CFG-01-2026-09-14T03-29-16.878Z.png",
+        "suite-e/E-11/04-CFG-01-2026-09-14T03-30-29.112Z.png",
+        "suite-e/E-11/05-CFG-01-2026-09-14T03-30-32.748Z.png",
+        "suite-e/E-11/backend-deletion.txt",
+        "suite-e/E-11/deleted-fixture-id.txt",
+        "suite-e/E-11/setup1-CFG-01-2026-09-14T03-27-53.578Z.png",
+        "suite-e/E-11/setup1-CFG-01-2026-09-14T03-29-19.695Z.png",
+        "suite-e/E-11/setup2-CFG-01-2026-09-14T03-27-56.465Z.png",
+        "suite-e/E-11/setup2-new-CFG-01-2026-09-14T03-29-54.105Z.png",
+        "suite-e/E-11/setup3-CFG-01-2026-09-14T03-27-59.301Z.png",
+        "suite-e/E-11/setup3-new-CFG-01-2026-09-14T03-29-56.483Z.png",
+        "suite-e/E-11/setup4-CFG-01-2026-09-14T03-28-02.196Z.png",
+        "suite-e/E-11/setup4-new-CFG-01-2026-09-14T03-29-58.519Z.png",
+        "suite-e/E-11/setup4-retry-CFG-01-2026-09-14T03-28-21.991Z.png",
+        "suite-e/E-11/setup5-CFG-01-2026-09-14T03-28-24.916Z.png",
+        "suite-e/E-11/setup5-new-CFG-01-2026-09-14T03-30-00.658Z.png",
+        "suite-e/E-11/setup6-CFG-01-2026-09-14T03-28-26.706Z.png",
+        "suite-e/E-11/setup6-new-CFG-01-2026-09-14T03-30-03.098Z.png"
+      ],
+      "notes": "Populated-vault deletion returned to onboarding; fresh-session fields were empty and deleted auth/profile/progress counts were zero."
+    },
+    {
+      "id": "F-01",
+      "description": "Support layout and fixed questions",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-f/F-01/01-CFG-01-2026-09-14T03-26-31.882Z.png",
+        "suite-f/F-01/02-CFG-01-2026-09-14T03-30-58.763Z.png"
+      ],
+      "notes": "Help header, privacy notice, empty state, human escalation and six question buttons observed; no free-text input."
+    },
+    {
+      "id": "F-02",
+      "description": "Back navigation",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-f/F-02/01-CFG-01-2026-09-14T03-26-34.888Z.png",
+        "suite-f/F-02/02-CFG-01-2026-09-14T03-26-48.578Z.png"
+      ],
+      "notes": "Back chevron returns to Checklist rather than Profile."
+    },
+    {
+      "id": "F-03",
+      "description": "Six allowlisted question labels",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-f/F-03/01-CFG-01-2026-09-14T03-26-32.118Z.png"
+      ],
+      "notes": "All six labels matched the allowlist."
+    },
+    {
+      "id": "F-04",
+      "description": "Optimistic message and typing state",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-f/F-04/01-CFG-01-2026-09-14T03-31-39.358Z.png"
+      ],
+      "notes": "Unavailable Edge path completes fallback too quickly to independently capture typing indicator and disabled-question transient."
+    },
+    {
+      "id": "F-05",
+      "description": "AI response",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "No local Gemini provider key; genuine AI response unavailable."
+    },
+    {
+      "id": "F-06",
+      "description": "Escalate to human",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-f/F-06/01-CFG-01-2026-09-14T03-33-00.919Z.png",
+        "suite-f/F-06/02-CFG-01-2026-09-14T03-33-11.525Z.png"
+      ],
+      "notes": "Manual escalation produced AWAITING_HUMAN, amber banner and removed the human button. A local status fixture was used to start in AI state."
+    },
+    {
+      "id": "F-07",
+      "description": "Question during human handling",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-f/F-07/01-CFG-01-2026-09-14T03-31-58.501Z.png",
+        "suite-f/F-07/02-CFG-01-2026-09-14T03-32-00.305Z.png",
+        "suite-f/F-07/03-CFG-01-2026-09-14T03-32-02.138Z.png",
+        "suite-f/F-07/04-CFG-01-2026-09-14T03-32-03.955Z.png",
+        "suite-f/F-07/05-CFG-01-2026-09-14T03-32-05.904Z.png"
+      ],
+      "notes": "Six allowlisted user messages were saved during human handling; no AI reply appeared. Provider credentials were absent, limiting validation of configured-provider suppression."
+    },
+    {
+      "id": "F-08",
+      "description": "Unavailable AI fallback",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-f/F-08/01-CFG-01-2026-09-14T03-31-56.561Z.png"
+      ],
+      "notes": "Unavailable local Edge function produced the specified friendly fallback and awaiting-human state."
+    },
+    {
+      "id": "F-09",
+      "description": "Realtime support reply",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-f/F-09/01-CFG-01-2026-09-14T03-35-10.853Z.png",
+        "suite-f/F-09/02-CFG-01-2026-09-14T03-35-20.499Z.png"
+      ],
+      "notes": "Local admin reply arrived in realtime as a left-aligned white bordered Support bubble."
+    },
+    {
+      "id": "F-10",
+      "description": "Resolved conversation banner",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-f/F-10/01-CFG-01-2026-09-14T03-35-33.619Z.png"
+      ],
+      "notes": "Admin resolution produced the specified grey closed-conversation banner."
+    },
+    {
+      "id": "F-11",
+      "description": "Reopen resolved conversation",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-f/F-11/01-CFG-01-2026-09-14T03-35-35.852Z.png"
+      ],
+      "notes": "After human reply and resolve, reopening yields AWAITING_HUMAN, no AI answer. Conflicts with playbook but matches permanent human-takeover safety design."
+    },
+    {
+      "id": "G-01",
+      "description": "Device-only dummy fixtures and database scan",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-g/G-01/backend-scan.json",
+        "suite-e/E-06/01-CFG-01-2026-09-14T03-23-13.537Z.png",
+        "suite-e/E-06/02-CFG-01-2026-09-14T03-23-25.645Z.png",
+        "suite-e/E-06/03-CFG-01-2026-09-14T03-23-28.467Z.png",
+        "suite-e/E-06/04-CFG-01-2026-09-14T03-23-31.672Z.png",
+        "suite-e/E-06/04-retry-CFG-01-2026-09-14T03-24-02.766Z.png",
+        "suite-e/E-06/05-CFG-01-2026-09-14T03-24-16.586Z.png",
+        "suite-e/E-06/06-CFG-01-2026-09-14T03-24-20.268Z.png",
+        "suite-e/E-06/backend-privacy.json",
+        "suite-e/E-07/01-CFG-01-2026-09-14T03-25-03.267Z.png",
+        "suite-e/E-07/02-CFG-01-2026-09-14T03-25-05.326Z.png",
+        "suite-e/E-07/03-CFG-01-2026-09-14T03-25-35.427Z.png"
+      ],
+      "notes": "Five dummy fixtures persisted on device; scans of postgres and _supabase at two checkpoints found zero occurrences of each fixture. This verifies the exercised fixtures, not every possible PII value."
+    },
+    {
+      "id": "G-02",
+      "description": "SecureStore teardown audit",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-e/E-10/01-CFG-01-2026-09-14T03-26-54.432Z.png",
+        "suite-e/E-10/02-CFG-01-2026-09-14T03-27-01.072Z.png",
+        "suite-e/E-10/03-CFG-01-2026-09-14T03-27-14.088Z.png",
+        "suite-e/E-10/04-CFG-01-2026-09-14T03-27-45.909Z.png",
+        "suite-e/E-10/05-CFG-01-2026-09-14T03-27-49.709Z.png",
+        "suite-e/E-10/setup1-CFG-01-2026-09-14T03-27-16.458Z.png",
+        "suite-e/E-10/setup2-CFG-01-2026-09-14T03-27-18.600Z.png",
+        "suite-e/E-10/setup3-CFG-01-2026-09-14T03-27-20.689Z.png",
+        "suite-e/E-10/setup4-CFG-01-2026-09-14T03-27-22.775Z.png",
+        "suite-e/E-10/setup5-CFG-01-2026-09-14T03-27-24.919Z.png",
+        "suite-e/E-10/setup6-CFG-01-2026-09-14T03-27-27.641Z.png",
+        "suite-e/E-11/01-CFG-01-2026-09-14T03-28-40.870Z.png",
+        "suite-e/E-11/02-CFG-01-2026-09-14T03-29-07.057Z.png",
+        "suite-e/E-11/03-CFG-01-2026-09-14T03-29-16.878Z.png",
+        "suite-e/E-11/04-CFG-01-2026-09-14T03-30-29.112Z.png",
+        "suite-e/E-11/05-CFG-01-2026-09-14T03-30-32.748Z.png",
+        "suite-e/E-11/backend-deletion.txt",
+        "suite-e/E-11/deleted-fixture-id.txt",
+        "suite-e/E-11/setup1-CFG-01-2026-09-14T03-27-53.578Z.png",
+        "suite-e/E-11/setup1-CFG-01-2026-09-14T03-29-19.695Z.png",
+        "suite-e/E-11/setup2-CFG-01-2026-09-14T03-27-56.465Z.png",
+        "suite-e/E-11/setup2-new-CFG-01-2026-09-14T03-29-54.105Z.png",
+        "suite-e/E-11/setup3-CFG-01-2026-09-14T03-27-59.301Z.png",
+        "suite-e/E-11/setup3-new-CFG-01-2026-09-14T03-29-56.483Z.png",
+        "suite-e/E-11/setup4-CFG-01-2026-09-14T03-28-02.196Z.png",
+        "suite-e/E-11/setup4-new-CFG-01-2026-09-14T03-29-58.519Z.png",
+        "suite-e/E-11/setup4-retry-CFG-01-2026-09-14T03-28-21.991Z.png",
+        "suite-e/E-11/setup5-CFG-01-2026-09-14T03-28-24.916Z.png",
+        "suite-e/E-11/setup5-new-CFG-01-2026-09-14T03-30-00.658Z.png",
+        "suite-e/E-11/setup6-CFG-01-2026-09-14T03-28-26.706Z.png",
+        "suite-e/E-11/setup6-new-CFG-01-2026-09-14T03-30-03.098Z.png"
+      ],
+      "notes": "E-10/E-11 show empty fields after teardown. Direct enumeration of all relogo_pii_* encrypted keys was unavailable, so the complete key-removal assertion is unverified."
+    },
+    {
+      "id": "G-03",
+      "description": "Error sanitization sweep",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-a/A-06/01-CFG-01-0.0s.png",
+        "suite-a/A-06/02-CFG-01-1.3s.png",
+        "suite-a/A-06/03-CFG-01-2.6s.png",
+        "suite-a/A-06/04-CFG-01-4.0s.png",
+        "suite-a/A-06/05-CFG-01-5.3s.png",
+        "suite-a/A-06/06-CFG-01-6.6s.png",
+        "suite-a/A-06/07-CFG-01-7.8s.png",
+        "suite-a/A-06/08-CFG-01-9.0s.png",
+        "suite-a/A-06/09-CFG-01-10.3s.png",
+        "suite-a/A-06/10-CFG-01-11.5s.png",
+        "suite-a/A-06/11-CFG-01-2026-09-14T03-10-29.656Z.png"
+      ],
+      "notes": "A-06 exposes internal error text through Expo Go LogBox; other exercised error cards are friendly. All error paths not exhaustively injectable without source changes."
+    },
+    {
+      "id": "G-04",
+      "description": "Reject arbitrary support text",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-g/G-04/api-result.json"
+      ],
+      "notes": "Arbitrary text correctly rejected (HTTP 403, RLS 42501), but specified support_messages_body_allowlist CHECK constraint is absent. Security invariant protected; exact playbook assertion differs."
+    },
+    {
+      "id": "G-05",
+      "description": "URL scheme sanitizer",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-g/G-05/url-sanitizer-tests.txt",
+        "suite-d/D-10/01-CFG-01-2026-09-14T03-16-53.921Z.png",
+        "suite-d/D-10/02-CFG-01-2026-09-14T03-16-59.789Z.png"
+      ],
+      "notes": "Existing sanitizer suite passed 8/8 tests (public HTTPS, HTTP, javascript, file, malformed and credential URLs); D-10 opened official HTTPS. The requested data: case was not separately exercised."
+    },
+    {
+      "id": "H-01",
+      "description": "Safe areas",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-h/H-01/01-CFG-08-2026-09-14T03-37-12.324Z.png"
+      ],
+      "notes": "Partial baseline safe-area capture retained. Full screen/platform matrix was not completed before the user stopped testing."
+    },
+    {
+      "id": "H-02",
+      "description": "XXXL Dynamic Type",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-h/H-02/01-CFG-07-2026-09-14T03-37-42.389Z.png",
+        "suite-h/H-02/02-CFG-07-2026-09-14T03-37-44.750Z.png",
+        "suite-h/H-02/03-CFG-07-2026-09-14T03-37-48.650Z.png",
+        "suite-h/H-02/04-CFG-07-2026-09-14T03-37-51.892Z.png"
+      ],
+      "notes": "Live XXXL setting clipped Profile/Help headings and multiple action/question labels. Checklist titles reflowed. Persistence after relaunch and other devices were not verified."
+    },
+    {
+      "id": "H-03",
+      "description": "Dark system appearance",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-h/H-03/01-CFG-08-2026-09-14T03-37-11.998Z.png",
+        "suite-h/H-03/02-CFG-08-2026-09-14T03-37-15.274Z.png"
+      ],
+      "notes": "Light palette retained, but system status-bar time/icons become white on white and disappear in Dark Mode."
+    },
+    {
+      "id": "H-04",
+      "description": "Compact layout",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Compact simulator was prepared but app installation/inspection did not finish before testing was stopped."
+    },
+    {
+      "id": "H-05",
+      "description": "Portrait orientation lock",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "I-01",
+      "description": "Onboarding screen reader",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "I-02",
+      "description": "Checklist screen reader",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "I-03",
+      "description": "Profile screen reader",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "I-04",
+      "description": "44-point touch targets",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "J-01",
+      "description": "Offline cold launch",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-a/A-06/01-CFG-01-0.0s.png",
+        "suite-a/A-06/02-CFG-01-1.3s.png",
+        "suite-a/A-06/03-CFG-01-2.6s.png",
+        "suite-a/A-06/04-CFG-01-4.0s.png",
+        "suite-a/A-06/05-CFG-01-5.3s.png",
+        "suite-a/A-06/06-CFG-01-6.6s.png",
+        "suite-a/A-06/07-CFG-01-7.8s.png",
+        "suite-a/A-06/08-CFG-01-9.0s.png",
+        "suite-a/A-06/09-CFG-01-10.3s.png",
+        "suite-a/A-06/10-CFG-01-11.5s.png",
+        "suite-a/A-06/11-CFG-01-2026-09-14T03-10-29.656Z.png"
+      ],
+      "notes": "Suite J was not executed. Related profile-timeout evidence exists in A-06; session-specific timeout remains unverified."
+    },
+    {
+      "id": "J-02",
+      "description": "Offline checklist refresh",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "J-03",
+      "description": "Offline task toggle",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-d/D-14/01-CFG-01-2026-09-14T03-19-20.384Z.png"
+      ],
+      "notes": "Suite J was not executed separately. D-14 records an earlier offline toggle rollback."
+    },
+    {
+      "id": "J-04",
+      "description": "High-latency connection",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-01",
+      "description": "Desktop landing page",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-02",
+      "description": "Mobile landing page",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-03",
+      "description": "Same-corridor waitlist validation",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-04",
+      "description": "Valid-corridor waitlist form",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-05",
+      "description": "Invalid email validation",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-06",
+      "description": "Waitlist submission",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-07",
+      "description": "Duplicate waitlist submission",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "K-08",
+      "description": "Legal pages",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-b/B-13/01-CFG-01-2026-09-14T03-08-36.752Z.png",
+        "suite-b/B-13/02-CFG-01-2026-09-14T03-08-47.842Z.png",
+        "suite-b/B-13/03-CFG-01-2026-09-14T03-09-03.075Z.png",
+        "suite-b/B-13/04-CFG-01-2026-09-14T03-09-08.596Z.png",
+        "suite-b/B-13/05-CFG-01-2026-09-14T03-09-11.009Z.png",
+        "suite-b/B-13/06-CFG-01-2026-09-14T03-09-20.006Z.png"
+      ],
+      "notes": "Suite K was not completed. B-13 opened local Privacy and Terms pages; /support and the complete desktop/mobile legal-page assertions were not inspected."
+    },
+    {
+      "id": "L-01",
+      "description": "Admin login layout",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-l/L-01/01-CFG-09-1789356849716.png"
+      ],
+      "notes": "Dark login card with email/password inputs. Initial desktop viewport 1440x778; exact 1440x900 sweep pending."
+    },
+    {
+      "id": "L-02",
+      "description": "Invalid admin credentials",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-l/L-02/01-CFG-09-1789356850382.png",
+        "suite-l/L-02/02-CFG-09-1789356865963.png"
+      ],
+      "notes": "Wrong password shows Invalid login credentials without raw details."
+    },
+    {
+      "id": "L-03",
+      "description": "Non-admin authorization",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "L-04",
+      "description": "Admin navigation",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-l/L-04/01-CFG-09-1789356876076.png"
+      ],
+      "notes": "Authorized local fixture login shows Alerts, Users, Messages, Waitlist and Log out."
+    },
+    {
+      "id": "L-05",
+      "description": "Pending alerts",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "L-06",
+      "description": "Edit rule modal",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "L-07",
+      "description": "Approve rule change",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "L-08",
+      "description": "User inspection",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "L-09",
+      "description": "Realtime support inbox",
+      "result": "PASS",
+      "evidence_paths": [
+        "suite-l/L-09/01-CFG-09-1789356892878.png"
+      ],
+      "notes": "Inbox shows Awaiting human / Human / Resolved transitions and updates after mobile messages."
+    },
+    {
+      "id": "L-10",
+      "description": "Support thread actions",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-l/L-10/01-CFG-09-1789356893434.png",
+        "suite-l/L-10/02-CFG-09-1789356902436.png",
+        "suite-l/L-10/03-CFG-09-1789356909779.png",
+        "suite-l/L-10/04-CFG-09-1789356910188.png",
+        "suite-l/L-10/05-CFG-09-1789356921222.png"
+      ],
+      "notes": "No View Thread button; clickable row opens modal. Actual labels Take over / Mark resolved / Send differ from playbook. Functional takeover, reply, and resolve succeed with realtime mobile delivery."
+    },
+    {
+      "id": "L-11",
+      "description": "Waitlist table",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "M-01",
+      "description": "Authenticated deep link",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-c/C-11/01-CFG-01-2026-09-14T03-13-20.598Z.png",
+        "suite-c/C-11/deep-link.txt"
+      ],
+      "notes": "No standalone ReloGo binary; Expo Go did not register relogo:// (see C-11)."
+    },
+    {
+      "id": "M-02",
+      "description": "Unauthenticated deep link",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-c/C-11/01-CFG-01-2026-09-14T03-13-20.598Z.png",
+        "suite-c/C-11/deep-link.txt"
+      ],
+      "notes": "Unauthenticated custom deep link not exercised; standalone ReloGo scheme unavailable in Expo Go."
+    },
+    {
+      "id": "M-03",
+      "description": "Invalid deep link",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-c/C-11/01-CFG-01-2026-09-14T03-13-20.598Z.png",
+        "suite-c/C-11/deep-link.txt"
+      ],
+      "notes": "Invalid custom deep link not exercised; standalone ReloGo scheme unavailable in Expo Go."
+    },
+    {
+      "id": "M-04",
+      "description": "Return after backgrounding",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "M-05",
+      "description": "Android hardware back",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "No configured Android virtual device; hardware-back test not executed."
+    },
+    {
+      "id": "M-06",
+      "description": "iOS back gesture",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "M-07",
+      "description": "Timezone shift",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Not executed before testing was stopped at the user's request."
+    },
+    {
+      "id": "GATE-Z01",
+      "description": "iOS A–J coverage",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Coverage incomplete; startup, accessibility and network assertions remain unverified."
+    },
+    {
+      "id": "GATE-Z02",
+      "description": "Android A–J coverage",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "No Android virtual device was configured; Android testing was not performed."
+    },
+    {
+      "id": "GATE-Z03",
+      "description": "Complete visual matrix",
+      "result": "FAIL",
+      "evidence_paths": [
+        "suite-h/H-02/01-CFG-07-2026-09-14T03-37-42.389Z.png",
+        "suite-h/H-02/02-CFG-07-2026-09-14T03-37-44.750Z.png",
+        "suite-h/H-02/03-CFG-07-2026-09-14T03-37-48.650Z.png",
+        "suite-h/H-02/04-CFG-07-2026-09-14T03-37-51.892Z.png",
+        "suite-h/H-03/01-CFG-08-2026-09-14T03-37-11.998Z.png",
+        "suite-h/H-03/02-CFG-08-2026-09-14T03-37-15.274Z.png"
+      ],
+      "notes": "H-02 shows text clipping and H-03 shows status-bar contrast loss; the remaining device matrix is incomplete."
+    },
+    {
+      "id": "GATE-Z04",
+      "description": "Privacy suite sign-off",
+      "result": "BLOCKED",
+      "evidence_paths": [
+        "suite-g/G-01/backend-scan.json",
+        "suite-g/G-04/api-result.json"
+      ],
+      "notes": "Automated fixture scans found zero occurrences, but G-03/G-04 failed playbook assertions and G-02/G-05 are incomplete."
+    },
+    {
+      "id": "GATE-Z05",
+      "description": "Landing suite sign-off",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Suite K was not completed."
+    },
+    {
+      "id": "GATE-Z06",
+      "description": "Admin suite sign-off",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Support reply was observed, but rule approval, user inspection and remaining admin cases were not completed."
+    },
+    {
+      "id": "GATE-Z07",
+      "description": "No open P0/P1 issues",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "Severity triage and release-build verification remain incomplete; no release sign-off is granted."
+    },
+    {
+      "id": "GATE-Z08",
+      "description": "Complete screenshot bundle",
+      "result": "BLOCKED",
+      "evidence_paths": [],
+      "notes": "All 203 collected screenshots are retained, but screenshots for unexecuted cases/configurations do not exist."
+    }
+  ]
+}

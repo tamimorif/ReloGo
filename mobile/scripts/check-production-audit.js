@@ -1,19 +1,10 @@
 #!/usr/bin/env node
 
-/**
- * Keep npm's high/critical production audit as a release gate while narrowly
- * accounting for two upstream image-size findings pulled in by Metro.
- *
- * Metro uses image-size only while bundling repository-controlled assets. It
- * is not part of the shipped React Native JavaScript bundle and never parses
- * a user's image. npm currently offers only incompatible Expo/React Native
- * downgrades, and image-size has no patched release. This checker therefore
- * accepts exactly the two reviewed advisory URLs below at the exact reviewed
- * transitive version, and fails closed for every other high/critical path.
- */
+// Fail closed when the advisory service is unavailable or reports any
+// high/critical finding outside the reviewed exceptions in
+// production-audit-policy.js. The former blanket Metro/image-size exception
+// remains retired.
 const { spawnSync } = require("node:child_process");
-const { readFileSync } = require("node:fs");
-const { join } = require("node:path");
 const { evaluateProductionAudit } = require("./production-audit-policy");
 
 function fail(message) {
@@ -41,13 +32,6 @@ try {
   fail("npm audit did not return valid JSON.");
 }
 
-let lockfile;
-try {
-  lockfile = JSON.parse(readFileSync(join(process.cwd(), "package-lock.json"), "utf8"));
-} catch {
-  fail("package-lock.json could not be read.");
-}
-
-const result = evaluateProductionAudit(report, lockfile);
+const result = evaluateProductionAudit(report);
 if (!result.ok) fail(result.message);
 console.log(result.message);

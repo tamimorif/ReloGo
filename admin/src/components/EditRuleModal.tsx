@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
+import { ADMIN_ERRORS } from "../lib/adminErrors";
 import type {
   AlertWithSource,
   CorridorTaskRuleWithTask,
@@ -38,7 +39,7 @@ export function EditRuleModal({ alert, onClose }: EditRuleModalProps) {
         .single();
 
       if (fetchErr) {
-        setError(fetchErr.message);
+        setError(ADMIN_ERRORS.loadRule);
       } else if (data) {
         const typed = data as unknown as CorridorTaskRuleWithTask;
         setRule(typed);
@@ -71,7 +72,7 @@ export function EditRuleModal({ alert, onClose }: EditRuleModalProps) {
     });
 
     if (rpcErr) {
-      setError(rpcErr.message);
+      setError(ADMIN_ERRORS.approveRule);
       setSaving(false);
       return;
     }

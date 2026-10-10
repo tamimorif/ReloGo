@@ -112,6 +112,8 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+      - name: Test admin error handling and pagination
+        run: node --test tests/*.test.cjs
 
   landing-build:
     name: Landing build
@@ -184,7 +186,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Verify mobile and Edge question allowlists match
-        run: bash scripts/check-support-questions-sync.sh
+        run: |
+          bash scripts/check-support-questions-sync.sh
+          python3 scripts/test-support-questions-sync.py
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -253,6 +257,8 @@ jobs:
       - uses: actions/checkout@v6
       - name: Check Database interface is byte-identical in both apps
         run: bash scripts/check-database-types-sync.sh
+      - name: Test isolated local app launcher
+        run: python3 scripts/test-run-local-app.py
 
   dependency-audit:
     name: Production dependency audit
@@ -273,10 +279,8 @@ jobs:
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
       - name: Install dependencies
         run: npm ci
-      # Keep high/critical as the release gate. Expo declares Metro build tools
-      # in its production dependency graph, so mobile uses a fail-closed wrapper
-      # that accepts only two exact, reviewed image-size advisories affecting
-      # repository-controlled build assets. All other findings still fail.
+      # Every app rejects all high/critical findings. Mobile additionally checks
+      # the audit JSON schema and fails closed on operational errors.
       - name: Audit production dependencies
         if: matrix.app != 'mobile'
         run: npm audit --omit=dev --audit-level=high
