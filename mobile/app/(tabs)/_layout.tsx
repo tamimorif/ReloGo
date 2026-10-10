@@ -30,6 +30,7 @@ export default function TabsLayout() {
           backgroundColor: "#2563EB",
         },
         headerTintColor: "#ffffff",
+        headerTitleAllowFontScaling: false,
         headerTitleStyle: {
           fontWeight: "bold",
           fontSize: 18,
@@ -42,11 +43,11 @@ export default function TabsLayout() {
           title: "Checklist",
           // The checklist renders its own large-title header in-screen.
           headerShown: false,
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+          tabBarIcon: ({ color, size }) => (
             <Ionicons
               name="checkbox-outline"
               size={size}
-              color={color}
+              color={color as string}
             />
           ),
         }}
@@ -56,11 +57,11 @@ export default function TabsLayout() {
         options={{
           title: "Profile",
           headerTitle: "My Profile",
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+          tabBarIcon: ({ color, size }) => (
             <Ionicons
               name="person-circle-outline"
               size={size}
-              color={color}
+              color={color as string}
             />
           ),
         }}

@@ -101,6 +101,17 @@ class IosSimulatorPreflightTests(unittest.TestCase):
             with patch.object(launcher.subprocess, "run", side_effect=[missing, developer]):
                 self.assertTrue(launcher.ios_simulator_available(platform_name="darwin"))
 
+    def test_device_hub_detected_next_to_developer_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            xcode_contents = Path(tmp) / "Xcode.app" / "Contents"
+            developer_dir = xcode_contents / "Developer"
+            developer_dir.mkdir(parents=True)
+            (xcode_contents / "Applications" / "DeviceHub.app").mkdir(parents=True)
+            missing = SimpleNamespace(returncode=1, stdout="", stderr="")
+            developer = SimpleNamespace(returncode=0, stdout=str(developer_dir), stderr="")
+            with patch.object(launcher.subprocess, "run", side_effect=[missing, developer]):
+                self.assertTrue(launcher.ios_simulator_available(platform_name="darwin"))
+
     def test_simulator_missing_when_launch_services_and_bundle_fail(self):
         missing = SimpleNamespace(returncode=1, stdout="", stderr="")
         with patch.object(launcher.subprocess, "run", side_effect=[missing, missing]):
@@ -126,8 +137,8 @@ class IosSimulatorPreflightTests(unittest.TestCase):
             self.assertEqual(launcher.main(["mobile", "--", "--ios"]), 1)
             run.assert_not_called()
             execute.assert_not_called()
-        self.assertIn("Simulator.app", stderr.getvalue())
-        self.assertIn("open -Ra Simulator", stderr.getvalue())
+        self.assertIn("DeviceHub.app", stderr.getvalue())
+        self.assertIn("xcode-select --print-path", stderr.getvalue())
 
 
 if __name__ == "__main__":

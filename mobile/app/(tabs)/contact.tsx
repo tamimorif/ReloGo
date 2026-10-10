@@ -80,6 +80,7 @@ export default function HelpChatScreen() {
   const newestMessageY = useRef(0);
   const requestScope = useRef<AbortController | null>(null);
   const actionBusy = useRef(false);
+  const localMessageSequence = useRef(0);
   const snapshotSequence = useRef(createSnapshotSequence());
   const threadRevision = useRef(0);
   const { fontScale } = useWindowDimensions();
@@ -112,8 +113,6 @@ export default function HelpChatScreen() {
 
   // ── Initial load: resolve user, most-recent thread, and its messages ──
   const loadConversation = useCallback(async () => {
-    setLoading(true);
-    setLoadError(false);
     const signal = requestScope.current?.signal;
     if (!signal || signal.aborted) return;
     const sequence = snapshotSequence.current.begin();
@@ -235,7 +234,7 @@ export default function HelpChatScreen() {
 
       // 2. Optimistically render the user's own bubble (Realtime confirms it).
       const optimistic: ChatMessage = {
-        id: `pending-${Date.now()}`,
+        id: `pending-${++localMessageSequence.current}`,
         thread_id: activeThread.id,
         sender: "user",
         body,
@@ -274,7 +273,7 @@ export default function HelpChatScreen() {
             requireRefresh();
           }
           upsertMessage({
-            id: `local-ai-unavailable-${Date.now()}`,
+            id: `local-ai-unavailable-${++localMessageSequence.current}`,
             thread_id: activeThread.id,
             sender: "ai",
             body: escalated
@@ -387,7 +386,11 @@ export default function HelpChatScreen() {
               : "Check your connection and try again."}
           </Text>
           <TouchableOpacity
-            onPress={loadConversation}
+            onPress={() => {
+              setLoading(true);
+              setLoadError(false);
+              void loadConversation();
+            }}
             className="mt-6 rounded-xl bg-blue-600 px-8 py-3.5"
             activeOpacity={0.8}
           >

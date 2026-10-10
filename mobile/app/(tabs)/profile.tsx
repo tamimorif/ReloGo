@@ -128,6 +128,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     const profile = profileQuery.data;
     if (!profile || formHydrated) return;
+    // The remote profile initializes editable local form state exactly once.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- This is a one-time hydration after the async profile query resolves.
     setOriginProvince(profile.origin_prov);
     setDestProvince(profile.dest_prov);
     setMoveDate(profile.move_date ? parseISODate(profile.move_date) : null);

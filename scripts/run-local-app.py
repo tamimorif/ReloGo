@@ -69,13 +69,12 @@ def prepare_launch(app, status, inherited_env, arguments):
 
 
 IOS_SIMULATOR_MISSING = (
-    "Cannot open the iOS Simulator: Simulator.app is missing from this Xcode "
-    "installation.\n"
-    "`xcode-select` already points at Xcode, so that is not the problem. Restore "
-    "Simulator.app by updating/reinstalling Xcode (App Store > Updates) or by "
-    "copying it from an Xcode .xip into "
-    "<Xcode>/Contents/Developer/Applications/Simulator.app, then verify with: "
-    "open -Ra Simulator\n"
+    "Cannot find Simulator.app or DeviceHub.app in the selected Xcode.\n"
+    "Xcode 27 stores DeviceHub.app at <Xcode>/Contents/Applications/DeviceHub.app; "
+    "older Xcode versions use <Xcode>/Contents/Developer/Applications/Simulator.app. "
+    "Check the selected toolchain with `xcode-select --print-path` and install an "
+    "iOS Simulator runtime in Xcode > Settings > Components.\n"
+    "Expo SDK 55 cannot run with Xcode 27; use Expo SDK 57 or newer there.\n"
     "To run against Android meanwhile: "
     "python3.11 scripts/run-local-app.py mobile -- --android"
 )
@@ -104,7 +103,10 @@ def ios_simulator_available(platform_name=None):
         return False
     if developer.returncode:
         return False
-    return (Path(developer.stdout.strip()) / "Applications" / "Simulator.app").exists()
+    developer_dir = Path(developer.stdout.strip())
+    simulator_app = developer_dir / "Applications" / "Simulator.app"
+    device_hub_app = developer_dir.parent / "Applications" / "DeviceHub.app"
+    return simulator_app.exists() or device_hub_app.exists()
 
 
 def ios_preflight_error(app, arguments, platform_name=None):
