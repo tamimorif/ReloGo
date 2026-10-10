@@ -82,7 +82,7 @@ function RootLayoutInner() {
   const [profileCheckFailed, setProfileCheckFailed] = useState(false);
 
   const router = useRouter();
-  const segments = useSegments();
+  const segments: string[] = useSegments();
 
   // Monotonic sequence so a slow, stale profile check can never overwrite
   // the result of a newer check or a child screen's completed mutation.

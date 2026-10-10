@@ -5,7 +5,7 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "types": ["nativewind/types", "node"]
+    "types": ["expo/types", "nativewind/types", "node"]
   },
   "include": [
     "**/*.ts",
