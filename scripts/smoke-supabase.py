@@ -132,7 +132,7 @@ def main() -> int:
                 "move_date": "2027-01-15",
                 "has_vehicle": False,
                 "has_dependents": False,
-                "consent_version": "1.1",
+                "consent_version": "1.2",
             },
             extra_headers={"Prefer": "return=minimal"},
         )

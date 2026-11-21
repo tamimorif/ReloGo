@@ -1,6 +1,14 @@
 # ReloGo QA Test Playbook (Human + Autonomous AI Visual Agent)
 
-_Last updated: 2026-09-13 · Applies to repository tree with migrations 001–028 (local; 027–028 unhosted), mobile version 1.0.1 / Expo SDK 55, landing site, and admin dashboard._
+_Historical playbook last updated: 2026-10-16 · Its detailed mobile cases describe the earlier recovery build; use the current simulator guide for the simplified MVP._
+
+> **Current-tree scope notice (2026-11-16):** Most cases below describe the
+> historical mobile build and are not current-source assertions. For the
+> simplified MVP, use [`docs/ai/SIMULATOR_TESTING_GUIDE.md`](ai/SIMULATOR_TESTING_GUIDE.md):
+> setup asks for route details plus optional vehicle/school-age-child answers;
+> route, answers, and checkmarks stay local; support is fixed-question and
+> human-only. The current tree has not been built or released. Do not use old
+> move-date, profile, PDF, or AI cases as current behavior.
 
 This document is the **canonical, agent-executable test playbook** covering every user-reachable behavior, UI flow, visual edge case, and accessibility trait across the ReloGo stack. It is structured so that either a **human QA tester** or an **autonomous AI agent driving an iOS Simulator, Android Emulator, or web browser** can step through every case, execute the exact actions, capture visual evidence, and verify on-screen assertions.
 
@@ -32,18 +40,20 @@ This document is the **canonical, agent-executable test playbook** covering ever
 
 | Component | Path | Tech Stack | Target Environment | Visual Test Surface |
 | --- | --- | --- | --- | --- |
-| **Mobile App** | `mobile/` | Expo SDK 55, React Native 0.83, React 19, expo-router, NativeWind | iOS Simulator, Android Emulator, physical devices | Full mobile UI (Onboarding, Re-consent, Checklist, Profile, Support Chat) |
+| **Mobile App** | `mobile/` | Expo SDK 57, React Native 0.86, React 19, expo-router, NativeWind | iOS Simulator, Android Emulator, physical devices | Full mobile UI (Onboarding, Re-consent, Checklist, Profile, Support Chat) |
 | **Landing Site** | `landing/` | Next.js 16 static export, React 19, Tailwind CSS | Desktop & mobile web browsers | Marketing homepage, responsive waitlist form, legal pages (`/privacy`, `/terms`, `/support`) |
 | **Admin Dashboard** | `admin/` | Vite 5 SPA, React 18, Tailwind CSS | Desktop web browser | Authenticated operations (Alerts, Users, Support Messages, Waitlist) |
 | **Backend & Edge** | `supabase/` | Postgres 15, PostgREST, RLS, RPCs, Deno Edge Function | Local Supabase (`http://127.0.0.1:54321`) | Verified end-to-end through Mobile, Landing, and Admin surfaces |
+
+> **Mobile QA status (2026-10-16):** Android Suite A–J and release-build QA (gate Z02) have not been executed yet; Android store QA must run on an EAS/internal-testing build.
 
 ### 1.1 Intentional Design Boundaries (Do NOT Report as Bugs)
 
 | Feature / Element | Status | Technical Rationale |
 | --- | --- | --- |
-| **PDF Download / In-App Fill Button** | **Does not exist in UI** | `mobile/lib/pdfEngine.ts` and `pdfTemplates.ts` are library modules preserved for Phase 2 (direct government integration). No button exists in 1.0.1. |
-| **Free-text Support Message Input** | **Does not exist** | Support chat strictly uses 6 allowlisted questions. Free-text inputs are excluded by architecture to guarantee zero PII leaves the device into support logs. |
-| **Email/Password Sign-Up in Mobile** | **Does not exist** | Mobile uses anonymous authentication only. No login or password fields exist in the mobile app. |
+| **PDF Download / In-App Fill Button** | **Not in current MVP** | The PDF engine, templates, sample form, and their direct native dependencies were removed from mobile source. |
+| **Free-text Support Message Input** | **Does not exist** | The user selects from 6 database-allowlisted questions; Admin replies may be free text. Avoid claiming this makes all support content PII-proof. |
+| **Email/Password Sign-Up in Mobile** | **Does not exist** | Checklist setup needs no account. The Help screen lazily creates an anonymous identity for server-stored support threads. |
 | **Tablet/iPad Customized Layout** | **Renders phone-optimized UI** | `supportsTablet: true` is enabled in `app.json` for App Store compliance, but renders centered phone layout without clipping. |
 | **App Theme in System Dark Mode** | **Remains clean light palette** | The app hardcodes a clean light theme (`bg-slate-50`, white cards). Dark mode must preserve high contrast and legibility without turning dark. |
 | **Landing Page "Coming Soon" Badge** | **Expected** | Marketing site reflects pre-launch status. |
@@ -60,7 +70,7 @@ For autonomous QA runs, **Local Supabase** is the primary, authorized backend. I
 # 1. Start local Supabase (from repo root)
 supabase start
 
-# 2. Reset database and apply migrations 001-027 + seed.sql
+# 2. Reset database and apply migrations 001–028 + seed.sql
 supabase db reset --local
 
 # 3. Seed local admin user for Suite L (Admin Dashboard)
@@ -209,7 +219,7 @@ stateDiagram-v2
     AppLaunch --> SessionRestoreErrorScreen: Session restore fails / times out (3s)
     AppLaunch --> AuthenticatedGate: Session exists or restored
     AppLaunch --> OnboardingScreen: No session exists (anonymous user)
-    
+
     AuthenticatedGate --> ProfileCheckErrorScreen: Profile RPC fails / times out (5s)
     AuthenticatedGate --> OnboardingScreen: Signed in, but no profile exists
     AuthenticatedGate --> ReconsentScreen: Profile exists, consent version stale

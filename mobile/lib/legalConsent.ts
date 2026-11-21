@@ -1,12 +1,11 @@
 /**
- * Legal-policy contract shared by onboarding, session routing, and re-consent.
+ * Local legal-policy version stored with the user's checklist route.
  *
- * A policy release must change this version together with the backend
- * `accept_current_policies()` implementation. Exact equality is intentional:
- * unknown, malformed, older, and unexpectedly newer records all fail closed.
+ * A policy release increments this value so existing local journeys must be
+ * reviewed again. Keep the public policy page and migration contract in sync.
  */
 // CURRENT_CONSENT_VERSION_START
-export const CURRENT_CONSENT_VERSION = "1.1";
+export const CURRENT_CONSENT_VERSION = "1.2";
 // CURRENT_CONSENT_VERSION_END
 
 const LEGAL_SITE_URL = (

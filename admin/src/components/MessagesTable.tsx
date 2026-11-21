@@ -15,7 +15,7 @@ const STATUS_STYLES: Record<SupportThreadStatus, string> = {
 };
 
 const STATUS_LABELS: Record<SupportThreadStatus, string> = {
-  AI: "AI",
+  AI: "Legacy AI",
   AWAITING_HUMAN: "Awaiting human",
   HUMAN: "Human",
   RESOLVED: "Resolved",
@@ -152,8 +152,8 @@ export function MessagesTable() {
         <div>
           <h2 className="text-2xl font-bold text-white">Messages</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Support chat threads. The AI answers general how-to questions;
-            escalated threads wait for a human to take over.
+            New app chats go directly to a human support queue. Older AI threads
+            remain labeled as legacy conversations.
           </p>
         </div>
         <button

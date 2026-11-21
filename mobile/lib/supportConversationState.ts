@@ -31,6 +31,7 @@ export function createSnapshotSequence() {
 type ConversationAction =
   | { type: "message"; message: ChatMessage }
   | { type: "thread"; thread: SupportThread }
+  | { type: "new-thread"; thread: SupportThread }
   | { type: "refresh-required" }
   | { type: "snapshot"; snapshot: ConversationSnapshot; revision: number; recover: boolean };
 
@@ -59,6 +60,14 @@ export function supportConversationReducer(
       return { ...state, messages: mergeMessages(state.messages, [action.message]) };
     case "thread":
       return { ...state, thread: action.thread, revision: state.revision + 1 };
+    case "new-thread":
+      return {
+        ...state,
+        thread: action.thread,
+        messages: [],
+        revision: state.revision + 1,
+        needsRefresh: false,
+      };
     case "refresh-required":
       // A lost response says nothing about whether the server committed.
       return { ...state, needsRefresh: true };

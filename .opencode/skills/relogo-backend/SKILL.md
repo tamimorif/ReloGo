@@ -5,20 +5,29 @@ description: Use when working on ReloGo backend pieces — supabase/migrations (
 
 # ReloGo backend
 
-**Source of truth** — `supabase/migrations/001_*.sql` … `028_*.sql`.
+**Source of truth** — `docs/ai/AI_HANDOFF.md`, then the ordered migrations
+`supabase/migrations/001_*.sql` … `029_*.sql`.
+**Current mobile boundary (2026-11-16)** — the app reads public corridor rules
+and sends only province codes; route/checkmarks are local. Support chats are
+the only user content stored for the mobile app. Migrations 027–029 remain
+local/unhosted; profile/progress schema and the deployed `support-ai` function
+are legacy surfaces. Do not treat the AI function as current app behavior or
+retire/deploy hosted resources without explicit authorization.
 **Related** — `relogo-verify` · `relogo-mobile` · `relogo-release-qa`.
 
 ## Migrations
 
 - Ordered and **immutable once deployed** — never rewrite a deployed migration.
-- Deployed state: preview and production are at exact **001–026**; **027–028
-  are local and unhosted**.
+- Deployed state: preview and production were last verified at exact **001–026**;
+  **027–029 are local/unhosted** (last hosted verification recorded 2026-10-16).
 - `supabase/seed.sql` is local-only; `supabase db push` never applies it.
 - The default-branch worker is already coordinated and its preflight requires
   027's columns, so production at 026 currently fails closed before scraping —
   hosted 027 is a monitoring outage, not a pre-027 worker that ignores
-  `monitor_url`. Apply 027 (explicitly authorized) before expecting any worker
-  run; never bypass challenge gates or baseline challenge text.
+  `monitor_url` (scheduled run `38863388197` failed 2026-10-16: "worker cannot
+  read migration 027 monitoring metadata … Monitoring is stopped"). Apply 027
+  then 028 (explicitly authorized) before expecting any worker run; never
+  bypass challenge gates or baseline challenge text.
 - RLS/RPCs are the **authorization boundary**. Users see only their own
   profile/progress/support rows; admin rights come only from `admin_users` /
   `is_admin()`. Live-rule approval/dismissal and worker persistence are RPC-only.
@@ -31,7 +40,11 @@ description: Use when working on ReloGo backend pieces — supabase/migrations (
   `mobile/types/database.ts` and `admin/src/types/database.ts`; run
   `bash scripts/check-database-types-sync.sh` after schema/type changes.
 
-## Support AI Edge function (`supabase/functions/support-ai/`)
+## Legacy support AI Edge function (`supabase/functions/support-ai/`)
+
+This server-side function and its deployment code remain for historical
+continuity. The current mobile app does not invoke it; new support conversations
+are human-only. Do not expose its key or imply the current app uses Gemini.
 
 - Deno. Production is **v5**, JWT-verified; unauthenticated invocation → 401.
 - Six-question allowlist is mirrored in mobile, migration 010, and the Edge
@@ -62,6 +75,6 @@ description: Use when working on ReloGo backend pieces — supabase/migrations (
 ## Verify
 
 Use `relogo-verify`: contract scripts, worker `py_compile` + pytest (110 on
-committed `fff31da`; 106 on `0c78e56`), and the Deno fmt/lint/check/test
+the merged recovery tree; 106 on `0c78e56`), and the Deno fmt/lint/check/test
 block (16). DB lint/pgTAP/E2E require Docker and reset local data; never target
 a hosted project.

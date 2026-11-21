@@ -1,7 +1,7 @@
 /**
  * Jest config for mobile unit tests.
  *
- * Scope: pure, framework-free logic (e.g. lib/dateHelpers.ts) — so we run under
+ * Scope: pure, framework-free TypeScript logic — so we run under
  * a plain Node environment with ts-jest, rather than the heavier jest-expo
  * preset. The transform carries a self-contained tsconfig override so tests are
  * insulated from the app's Expo/Metro tsconfig (bundler resolution, JSX, etc.).

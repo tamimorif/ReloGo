@@ -1,18 +1,18 @@
 /**
  * Checklist screen — the core of the ReloGo experience.
  *
- * Builds the user's personalised relocation checklist by:
- * 1. Loading their profile (corridor + move date + vehicle/dependents flags)
+ * Builds the user's local relocation checklist by:
+ * 1. Reading the saved route from this device
  * 2. Calling the canonical corridor resolver (one exact/wildcard winner per
  *    task, with its ordered public official-source metadata)
- * 3. Filtering out tasks that don't apply (no vehicle / no dependents)
- * 4. Overlaying user_task_progress (missing row = AVAILABLE)
- * 5. Computing absolute deadlines (move_date + days_deadline)
+ * 3. Filtering tasks for explicit No answers and labelling skipped questions
+ * 4. Overlaying local task progress (missing checkmark = AVAILABLE)
+ * 5. Showing timing as relative guidance without asking for a move date
  *
- * Completion toggles are optimistic: the cache is updated immediately,
+ * Completion toggles are local-first: the cache is updated immediately,
  * rolled back on error, and re-validated on settle.
  */
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,29 +27,20 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/app/_layout";
 import { safeOfficialUrl } from "@/lib/safeOfficialUrl";
-import { profileQueryOptions } from "@/lib/profileQueries";
+import { useJourney } from "@/app/_layout";
 import {
   CORRIDOR_RULES_QUERY_KEY,
   corridorRulesQueryOptions,
+  updateLocalProgress,
   taskProgressQueryKey,
   taskProgressQueryOptions,
 } from "@/lib/checklistQueries";
 import {
-  ChecklistTask,
   PROVINCE_LABELS,
-  TaskStatus,
-  UserTaskProgress,
+  type ChecklistTask,
+  type TaskStatus,
 } from "@/types/database";
-import {
-  addDays,
-  formatDeadline,
-  parseISODate,
-  startOfToday,
-  toISODate,
-} from "@/lib/dateHelpers";
 
 // ──────────────────────────────────────────────
 // Platform styling primitives
@@ -72,86 +63,20 @@ const subtleRipple = { color: "rgba(15, 23, 42, 0.08)" };
 const brandRipple = { color: "rgba(37, 99, 235, 0.14)" };
 
 // ──────────────────────────────────────────────
-// Render-time list sectioning (order-preserving with the memoized sort:
-// overdue → due soon → no deadline → completed are contiguous by construction)
-// ──────────────────────────────────────────────
-
-type SectionKey = "overdue" | "dueSoon" | "noDeadline" | "completed";
-
-const SECTION_LABELS: Record<SectionKey, string> = {
-  overdue: "Overdue",
-  dueSoon: "Due soon",
-  noDeadline: "No deadline",
-  completed: "Completed",
-};
-
-function sectionForItem(item: ChecklistTask, today: Date): SectionKey {
-  if (item.status === "COMPLETED") return "completed";
-  if (!item.deadlineDate) return "noDeadline";
-  return parseISODate(item.deadlineDate) < today ? "overdue" : "dueSoon";
-}
-
-type SectionHeaderProps = {
-  label: string;
-  count: number;
-  accent?: boolean;
-  first: boolean;
-};
-
-function SectionHeader({ label, count, accent, first }: SectionHeaderProps) {
-  return (
-    <View
-      className={`mb-3 flex-row items-center px-1 ${first ? "" : "mt-4"}`}
-      accessibilityRole="header"
-      accessibilityLabel={`${label}, ${count} ${count === 1 ? "task" : "tasks"}`}
-    >
-      <Text
-        className={`text-xs font-semibold uppercase ${
-          accent ? "text-red-600" : "text-slate-500"
-        }`}
-      >
-        {label}
-      </Text>
-      <View
-        className={`ml-2 rounded-full px-2 py-0.5 ${
-          accent ? "bg-red-50" : "bg-slate-200"
-        }`}
-      >
-        <Text
-          className={`text-xs font-bold ${
-            accent ? "text-red-700" : "text-slate-600"
-          }`}
-        >
-          {count}
-        </Text>
-      </View>
-      <View className="ml-3 h-px flex-1 bg-slate-200" />
-    </View>
-  );
-}
-
-// ──────────────────────────────────────────────
 // Header (replaces the native navigator header)
 // ──────────────────────────────────────────────
 
 type ScreenHeaderProps = {
   topInset: number;
   routeLine: { origin: string; dest: string } | null;
-  moveDateLabel: string | null;
   progress: {
     completed: number;
     total: number;
     pct: number;
-    overdue: number;
   } | null;
 };
 
-function ScreenHeader({
-  topInset,
-  routeLine,
-  moveDateLabel,
-  progress,
-}: ScreenHeaderProps) {
+function ScreenHeader({ topInset, routeLine, progress }: ScreenHeaderProps) {
   return (
     <View
       className="border-b border-slate-200 bg-white px-5 pb-4"
@@ -179,11 +104,6 @@ function ScreenHeader({
           <Text className="text-sm font-semibold text-slate-600">
             {routeLine.dest}
           </Text>
-          {moveDateLabel && (
-            <Text className="text-sm text-slate-500">
-              {`  ·  Moving ${moveDateLabel}`}
-            </Text>
-          )}
         </View>
       )}
 
@@ -194,12 +114,6 @@ function ScreenHeader({
               {progress.completed} of {progress.total} tasks done
             </Text>
             <View className="flex-row items-baseline">
-              {progress.overdue > 0 && (
-                <Text className="text-sm font-semibold text-red-600">
-                  {`${progress.overdue} overdue`}
-                  <Text className="font-normal text-slate-300">{"  ·  "}</Text>
-                </Text>
-              )}
               <Text className="text-sm font-semibold text-brand-600">
                 {progress.pct}%
               </Text>
@@ -229,21 +143,20 @@ function ScreenHeader({
 type TaskCardProps = {
   item: ChecklistTask;
   isExpanded: boolean;
-  today: Date;
   onToggle: () => void;
   onExpand: () => void;
 };
 
-function TaskCard({
-  item,
-  isExpanded,
-  today,
-  onToggle,
-  onExpand,
-}: TaskCardProps) {
+function TaskCard({ item, isExpanded, onToggle, onExpand }: TaskCardProps) {
   const isCompleted = item.status === "COMPLETED";
-  const deadline = item.deadlineDate ? parseISODate(item.deadlineDate) : null;
-  const isOverdue = !!deadline && deadline < today && !isCompleted;
+  const timingLabel =
+    item.daysDeadline === null
+      ? "No fixed timing"
+      : item.daysDeadline === 0
+        ? "By moving day"
+        : `Within ${item.daysDeadline} ${
+            item.daysDeadline === 1 ? "day" : "days"
+          } after your move`;
 
   return (
     <View
@@ -309,46 +222,24 @@ function TaskCard({
 
           {/* Badges */}
           <View className="mt-2 flex-row flex-wrap items-center gap-2">
-            {/* Deadline chip */}
-            {deadline ? (
-              <View
-                className={`flex-row items-center rounded-full px-2.5 py-1 ${
-                  isOverdue
-                    ? "bg-red-50"
-                    : isCompleted
-                      ? "bg-slate-100"
-                      : "bg-brand-50"
-                }`}
-              >
-                <Ionicons
-                  name={isOverdue ? "alert-circle" : "calendar-outline"}
-                  size={12}
-                  color={
-                    isOverdue
-                      ? "#b91c1c"
-                      : isCompleted
-                        ? "#64748b"
-                        : "#2563eb"
-                  }
-                />
-                <Text
-                  className={`ml-1 text-xs font-semibold ${
-                    isOverdue
-                      ? "text-red-700"
-                      : isCompleted
-                        ? "text-slate-500"
-                        : "text-brand-700"
-                  }`}
-                >
-                  {isOverdue
-                    ? `Overdue · ${formatDeadline(deadline)}`
-                    : `Due ${formatDeadline(deadline)}`}
+            <View className="flex-row items-center rounded-full bg-slate-100 px-2.5 py-1">
+              <Ionicons name="time-outline" size={12} color="#64748b" />
+              <Text className="ml-1 text-xs font-medium text-slate-600">
+                {timingLabel}
+              </Text>
+            </View>
+
+            {item.requiresVehicle && (
+              <View className="rounded-full bg-violet-50 px-2.5 py-1">
+                <Text className="text-xs font-semibold text-violet-700">
+                  If you have a vehicle
                 </Text>
               </View>
-            ) : (
-              <View className="rounded-full bg-slate-100 px-2.5 py-1">
-                <Text className="text-xs font-medium text-slate-500">
-                  No fixed deadline
+            )}
+            {item.requiresDependents && (
+              <View className="rounded-full bg-violet-50 px-2.5 py-1">
+                <Text className="text-xs font-semibold text-violet-700">
+                  If moving with school-age children
                 </Text>
               </View>
             )}
@@ -435,83 +326,71 @@ function TaskCard({
 // ──────────────────────────────────────────────
 
 export default function ChecklistScreen() {
-  const { session } = useAuth();
-  const userId = session?.user?.id;
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
+  const { journey } = useJourney();
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
 
-  // 1. Profile ────────────────────────────────
-  const profileQuery = useQuery(profileQueryOptions(userId));
-
-  const profile = profileQuery.data;
-  const origin = profile?.origin_prov ?? null;
-  const dest = profile?.dest_prov ?? null;
+  // The city/province route is saved on this device; only province codes
+  // are sent to the public corridor-rule resolver.
+  const origin = journey?.originProvince ?? null;
+  const dest = journey?.destinationProvince ?? null;
   const corridorReady = !!origin && !!dest;
 
   // 2. Canonical corridor rules + task/source metadata ───────────────
   const rulesQuery = useQuery(corridorRulesQueryOptions(origin, dest));
 
   // 3. Progress rows ───────────────────────────
-  const progressQuery = useQuery(taskProgressQueryOptions(userId));
+  const progressQuery = useQuery(taskProgressQueryOptions(origin, dest));
 
   // 4. Derived checklist items ─────────────────
   const items: ChecklistTask[] = useMemo(() => {
-    if (!profile || !rulesQuery.data) return [];
+    if (!rulesQuery.data) return [];
 
-    const progressByRuleId = new Map<string, TaskStatus>(
-      (progressQuery.data ?? []).map((row) => [row.task_rule_id, row.status]),
-    );
+    const progressByRuleId = progressQuery.data ?? {};
 
-    const moveDate = profile.move_date
-      ? parseISODate(profile.move_date)
-      : null;
-
-    const visible = rulesQuery.data.filter((rule) => {
-      if (rule.requires_vehicle && !profile.has_vehicle) return false;
-      if (rule.requires_dependents && !profile.has_dependents) return false;
-      return true;
-    });
-
-    const mapped: ChecklistTask[] = visible.map((rule) => {
-      const deadline =
-        moveDate && rule.days_deadline !== null
-          ? addDays(moveDate, rule.days_deadline)
-          : null;
-
-      return {
+    const mapped: ChecklistTask[] = rulesQuery.data
+      .filter(
+        (rule) =>
+          !(rule.requires_vehicle && journey?.hasVehicle === false) &&
+          !(
+            rule.requires_dependents &&
+            journey?.hasSchoolAgeChildren === false
+          ),
+      )
+      .map((rule) => ({
         taskRuleId: rule.id,
         taskId: rule.task_id,
         taskKey: rule.task_key,
         title: rule.title_en,
         description: rule.base_description_en,
-        requiresVehicle: rule.requires_vehicle,
-        requiresDependents: rule.requires_dependents,
+        requiresVehicle: rule.requires_vehicle && journey?.hasVehicle !== true,
+        requiresDependents:
+          rule.requires_dependents && journey?.hasSchoolAgeChildren !== true,
         daysDeadline: rule.days_deadline,
         isMandatory: rule.is_mandatory,
-        status: progressByRuleId.get(rule.id) ?? "AVAILABLE",
-        deadlineDate: deadline ? toISODate(deadline) : null,
+        status: progressByRuleId[rule.id] ?? "AVAILABLE",
         officialSources: rule.official_sources,
-      };
-    });
+      }));
 
-    // Incomplete first, then nearest deadline (no deadline last).
+    // Incomplete tasks come first, then required tasks, then alphabetical.
     mapped.sort((a, b) => {
       const aDone = a.status === "COMPLETED" ? 1 : 0;
       const bDone = b.status === "COMPLETED" ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
-      if (a.deadlineDate && b.deadlineDate) {
-        return a.deadlineDate.localeCompare(b.deadlineDate);
-      }
-      if (a.deadlineDate) return -1;
-      if (b.deadlineDate) return 1;
+      if (a.isMandatory !== b.isMandatory) return a.isMandatory ? -1 : 1;
       return a.title.localeCompare(b.title);
     });
 
     return mapped;
-  }, [profile, rulesQuery.data, progressQuery.data]);
+  }, [
+    rulesQuery.data,
+    progressQuery.data,
+    journey?.hasVehicle,
+    journey?.hasSchoolAgeChildren,
+  ]);
 
   // 5. Optimistic completion toggle ────────────
   const toggleMutation = useMutation({
@@ -519,77 +398,40 @@ export default function ChecklistScreen() {
       taskRuleId: string;
       nextStatus: TaskStatus;
     }) => {
-      const { error } = await supabase.from("user_task_progress").upsert(
-        {
-          user_id: userId!,
-          task_rule_id: vars.taskRuleId,
-          status: vars.nextStatus,
-        },
-        { onConflict: "user_id,task_rule_id" },
-      );
-      if (error) throw error;
+      if (!origin || !dest) throw new Error("Move route is missing");
+      await updateLocalProgress(origin, dest, vars.taskRuleId, vars.nextStatus);
     },
     onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ["taskProgress", userId] });
+      if (!origin || !dest) return { previous: {} as Record<string, TaskStatus> };
 
-      // Snapshot only this task's row — restoring the whole array on error
-      // would clobber other toggles' in-flight optimistic state.
-      const progressKey = taskProgressQueryKey(userId);
-      const previousRow = queryClient
-        .getQueryData<UserTaskProgress[]>(progressKey)
-        ?.find((row) => row.task_rule_id === vars.taskRuleId);
-
-      queryClient.setQueryData<UserTaskProgress[]>(
-        progressKey,
-        (old) => {
-          const rows = old ?? [];
-          const optimistic: UserTaskProgress = {
-            user_id: userId ?? "",
-            task_rule_id: vars.taskRuleId,
-            status: vars.nextStatus,
-            updated_at: new Date().toISOString(),
-          };
-          const exists = rows.some(
-            (row) => row.task_rule_id === vars.taskRuleId,
-          );
-          return exists
-            ? rows.map((row) =>
-                row.task_rule_id === vars.taskRuleId ? optimistic : row,
-              )
-            : [...rows, optimistic];
-        },
-      );
-
-      return { previousRow };
+      const key = taskProgressQueryKey(origin, dest);
+      const previous = queryClient.getQueryData<Record<string, TaskStatus>>(key) ?? {};
+      queryClient.setQueryData<Record<string, TaskStatus>>(key, {
+        ...previous,
+        [vars.taskRuleId]: vars.nextStatus,
+      });
+      return { previous };
     },
-    onError: (_error, vars, context) => {
-      queryClient.setQueryData<UserTaskProgress[]>(
-        taskProgressQueryKey(userId),
-        (old) => {
-          const rows = old ?? [];
-          if (context?.previousRow) {
-            const restored = context.previousRow;
-            return rows.map((row) =>
-              row.task_rule_id === vars.taskRuleId ? restored : row,
-            );
-          }
-          return rows.filter((row) => row.task_rule_id !== vars.taskRuleId);
-        },
-      );
+    onError: (_error, _vars, context) => {
+      if (origin && dest) {
+        queryClient.setQueryData(
+          taskProgressQueryKey(origin, dest),
+          context?.previous ?? {},
+        );
+      }
       Alert.alert(
-        "Update failed",
-        "Couldn't save your progress. Please try again.",
+        "Couldn't save this checkmark",
+        "Please try again. Your checklist stays on this device.",
       );
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskProgressQueryKey(userId) });
+      if (origin && dest) queryClient.invalidateQueries({ queryKey: taskProgressQueryKey(origin, dest) });
     },
   });
 
   // ── Handlers ─────────────────────────────────
 
   function handleToggle(item: ChecklistTask) {
-    if (!userId) return;
     const nextStatus: TaskStatus =
       item.status === "COMPLETED" ? "AVAILABLE" : "COMPLETED";
     toggleMutation.mutate({ taskRuleId: item.taskRuleId, nextStatus });
@@ -613,17 +455,15 @@ export default function ChecklistScreen() {
     setRefreshing(true);
     try {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["profile", userId] }),
         queryClient.invalidateQueries({ queryKey: CORRIDOR_RULES_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: taskProgressQueryKey(userId) }),
+        queryClient.invalidateQueries({ queryKey: taskProgressQueryKey(origin, dest) }),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [queryClient, userId]);
+  }, [queryClient, origin, dest]);
 
   function handleRetry() {
-    if (profileQuery.isError) profileQuery.refetch();
     if (rulesQuery.isError) rulesQuery.refetch();
     if (progressQuery.isError) progressQuery.refetch();
   }
@@ -631,22 +471,19 @@ export default function ChecklistScreen() {
   // ── Derived header display values ────────────
 
   const routeLine =
-    origin && dest
-      ? { origin: PROVINCE_LABELS[origin], dest: PROVINCE_LABELS[dest] }
+    origin && dest && journey
+      ? {
+          origin: `${journey.originCity}, ${PROVINCE_LABELS[origin]}`,
+          dest: `${journey.destinationCity}, ${PROVINCE_LABELS[dest]}`,
+        }
       : null;
-  const moveDateLabel = profile?.move_date
-    ? formatDeadline(parseISODate(profile.move_date))
-    : null;
-
   // ── Render guards ────────────────────────────
 
   const showError =
-    (profileQuery.isError && !profileQuery.data) ||
     (rulesQuery.isError && !rulesQuery.data) ||
     (progressQuery.isError && !progressQuery.data);
 
   const isLoading =
-    profileQuery.isPending ||
     (corridorReady && (rulesQuery.isPending || progressQuery.isPending));
 
   if (showError) {
@@ -655,7 +492,6 @@ export default function ChecklistScreen() {
         <ScreenHeader
           topInset={insets.top}
           routeLine={routeLine}
-          moveDateLabel={moveDateLabel}
           progress={null}
         />
         <View className="flex-1 items-center justify-center px-8">
@@ -695,7 +531,6 @@ export default function ChecklistScreen() {
         <ScreenHeader
           topInset={insets.top}
           routeLine={routeLine}
-          moveDateLabel={moveDateLabel}
           progress={null}
         />
         <View className="flex-1 items-center justify-center">
@@ -714,13 +549,12 @@ export default function ChecklistScreen() {
         <ScreenHeader
           topInset={insets.top}
           routeLine={null}
-          moveDateLabel={null}
           progress={null}
         />
         <View className="flex-1 items-center justify-center px-8">
           <View className="h-16 w-16 items-center justify-center rounded-full bg-brand-50">
             <Ionicons
-              name="map-outline"
+              name="location-outline"
               size={30}
               color="#2563eb"
             />
@@ -729,20 +563,20 @@ export default function ChecklistScreen() {
             Tell us about your move
           </Text>
           <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500">
-            Set your origin and destination province or territory in your
-            profile to build your checklist.
+            Add your starting and destination cities and provinces to build your
+            checklist.
           </Text>
           <View
             className={`mt-6 flex-row items-center rounded-full border border-slate-200 bg-white px-4 py-2.5 ${cardShadowClass}`}
             style={cardElevation}
           >
             <Ionicons
-              name="person-circle-outline"
+              name="navigate-circle-outline"
               size={16}
               color="#2563eb"
             />
             <Text className="ml-1.5 text-sm font-semibold text-slate-700">
-              Profile tab → Set your corridor
+              Move tab → Set your route
             </Text>
           </View>
         </View>
@@ -755,18 +589,6 @@ export default function ChecklistScreen() {
   ).length;
   const progressPct =
     items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
-  const today = startOfToday();
-
-  // Render-time section bookkeeping (no change to the memoized sort).
-  const sectionCounts: Record<SectionKey, number> = {
-    overdue: 0,
-    dueSoon: 0,
-    noDeadline: 0,
-    completed: 0,
-  };
-  for (const item of items) {
-    sectionCounts[sectionForItem(item, today)] += 1;
-  }
   const allDone = items.length > 0 && progressPct === 100;
 
   // ── Main list ────────────────────────────────
@@ -776,14 +598,12 @@ export default function ChecklistScreen() {
       <ScreenHeader
         topInset={insets.top}
         routeLine={routeLine}
-        moveDateLabel={moveDateLabel}
         progress={
           items.length > 0
             ? {
                 completed: completedCount,
                 total: items.length,
                 pct: progressPct,
-                overdue: sectionCounts.overdue,
               }
             : null
         }
@@ -854,33 +674,15 @@ export default function ChecklistScreen() {
           </View>
         )}
 
-        {/* Task rows (sorted: incomplete first, then completed) with
-            render-time urgency sections — contiguous by construction */}
-        {items.map((item, index) => {
-          const section = sectionForItem(item, today);
-          const prevSection =
-            index > 0 ? sectionForItem(items[index - 1], today) : null;
-
-          return (
-            <Fragment key={item.taskRuleId}>
-              {section !== prevSection && (
-                <SectionHeader
-                  label={SECTION_LABELS[section]}
-                  count={sectionCounts[section]}
-                  accent={section === "overdue"}
-                  first={index === 0}
-                />
-              )}
-              <TaskCard
-                item={item}
-                isExpanded={expandedIds.has(item.taskRuleId)}
-                today={today}
-                onToggle={() => handleToggle(item)}
-                onExpand={() => toggleExpanded(item.taskRuleId)}
-              />
-            </Fragment>
-          );
-        })}
+        {items.map((item) => (
+          <TaskCard
+            key={item.taskRuleId}
+            item={item}
+            isExpanded={expandedIds.has(item.taskRuleId)}
+            onToggle={() => handleToggle(item)}
+            onExpand={() => toggleExpanded(item.taskRuleId)}
+          />
+        ))}
       </ScrollView>
     </View>
   );

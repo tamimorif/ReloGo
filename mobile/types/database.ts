@@ -408,6 +408,20 @@ export interface Database {
         >;
         Relationships: [];
       };
+      support_policy_acceptances: {
+        Row: {
+          user_id: string;
+          consent_version: string;
+          accepted_at: string;
+        };
+        Insert: {
+          user_id: string;
+          consent_version: string;
+          accepted_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["support_policy_acceptances"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -426,6 +440,14 @@ export interface Database {
       has_current_policy_consent: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      has_current_support_policy_consent: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      record_support_policy_acceptance: {
+        Args: { p_consent_version: string };
+        Returns: string;
       };
       resolve_corridor_rules: {
         Args: {
@@ -553,30 +575,9 @@ export interface ChecklistTask {
   daysDeadline: number | null;
   isMandatory: boolean;
   status: TaskStatus;
-  /** Computed absolute deadline: move_date + days_deadline (ISO date) */
-  deadlineDate: string | null;
   /** Public government/agency links backing the selected rule. */
   officialSources: readonly Pick<
     OfficialSource,
     "id" | "agency_name" | "official_url" | "last_verified"
   >[];
 }
-
-// ──────────────────────────────────────────────
-// PII Keys (stored locally only — never in Supabase)
-// ──────────────────────────────────────────────
-
-export type PIIKey =
-  | "HEALTH_CARD_NUMBER"
-  | "DRIVERS_LICENCE_NUMBER"
-  | "STREET_ADDRESS"
-  | "FULL_NAME"
-  | "DATE_OF_BIRTH";
-
-export const PII_KEYS: PIIKey[] = [
-  "HEALTH_CARD_NUMBER",
-  "DRIVERS_LICENCE_NUMBER",
-  "STREET_ADDRESS",
-  "FULL_NAME",
-  "DATE_OF_BIRTH",
-];

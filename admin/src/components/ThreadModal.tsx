@@ -22,14 +22,14 @@ const STATUS_STYLES: Record<SupportThreadStatus, string> = {
 };
 
 const STATUS_LABELS: Record<SupportThreadStatus, string> = {
-  AI: "AI",
+  AI: "Legacy AI",
   AWAITING_HUMAN: "Awaiting human",
   HUMAN: "Human",
   RESOLVED: "Resolved",
 };
 
-// Per-sender bubble styling. Admin (us) right-aligned blue; user left grey;
-// AI left slate with a distinct accent so the transcript reads clearly.
+// Per-sender bubble styling. Admin replies are right-aligned blue; user
+// questions are left-aligned grey; older AI messages remain visibly distinct.
 const SENDER_META: Record<
   SupportMessageSender,
   { label: string; align: "left" | "right"; bubble: string }
@@ -40,7 +40,7 @@ const SENDER_META: Record<
     bubble: "bg-slate-700 text-slate-100",
   },
   ai: {
-    label: "AI",
+    label: "Earlier AI reply",
     align: "left",
     bubble: "border border-slate-600 bg-slate-800 text-slate-200",
   },
@@ -158,7 +158,7 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
     transcriptEndRef.current?.scrollIntoView({ block: "end" });
   }, [messages.length, loading]);
 
-  // ── Take over: admin starts handling the thread (AI stops) ────────────
+  // ── Take over a legacy or waiting thread ─────────────────────────────
   const handleTakeOver = async () => {
     if (!thread) return;
     setBusyAction("takeover");
@@ -369,8 +369,7 @@ export function ThreadModal({ threadId, onClose }: ThreadModalProps) {
               )}
               {status === "HUMAN" && (
                 <span className="text-xs text-slate-500">
-                  You are chatting directly with the user — the AI is paused for
-                  this thread.
+                  You are chatting directly with the user.
                 </span>
               )}
             </div>

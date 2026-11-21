@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Smartphone, Server, Trash2 } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Smartphone, Server } from "lucide-react";
 import SiteFooter from "@/components/SiteFooter";
 import { CURRENT_POLICY_VERSION } from "@/lib/legal";
 import { SUPPORT_EMAIL } from "@/lib/support";
 
-const LAST_UPDATED = "July 14, 2026";
+const LAST_UPDATED = "November 16, 2026";
 const PRIVACY_TITLE = "Privacy Policy - ReloGo";
 const PRIVACY_DESCRIPTION =
-  "How ReloGo handles your data. Your sensitive personal information stays on your device and is never sent to our servers.";
+  "ReloGo keeps move details and checklist progress on your device. Human support conversations are stored so the support team can reply.";
 
 export const metadata: Metadata = {
   title: PRIVACY_TITLE,
@@ -88,12 +88,12 @@ export default function PrivacyPage() {
             <span className="font-semibold text-slate-900">
               The short version:
             </span>{" "}
-            Your most sensitive details - your name, address, date of birth,
-            driver&apos;s licence number, and health card number - are stored only
-            on your device. They are never transmitted to ReloGo or stored on
-            our servers. A filled form leaves the app only when you explicitly
-            choose where to share or save it. Privacy isn&apos;t a feature of
-            ReloGo; it&apos;s how the app is built.
+            Your city-level route, optional vehicle and school-age children
+            answers, and checklist checkmarks stay on your device.
+            The app sends province codes to
+            fetch general task guidance. If you contact support, your selected
+            question and the human replies are stored on our server and cached
+            on your phone.
           </p>
         </div>
 
@@ -110,62 +110,39 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <Section title="Information stored only on your device">
+        <Section title="Information stored on your device">
           <div className="flex items-start gap-3">
             <Smartphone
               className="mt-1 h-5 w-5 shrink-0 text-brand-600"
               aria-hidden="true"
             />
             <p>
-              ReloGo&apos;s on-device form feature can use personal details you
-              choose to save on your phone when a compatible PDF template is
-              available. These can include your full name, date of birth, street
-              address, driver&apos;s licence number, and provincial health card
-              number. The initial compatible template is British Columbia&apos;s
-              official Application for Health and Drug Coverage.
+              The app saves your origin and destination city and province and
+              optional vehicle and school-age children answers and checklist
+              checkmarks in the app&apos;s local storage. These details are used to
+              build and display your checklist on this device.
             </p>
           </div>
           <p>
-            This information is stored exclusively in your device&apos;s secure
-            storage (the operating system&apos;s protected storage - Keychain on
-            iOS, Keystore on Android). It is read locally only when you use a
-            compatible form, and it is{" "}
-            <span className="font-semibold text-slate-900">
-              never sent to ReloGo&apos;s servers or logs and never sent to a third
-              party automatically.
+            Your city and checkmarks are not written to
+            ReloGo&apos;s application database. Province codes are sent when the app
+            requests general corridor rules; cities, optional answers, and
+            checkmarks are not included in that request. Use{" "}
+            <span className="font-medium text-slate-900">
+              Move &rarr; Clear this device&apos;s checklist
             </span>{" "}
-            We have no server-side place to store it and therefore cannot access,
-            view, or recover it.
-          </p>
-          <p>
-            When a compatible template is available, filled PDF forms are
-            generated on your device in a dedicated temporary cache. On iOS,
-            ReloGo removes its cached copy after the share action completes. On
-            Android, a receiving app may continue reading the attachment after
-            the chooser closes, so ReloGo schedules removal of that temporary
-            file after a short grace period. On the next app start or form fill,
-            ReloGo deletes expired temporary files and reschedules any still in
-            that grace period. ReloGo always removes cached copies when you sign
-            out or delete your account. A copy you choose to save or send is
-            controlled by the destination you selected.
+            to remove the locally saved route and progress. Removing the app can
+            also make this information unavailable.
           </p>
         </Section>
 
-        <Section title="Official links and blank forms">
+        <Section title="Official links and task guidance">
           <p>
-            Checklist links open the relevant government website. When you
-            explicitly choose to prepare a compatible form, ReloGo downloads a
-            blank copy directly from the government&apos;s official website before
-            filling it locally. The app verifies that the file matches the
-            reviewed version before reading your stored details. The government
-            website may receive ordinary connection information such as your IP
-            address and browser or app request headers, under that website&apos;s
-            own privacy practices.
-          </p>
-          <p>
-            ReloGo does not add your stored name, address, birth date, licence
-            number, or health-card number to that download request. Those values
-            are applied only after the blank form reaches your device.
+            The app sends origin and destination province codes to Supabase to
+            retrieve general task rules and official links. Those codes are not
+            saved as a user profile by the current mobile app. Opening a link
+            takes you to a government website, which may receive ordinary
+            connection information under that website&apos;s own privacy practices.
           </p>
         </Section>
 
@@ -176,43 +153,36 @@ export default function PrivacyPage() {
               aria-hidden="true"
             />
             <p>
-              So your checklist and support work across sessions, we store a
-              limited amount of account and move information in our hosted
-              database (Supabase):
+              The app stores only support conversations in its hosted database
+              (Supabase). It creates a random anonymous support identifier when
+              you first open Help so the conversation can be associated with
+              your device:
             </p>
           </div>
           <ul className="ml-5 list-disc space-y-1">
             <li>An anonymous account identifier (not linked to your name or email)</li>
-            <li>Your origin and destination province or territory</li>
-            <li>Your planned move date</li>
             <li>
-              Whether you indicated you&apos;re bringing a vehicle or moving with
-              children
-            </li>
-            <li>Which checklist tasks you&apos;ve marked complete</li>
-            <li>
-              Your selected fixed support questions, support replies, and
+              The fixed question you select, support-team replies, and
               conversation status
             </li>
           </ul>
           <p>
-            This information distinguishes your anonymous account but does not
-            include your name, address, personal document numbers, or account
-            email. If you join our website waitlist, we separately store the
-            email address and jurisdictions you provide. For abuse prevention,
-            the signup service also keeps an hourly counter keyed by a one-way
-            hash derived from the requesting IP address; it does not store the
-            raw address in the waitlist throttle table. Expired counters are
-            pruned during later signup activity.
+            The support identifier is not linked to your name, email, home
+            address, or government document numbers. The current app does not
+            create a login or ask for personal details. The support transcript
+            remains on the server so an administrator can reply and is also
+            cached on the device. The website waitlist is separate and stores
+            the email and jurisdictions you provide there.
           </p>
         </Section>
 
         <Section title="How we use information">
           <p>
-            We use the limited server-side data above only to generate and track
-            your relocation checklist, answer the fixed support questions,
-            operate human support, prevent signup abuse, and, for waitlist
-            sign-ups, contact you about availability. We do{" "}
+            We use support messages to route your selected question to a human
+            and show the team&apos;s reply. The public rules service uses the two
+            province codes in your request to return general checklist
+            guidance. The website waitlist uses its separate information to
+            contact people about availability. We do{" "}
             <span className="font-semibold text-slate-900">not</span> sell your
             data, we do{" "}
             <span className="font-semibold text-slate-900">not</span> show
@@ -222,32 +192,24 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <Section title="Anonymous accounts">
+        <Section title="Anonymous support identifier">
           <p>
-            ReloGo creates an anonymous account for you automatically - there is
-            no sign-up, email, or password required to use the app. Because your
-            account is anonymous and your sensitive information lives only on your
-            device, uninstalling the app or losing your device means that data
-            cannot be recovered.
+            The checklist does not require an account. The app creates an
+            anonymous support identity only when you open Help; no name, email,
+            or password is requested. If you remove the app, the local support
+            cache and its sign-in credential may be lost, so a later install may
+            not be able to recover that conversation.
           </p>
         </Section>
 
-        <Section title="Deleting your data">
-          <div className="flex items-start gap-3">
-            <Trash2
-              className="mt-1 h-5 w-5 shrink-0 text-brand-600"
-              aria-hidden="true"
-            />
-            <p>
-              You are always in control. In the app, go to{" "}
-              <span className="font-medium text-slate-900">
-                Profile &rarr; Delete My Data
-              </span>{" "}
-              to permanently erase your server-side account and all associated
-              checklist data, along with any personal details and filled forms
-              stored on your device.
-            </p>
-          </div>
+        <Section title="Deleting checklist and support information">
+          <p>
+            The Move tab&apos;s clear action deletes the route and checkmarks stored
+            on this device. It does not delete support conversations from our
+            server. The current app does not have a self-service chat deletion
+            control; use the published support contact to request help with a
+            server-stored conversation.
+          </p>
           <p>
             {SUPPORT_EMAIL ? (
               <>
@@ -279,46 +241,38 @@ export default function PrivacyPage() {
 
         <Section title="Service providers">
           <p>
-            We use Supabase to host our database and provide anonymous
-            authentication, Google Gemini to answer selected fixed support
-            questions, and Expo, the Apple App Store, and Google Play to build or
-            distribute the app. These providers process the relevant service
-            data on our behalf under their own terms. Your on-device personal
-            details are never sent to them by ReloGo.
+            Supabase hosts the public rule resolver and human-support
+            conversations. The current mobile app does not send support
+            questions to an AI provider. Expo, Apple, and Google provide app
+            build and distribution services. Each provider has its own terms
+            and privacy practices.
           </p>
         </Section>
 
-        <Section title="In-app support chat and AI">
+        <Section title="In-app human support">
           <p>
-            ReloGo includes in-app help for general how-to and process
-            questions. You choose from six pre-written questions; there is no
-            free-text support box. A third-party AI provider (Google Gemini)
-            processes the selected question together with non-identifying move
-            context, such as your move corridor and applicable task titles,
-            to produce a response.
+            You choose from six pre-written general questions; there is no
+            free-text support box. The selected question is stored in a support
+            thread that a human team member can read and answer. The app caches
+            the thread on your device so it remains available when you reopen
+            the app. The current mobile app does not use Gemini or another AI
+            provider to answer support questions.
           </p>
           <p>
-            The fixed questions cannot include your name, address, date of
-            birth, driver&apos;s licence number, health card number, or other
-            personal text. Your on-device personal information is never read or
-            sent by the support feature.
-          </p>
-          <p>
-            If your question needs a person, a human support agent can take over
-            the conversation. Once a human takes over a chat, it is{" "}
-            <span className="font-semibold text-slate-900">
-              no longer processed by the AI
-            </span>
-            .
+            Support chats are retained on the server and are visible to
+            authorized support administrators. The current app has no user
+            message composer; do not include sensitive information in any
+            support reply from staff.
           </p>
         </Section>
 
         <Section title="Security">
           <p>
-            Sensitive personal information uses your operating system&apos;s
-            protected storage. Data exchanged with our servers is transmitted
-            over encrypted connections (HTTPS), and row-level security restricts
-            an app user to their own records.
+            Support sessions are stored locally using encrypted session
+            storage. Data exchanged with Supabase uses HTTPS, and row-level
+            security restricts a support user to their own threads. Checklist
+            details remain in app-local storage and are not included in support
+            requests.
           </p>
         </Section>
 

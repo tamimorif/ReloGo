@@ -1,15 +1,8 @@
 /**
  * Onboarding screen.
  *
- * Collects the user's relocation details:
- * - Origin province
- * - Destination province
- * - Move date
- * - Has vehicle?
- * - Has dependents?
- *
- * Also handles anonymous sign-up if no session exists.
- * On submit, creates a user_profiles row in Supabase.
+ * Collects the user's route and optional checklist preferences.
+ * Route details, answers, and task progress are stored on this device.
  */
 import { useRef, useState } from "react";
 import {
@@ -17,65 +10,44 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Alert,
   ActivityIndicator,
   Linking,
-  Platform,
+  TextInput,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import DateTimePicker, {
-  DateTimePickerChangeEvent,
-} from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { MovePreferences } from "@/components/MovePreferences";
 import { shouldUseDarkAuthStatusBar } from "@/lib/authStatusBar";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/app/_layout";
-import {
-  withAbortableTimeout,
-  withStartupTimeout,
-} from "@/lib/startupTimeout";
+import { useJourney } from "@/app/_layout";
+import { saveLocalJourney } from "@/lib/localJourney";
 import {
   CURRENT_CONSENT_VERSION,
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
 } from "@/lib/legalConsent";
 import {
-  Province,
   PROVINCES,
   PROVINCE_LABELS,
-  UserProfileInsert,
+  type Province,
 } from "@/types/database";
-
-const ONBOARDING_REQUEST_TIMEOUT_MS = 10_000;
-
-/**
- * Format a Date as YYYY-MM-DD in LOCAL time. toISOString() converts to UTC,
- * which shifts evening picks to the next calendar day in every Canadian
- * timezone — and every checklist deadline is computed from this date.
- */
-function formatLocalDate(d: Date): string {
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${month}-${day}`;
-}
 
 export default function OnboardingScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const { session, setHasProfile, setHasCurrentConsent } = useAuth();
+  const { setJourney } = useJourney();
+
+  const [hasVehicle, setHasVehicle] = useState<boolean | null>(null);
+  const [hasSchoolAgeChildren, setHasSchoolAgeChildren] =
+    useState<boolean | null>(null);
+  const [originCity, setOriginCity] = useState("");
+  const [destinationCity, setDestinationCity] = useState("");
 
   const [originProvince, setOriginProvince] = useState<Province | null>(null);
   const [destinationProvince, setDestinationProvince] =
     useState<Province | null>(null);
-  const [moveDate, setMoveDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [hasVehicle, setHasVehicle] = useState(false);
-  const [hasDependents, setHasDependents] = useState(false);
   const [hasConsented, setHasConsented] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isHeaderPastStatusBar, setIsHeaderPastStatusBar] = useState(false);
@@ -101,14 +73,6 @@ export default function OnboardingScreen() {
   const [showOriginPicker, setShowOriginPicker] = useState(false);
   const [showDestPicker, setShowDestPicker] = useState(false);
 
-  function handleDateChange(
-    _event: DateTimePickerChangeEvent,
-    selectedDate: Date,
-  ) {
-    setShowDatePicker(Platform.OS === "ios");
-    setMoveDate(selectedDate);
-  }
-
   async function handleSubmit() {
     if (!originProvince) {
       Alert.alert(
@@ -124,6 +88,10 @@ export default function OnboardingScreen() {
       );
       return;
     }
+    if (!originCity.trim() || !destinationCity.trim()) {
+      Alert.alert("Missing city", "Enter the city you are moving from and to.");
+      return;
+    }
     if (originProvince === destinationProvince) {
       Alert.alert(
         "Same jurisdiction",
@@ -131,8 +99,6 @@ export default function OnboardingScreen() {
       );
       return;
     }
-    // PIPEDA: no account may be created (even anonymously) before the user
-    // has affirmatively agreed to the privacy policy and terms.
     if (!hasConsented) {
       Alert.alert(
         "Consent Required",
@@ -144,116 +110,22 @@ export default function OnboardingScreen() {
     setIsSubmitting(true);
 
     try {
-      let userId = session?.user?.id;
-
-      // If no session, sign in anonymously.
-      // Requires "Allow anonymous sign-ins" to be enabled in the
-      // Supabase dashboard (Authentication → Providers).
-      if (!userId) {
-        const { data: authData, error: authError } = await withStartupTimeout(
-          supabase.auth.signInAnonymously(),
-          ONBOARDING_REQUEST_TIMEOUT_MS,
-        );
-
-        if (authError) {
-          throw authError;
-        }
-        userId = authData.user?.id;
-      }
-
-      if (!userId) {
-        throw new Error("Unable to create user account");
-      }
-
-      const profile: UserProfileInsert = {
-        id: userId,
-        origin_prov: originProvince,
-        dest_prov: destinationProvince,
-        move_date: formatLocalDate(moveDate),
-        has_vehicle: hasVehicle,
-        has_dependents: hasDependents,
-        consent_version: CURRENT_CONSENT_VERSION,
+      const journey = {
+        originCity: originCity.trim(),
+        originProvince,
+        destinationCity: destinationCity.trim(),
+        destinationProvince,
+        hasVehicle,
+        hasSchoolAgeChildren,
+        consentVersion: CURRENT_CONSENT_VERSION,
       };
-
-      // Insert first, then fall back to an update if the row already exists —
-      // a prior submit that timed out client-side, or a transient checkProfile
-      // failure routing an existing user back here. The user's freshly entered
-      // details replace the old ones instead of being silently discarded.
-      //
-      // This deliberately is NOT an upsert. Migration 019 gates
-      // user_profiles UPDATE on has_current_policy_consent(), which is true
-      // only once a profile row already records the current policy version. A
-      // single INSERT ... ON CONFLICT DO UPDATE (what .upsert() emits) is
-      // therefore rejected outright for a first-time user, whose row does not
-      // exist yet: the consent that would authorise the write is precisely
-      // what the write is trying to create. Splitting the two statements keeps
-      // the retry behaviour while letting the plain INSERT policy authorise
-      // the first-run case.
-      const { error: insertError } = await withAbortableTimeout(
-        (signal) =>
-          supabase
-            .from("user_profiles")
-            .insert(profile)
-            .abortSignal(signal),
-        ONBOARDING_REQUEST_TIMEOUT_MS,
-      );
-
-      if (insertError) {
-        // 23505 = unique violation, i.e. this user already has a profile row.
-        // Anything else is a real failure.
-        if (insertError.code !== "23505") {
-          throw insertError;
-        }
-
-        const { error: updateError } = await withAbortableTimeout(
-          (signal) =>
-            supabase
-              .from("user_profiles")
-              .update(profile)
-              .eq("id", userId)
-              .abortSignal(signal),
-          ONBOARDING_REQUEST_TIMEOUT_MS,
-        );
-
-        if (updateError) {
-          throw updateError;
-        }
-      }
-
-      // INSERT ... RETURNING is intentionally unavailable here: the
-      // consent-gated SELECT policy cannot see a first-time row in the same
-      // statement snapshot. Confirm through the existing SECURITY DEFINER
-      // consent RPC instead, which returns the authoritative allowlisted row.
-      const { data: consentState, error: consentError } =
-        await withAbortableTimeout(
-          (signal) =>
-            supabase
-              .rpc("get_policy_consent_state")
-              .abortSignal(signal),
-          ONBOARDING_REQUEST_TIMEOUT_MS,
-        );
-      if (
-        consentError ||
-        consentState?.has_profile !== true ||
-        consentState.has_current_consent !== true ||
-        !consentState.profile
-      ) {
-        throw new Error("Profile write was not confirmed");
-      }
-
-      // Seed the checklist cache so first-run onboarding does not immediately
-      // fetch the row again after this authoritative confirmation.
-      queryClient.setQueryData(["profile", userId], consentState.profile);
-      setHasProfile(true);
-      setHasCurrentConsent(true);
+      await saveLocalJourney(journey);
+      setJourney(journey);
       router.replace("/(tabs)/checklist");
     } catch {
-      // Keep provider/database internals out of the UI. The onboarding payload
-      // is non-PII, but raw backend errors can still expose implementation
-      // details and are not actionable for the user.
       Alert.alert(
         "Couldn't finish setup",
-        "Check your connection and try again. Your on-device personal info is unchanged.",
+        "Couldn't save your checklist on this device. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -360,6 +232,22 @@ export default function OnboardingScreen() {
 
         {/* Form */}
         <View className="px-6 pt-6">
+          <Text className="mb-3 text-base font-semibold text-slate-900">
+            Your route
+          </Text>
+          <Text className="mb-1 text-sm font-medium text-slate-700">
+            Moving from city
+          </Text>
+          <TextInput
+            value={originCity}
+            onChangeText={setOriginCity}
+            placeholder="e.g. Toronto"
+            placeholderTextColor="#94a3b8"
+            autoCapitalize="words"
+            autoCorrect={false}
+            accessibilityLabel="City you are moving from"
+            className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900"
+          />
           {/* Origin Province */}
           {renderProvincePicker(
             "Moving from",
@@ -372,6 +260,19 @@ export default function OnboardingScreen() {
             setOriginProvince,
           )}
 
+          <Text className="mb-1 text-sm font-medium text-slate-700">
+            Moving to city
+          </Text>
+          <TextInput
+            value={destinationCity}
+            onChangeText={setDestinationCity}
+            placeholder="e.g. Vancouver"
+            placeholderTextColor="#94a3b8"
+            autoCapitalize="words"
+            autoCorrect={false}
+            accessibilityLabel="City you are moving to"
+            className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900"
+          />
           {/* Destination Province */}
           {renderProvincePicker(
             "Moving to",
@@ -384,82 +285,14 @@ export default function OnboardingScreen() {
             setDestinationProvince,
           )}
 
-          {/* Move Date */}
-          <View className="mb-4">
-            <Text className="mb-1 text-sm font-medium text-slate-700">
-              Move date
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowDatePicker(true)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Move date, ${moveDate.toLocaleDateString(
-                "en-CA",
-                { year: "numeric", month: "long", day: "numeric" },
-              )}`}
-              accessibilityHint="Opens the date picker"
-            >
-              <Text className="text-base text-slate-900">
-                {moveDate.toLocaleDateString("en-CA", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </Text>
-            </TouchableOpacity>
+          <MovePreferences
+            hasVehicle={hasVehicle}
+            hasSchoolAgeChildren={hasSchoolAgeChildren}
+            onVehicleChange={setHasVehicle}
+            onChildrenChange={setHasSchoolAgeChildren}
+          />
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={moveDate}
-                mode="date"
-                display={Platform.OS === "ios" ? "inline" : "default"}
-                minimumDate={new Date()}
-                onValueChange={handleDateChange}
-                onDismiss={() => setShowDatePicker(false)}
-              />
-            )}
-          </View>
-
-          {/* Has Vehicle */}
-          <View className="mb-4 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-            <View className="flex-1">
-              <Text className="text-base font-medium text-slate-900">
-                Bringing a vehicle?
-              </Text>
-              <Text className="text-sm text-slate-500">
-                We'll add licence & registration tasks
-              </Text>
-            </View>
-            <Switch
-              value={hasVehicle}
-              onValueChange={setHasVehicle}
-              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-              thumbColor={hasVehicle ? "#2563eb" : "#f1f5f9"}
-              accessibilityLabel="Bringing a vehicle?"
-            />
-          </View>
-
-          {/* Has Dependents */}
-          <View className="mb-6 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-            <View className="flex-1">
-              <Text className="text-base font-medium text-slate-900">
-                Moving with kids?
-              </Text>
-              <Text className="text-sm text-slate-500">
-                We'll add school enrollment & child benefit tasks
-              </Text>
-            </View>
-            <Switch
-              value={hasDependents}
-              onValueChange={setHasDependents}
-              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-              thumbColor={hasDependents ? "#2563eb" : "#f1f5f9"}
-              accessibilityLabel="Moving with kids?"
-            />
-          </View>
-
-          {/* Consent (required before any account is created) */}
+          {/* Local checklist data stays on this device; support is server-backed. */}
           <View className="mb-6 flex-row items-start rounded-xl border border-slate-200 bg-white px-4 py-3.5">
             <TouchableOpacity
               onPress={() => setHasConsented(!hasConsented)}
@@ -512,7 +345,9 @@ export default function OnboardingScreen() {
               >
                 Terms of Service
               </Text>
-              . Your personal details stay on this device.
+              . Your route and checklist stay on this device. If you contact
+              support, that conversation is sent to our support inbox so a
+              person can reply.
             </Text>
           </View>
 

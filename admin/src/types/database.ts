@@ -400,6 +400,20 @@ export interface Database {
         >;
         Relationships: [];
       };
+      support_policy_acceptances: {
+        Row: {
+          user_id: string;
+          consent_version: string;
+          accepted_at: string;
+        };
+        Insert: {
+          user_id: string;
+          consent_version: string;
+          accepted_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["support_policy_acceptances"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -418,6 +432,14 @@ export interface Database {
       has_current_policy_consent: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      has_current_support_policy_consent: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      record_support_policy_acceptance: {
+        Args: { p_consent_version: string };
+        Returns: string;
       };
       resolve_corridor_rules: {
         Args: {

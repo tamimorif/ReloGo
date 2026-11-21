@@ -1,17 +1,16 @@
 /**
  * Help & support chat screen.
  *
- * An in-app chat thread between the user, the ReloGo AI assistant, and (after
- * a human takeover) a support admin. There is NO email collection and nothing
- * is emailed from here — delivery is the chat thread itself, with live updates
- * over Supabase Realtime.
+ * A fixed-question chat with the human support team, with live updates over
+ * Supabase Realtime. The conversation is cached on-device and stored remotely
+ * so an administrator can reply.
  *
  * Flow:
- *   - status 'AI'            → the support-ai Edge Function generates replies.
- *   - status 'AWAITING_HUMAN' → escalated; the AI has stopped; a human will reply.
+ *   - status 'AWAITING_HUMAN' → waiting for a human support reply.
  *   - status 'HUMAN'         → an admin is handling the conversation.
  *   - status 'RESOLVED'      → closed.
- * The user keeps ONE active conversation for simplicity (the most recent thread).
+ * The user sees the most recent thread; a new thread can be started after it is
+ * resolved.
  *
  * PIPEDA: this screen NEVER reads or sends any on-device PII (name, DOB,
  * street address, driver's licence, health card). It does not touch
@@ -39,10 +38,10 @@ import { supabase } from "@/lib/supabase";
 import {
   createSupportThread,
   insertSupportQuestion,
+  loadCachedSupportConversation,
   loadSupportConversation,
-  requestSupportReply,
   reconcileSupportConversation,
-  updateSupportStatus,
+  saveCachedSupportConversation,
 } from "@/lib/supportConversation";
 import {
   SUPPORT_QUESTIONS,
@@ -50,7 +49,6 @@ import {
 } from "@/lib/supportQuestions";
 import {
   SupportThread,
-  SupportThreadStatus,
 } from "@/types/database";
 
 import {
@@ -62,13 +60,8 @@ import {
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
-// Statuses where the AI is still answering (the Edge Function will reply).
-function isAiActive(status: SupportThreadStatus): boolean {
-  return status === "AI";
-}
-
 function senderLabel(sender: ChatMessage["sender"]): string {
-  if (sender === "ai") return "AI assistant";
+  if (sender === "ai") return "Earlier automated reply";
   if (sender === "admin") return "Support";
   return "You";
 }
@@ -92,7 +85,6 @@ export default function HelpChatScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [sending, setSending] = useState(false);
-  const [escalating, setEscalating] = useState(false);
 
   const threadId = thread?.id ?? null;
   const status = thread?.status ?? null;
@@ -118,6 +110,11 @@ export default function HelpChatScreen() {
     const sequence = snapshotSequence.current.begin();
     const revision = threadRevision.current;
     try {
+      const cached = await loadCachedSupportConversation(signal);
+      if (cached && snapshotSequence.current.isCurrent(sequence) && !signal.aborted) {
+        dispatch({ type: "snapshot", snapshot: cached, revision, recover: false });
+        setLoading(false);
+      }
       const conversation = await loadSupportConversation(signal);
       if (!snapshotSequence.current.isCurrent(sequence) || signal.aborted) return;
       dispatch({ type: "snapshot", snapshot: conversation, revision, recover: true });
@@ -131,7 +128,7 @@ export default function HelpChatScreen() {
   useEffect(() => {
     const scope = new AbortController();
     requestScope.current = scope;
-    void loadConversation();
+    void Promise.resolve().then(() => loadConversation());
     return () => scope.abort();
   }, [loadConversation]);
 
@@ -189,6 +186,11 @@ export default function HelpChatScreen() {
     };
   }, [threadId, upsertMessage, setThread, requireRefresh]);
 
+  useEffect(() => {
+    if (!userId) return;
+    void saveCachedSupportConversation({ userId, thread, messages }).catch(() => undefined);
+  }, [userId, thread, messages]);
+
   // Auto-scroll to the newest message.
   useEffect(() => {
     if (messages.length === 0) return;
@@ -208,81 +210,35 @@ export default function HelpChatScreen() {
       return;
     }
 
-    const body = question;
+    if (status === "RESOLVED") {
+      Alert.alert("Conversation closed", "Start a new chat to contact support again.");
+      return;
+    }
+
     actionBusy.current = true;
     setSending(true);
     try {
-      // 1. Ensure a thread exists (create one in 'AI' status if needed).
       let activeThread = thread;
       if (!activeThread) {
-        const created = await createSupportThread(userId, "AI", signal);
+        const created = await createSupportThread(userId, signal);
         if (signal.aborted) return;
         activeThread = created;
-        setThread(created);
+        dispatch({ type: "snapshot", snapshot: { userId, thread: created, messages: [] }, revision: threadRevision.current, recover: false });
       }
 
-      // 1b. Reopen a closed conversation so it actually gets a response. We flip
-      //     it back to 'AI'; the Edge Function then decides whether the AI may
-      //     resume or it must go to a human (it re-escalates threads a human had
-      //     already handled, so a prior human transcript is never sent to Gemini).
-      if (activeThread.status === "RESOLVED") {
-        const reopened = await updateSupportStatus(activeThread.id, "AI", signal);
-        if (signal.aborted) return;
-        activeThread = reopened;
-        setThread(reopened);
-      }
-
-      // 2. Optimistically render the user's own bubble (Realtime confirms it).
       const optimistic: ChatMessage = {
         id: `pending-${++localMessageSequence.current}`,
         thread_id: activeThread.id,
         sender: "user",
-        body,
+        body: question,
         created_at: new Date().toISOString(),
         pending: true,
       };
       upsertMessage(optimistic);
 
-      // 3. Insert the user's message.
       const saved = await insertSupportQuestion(activeThread.id, question, signal);
-      // Confirm the bubble even without Realtime; its real id deduplicates a
-      // later event and an AI timeout cannot erase a successfully saved turn.
       if (signal.aborted) return;
       upsertMessage(saved);
-
-      // 4. Trigger the AI ONLY while the thread is still AI-handled. Once
-      //    escalated or taken over by a human, a person replies instead.
-      if (isAiActive(activeThread.status)) {
-        try {
-          await requestSupportReply(activeThread.id, signal);
-        } catch {
-          if (signal.aborted) return;
-          // A timeout does not prove the server failed. Escalate through the
-          // same RLS-protected transition; its locked AI finalizer rechecks
-          // ownership before saving any late reply.
-          let escalated = false;
-          try {
-            const updated = await updateSupportStatus(
-              activeThread.id, "AWAITING_HUMAN", signal,
-            );
-            if (signal.aborted) return;
-            setThread(updated);
-            escalated = true;
-          } catch {
-            if (signal.aborted) return;
-            requireRefresh();
-          }
-          upsertMessage({
-            id: `local-ai-unavailable-${++localMessageSequence.current}`,
-            thread_id: activeThread.id,
-            sender: "ai",
-            body: escalated
-              ? "Our assistant is unavailable right now — a member of the support team will follow up here."
-              : "Your question was saved, but we couldn't confirm a reply or reach support. Check your connection and tap Talk to a human to try again.",
-            created_at: new Date().toISOString(),
-          });
-        }
-      }
     } catch {
       if (signal.aborted) return;
       requireRefresh();
@@ -296,25 +252,21 @@ export default function HelpChatScreen() {
     }
   }
 
-  // ── Escalate to a human ──
-  async function handleTalkToHuman() {
+  async function handleStartNewChat() {
     const signal = requestScope.current?.signal;
     if (actionBusy.current || needsRefresh || loading || loadError || !signal || signal.aborted) return;
     if (!userId) {
       Alert.alert("Not signed in", "Please restart the app and try again.");
       return;
     }
-    // Already with a human (or awaiting one)? Nothing to do.
-    if (status === "AWAITING_HUMAN" || status === "HUMAN") return;
+    if (status !== "RESOLVED") return;
 
     actionBusy.current = true;
-    setEscalating(true);
     try {
-      const updated = thread
-        ? await updateSupportStatus(thread.id, "AWAITING_HUMAN", signal)
-        : await createSupportThread(userId, "AWAITING_HUMAN", signal);
+      const created = await createSupportThread(userId, signal);
       if (signal.aborted) return;
-      setThread(updated);
+      threadRevision.current += 1;
+      dispatch({ type: "new-thread", thread: created });
     } catch {
       if (signal.aborted) return;
       requireRefresh();
@@ -324,7 +276,6 @@ export default function HelpChatScreen() {
       );
     } finally {
       actionBusy.current = false;
-      if (!signal.aborted) setEscalating(false);
     }
   }
 
@@ -406,25 +357,21 @@ export default function HelpChatScreen() {
     <View className="flex-1 bg-slate-50">
       {headerBar}
 
-      {/* Status banner after a human takeover */}
+      {/* Human support status */}
       {handedOff && (
         <View className="flex-row items-center bg-amber-50 px-5 py-2.5">
           <Ionicons name={"person" as IconName} size={14} color="#b45309" />
           <Text className="ml-1.5 flex-1 text-sm font-medium text-amber-800">
-            We'll reply right here. The AI assistant has stepped aside.
+            Your question is with the support team. Replies appear here.
           </Text>
         </View>
       )}
       {resolved && (
-        <View className="flex-row items-center bg-slate-100 px-5 py-2.5">
-          <Ionicons
-            name={"checkmark-circle" as IconName}
-            size={14}
-            color="#475569"
-          />
-          <Text className="ml-1.5 flex-1 text-sm font-medium text-slate-600">
-            This conversation is closed. Send a message to reopen it.
-          </Text>
+        <View className="flex-row items-center bg-slate-100 px-4 py-2.5">
+          <Text className="flex-1 text-sm font-medium text-slate-600">This conversation is closed.</Text>
+          <TouchableOpacity onPress={handleStartNewChat} className="rounded-lg bg-blue-600 px-3 py-2" accessibilityRole="button">
+            <Text className="text-sm font-semibold text-white">New chat</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -442,8 +389,8 @@ export default function HelpChatScreen() {
               color="#16a34a"
             />
             <Text className="ml-2 flex-1 text-xs leading-4 text-green-800">
-              Questions are fixed and never include your personal details.
-              Licence and health card numbers stay on your device only.
+              Support messages are stored so a person can reply and are also
+              kept on this phone. Do not include names, addresses, or ID numbers.
             </Text>
           </View>
 
@@ -461,8 +408,7 @@ export default function HelpChatScreen() {
                 How can we help?
               </Text>
               <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500">
-                Choose a general question below. Our assistant answers right
-                away, and you can talk to a human any time.
+                Choose a general question and a member of our support team will reply here.
               </Text>
             </View>
           ) : (
@@ -503,46 +449,7 @@ export default function HelpChatScreen() {
             })
           )}
 
-          {/* AI typing hint while a send is in flight and the AI is active */}
-          {sending && status !== null && isAiActive(status) && (
-            <View className="mb-3 max-w-[82%] self-start">
-              <Text className="mb-1 ml-1 text-xs font-semibold text-slate-400">
-                AI assistant
-              </Text>
-              <View className="flex-row items-center rounded-2xl rounded-bl-md bg-slate-200 px-4 py-2.5">
-                <ActivityIndicator size="small" color="#64748b" />
-                <Text className="ml-2 text-sm text-slate-500">Typing…</Text>
-              </View>
-            </View>
-          )}
-          {/* Talk-to-a-human action (hidden once already handed off) */}
-          {!handedOff && (
-            <View className="border-t border-slate-100 bg-white px-4 pt-2.5">
-              <TouchableOpacity
-                onPress={handleTalkToHuman}
-                disabled={escalating || sending}
-                className="flex-row items-center justify-center rounded-xl border border-slate-200 bg-slate-50 py-2.5"
-                activeOpacity={0.7}
-              >
-                {escalating ? (
-                  <ActivityIndicator size="small" color="#475569" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={"person-outline" as IconName}
-                      size={16}
-                      color="#475569"
-                    />
-                    <Text className="ml-1.5 shrink text-center text-sm font-semibold text-slate-700">
-                      Talk to a human
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Fixed-question composer: no free-text input can leave the device. */}
+          {/* Fixed-question composer keeps the first version free of personal free text. */}
           <View
             className="border-t border-slate-200 bg-white px-4 pt-3"
             style={{ paddingBottom: insets.bottom + 8 }}
@@ -555,7 +462,7 @@ export default function HelpChatScreen() {
                 <TouchableOpacity
                   key={question}
                   onPress={() => handleSend(question)}
-                  disabled={sending || escalating}
+                  disabled={sending || resolved}
                   className={`mb-2 rounded-xl border px-3 py-2.5 ${largeText ? "w-full" : "w-[49%]"} ${
                     sending
                       ? "border-slate-100 bg-slate-100"
@@ -564,11 +471,11 @@ export default function HelpChatScreen() {
                   activeOpacity={0.75}
                   accessibilityRole="button"
                   accessibilityLabel={`Ask: ${question}`}
-                  accessibilityState={{ disabled: sending || escalating }}
+                    accessibilityState={{ disabled: sending || resolved }}
                 >
                   <Text
                     className={`text-sm font-semibold ${
-                      sending ? "text-slate-400" : "text-blue-800"
+                      sending || resolved ? "text-slate-400" : "text-blue-800"
                     }`}
                   >
                     {question}

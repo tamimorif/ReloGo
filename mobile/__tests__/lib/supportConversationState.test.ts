@@ -84,6 +84,22 @@ it("never retains messages from another conversation after an authoritative refr
   expect(state.messages).toEqual([]);
 });
 
+it("starts a new support thread and clears the resolved conversation", () => {
+  const resolved = { ...thread, status: "RESOLVED" as const };
+  const nextThread = { ...thread, id: "thread-next", status: "AWAITING_HUMAN" as const };
+  let state = reduce(initialConversationState, {
+    type: "snapshot", snapshot: { ...snapshot, thread: resolved }, revision: 0, recover: true,
+  });
+  expect(state.messages).toEqual([message]);
+
+  state = reduce(state, { type: "new-thread", thread: nextThread });
+
+  expect(state.thread?.id).toBe(nextThread.id);
+  expect(state.messages).toEqual([]);
+  expect(state.revision).toBe(1);
+  expect(state.needsRefresh).toBe(false);
+});
+
 it("discards older reconnect success and failure after a newer snapshot starts", async () => {
   const { createSnapshotSequence } = await import("@/lib/supportConversationState");
   const gate = createSnapshotSequence();
