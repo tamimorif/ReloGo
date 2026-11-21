@@ -57,7 +57,7 @@ VALUES (
     '2026-11-15',
     FALSE,
     FALSE,
-    '1.1'
+    '1.2'
 );
 
 INSERT INTO public.global_tasks (
@@ -417,7 +417,7 @@ SELECT throws_ok(
     $$INSERT INTO public.user_profiles (
           id, origin_prov, dest_prov, consent_version)
       VALUES (
-          'fa000000-0000-0000-0000-000000000002', 'ON', 'ON', '1.1')$$,
+          'fa000000-0000-0000-0000-000000000002', 'ON', 'ON', '1.2')$$,
     '23514', NULL,
     '026: a new same-province profile is rejected'
 );
@@ -641,7 +641,7 @@ SELECT is(
 
 SELECT ok(
     NOT (public.get_policy_consent_state()->>'has_current_consent')::BOOLEAN
-    AND public.get_policy_consent_state()->>'accepted_version' = '1.1'
+    AND public.get_policy_consent_state()->>'accepted_version' = '1.2'
     AND public.get_policy_consent_state()->>'current_version' = '2.0',
     '024: stale state still reports versions needed for re-consent'
 );

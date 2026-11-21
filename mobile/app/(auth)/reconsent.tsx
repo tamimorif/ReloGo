@@ -1,11 +1,5 @@
-/**
- * Mandatory legal-policy re-consent for an existing profile.
- *
- * The root auth gate routes here whenever the stored consent version is not
- * exactly the version shipped by this app. The server chooses the persisted
- * version and timestamp; this screen sends no profile fields or on-device PII.
- */
-import { useEffect, useRef, useState } from "react";
+/** Local policy-version gate for a saved checklist on this device. */
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,37 +12,26 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@/app/_layout";
+import { useJourney } from "@/app/_layout";
 import { shouldUseDarkAuthStatusBar } from "@/lib/authStatusBar";
-import { deleteAccount, signOutAccount } from "@/lib/account";
 import {
+  CURRENT_CONSENT_VERSION,
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
 } from "@/lib/legalConsent";
-import { acceptCurrentPolicies } from "@/lib/policyAcceptance";
+import { saveLocalJourney } from "@/lib/localJourney";
 
 export default function ReconsentScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const {
-    session,
-    setHasProfile,
-    setHasCurrentConsent,
-  } = useAuth();
+  const { journey, setJourney } = useJourney();
   const [hasConsented, setHasConsented] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [accountAction, setAccountAction] = useState<
-    "delete" | "signout" | null
-  >(null);
   const [isHeaderPastStatusBar, setIsHeaderPastStatusBar] = useState(false);
   const headerHeightRef = useRef(0);
   const scrollOffsetRef = useRef(0);
-  const requestRef = useRef<AbortController | null>(null);
-  useEffect(() => () => requestRef.current?.abort(), []);
-  const isBusy = isSubmitting || accountAction !== null;
+  const isBusy = isSubmitting;
 
   function updateHeaderStatusBarStyle(
     scrollOffsetY = scrollOffsetRef.current,
@@ -66,7 +49,6 @@ export default function ReconsentScreen() {
   }
 
   async function handleContinue() {
-    if (requestRef.current) return;
     if (!hasConsented) {
       Alert.alert(
         "Consent Required",
@@ -75,98 +57,28 @@ export default function ReconsentScreen() {
       return;
     }
 
-    if (!session) {
-      Alert.alert(
-        "Session unavailable",
-        "Please restart ReloGo and try again.",
-      );
+    if (!journey) {
+      Alert.alert("Move details missing", "Please enter your route again.");
       return;
     }
 
-    const request = new AbortController();
-    requestRef.current = request;
     setIsSubmitting(true);
     try {
-      const profile = await acceptCurrentPolicies(request.signal);
-
-      queryClient.setQueryData(
-        ["profile", session.user.id],
-        profile,
-      );
-      setHasCurrentConsent(true);
+      const updatedJourney = {
+        ...journey,
+        consentVersion: CURRENT_CONSENT_VERSION,
+      };
+      await saveLocalJourney(updatedJourney);
+      setJourney(updatedJourney);
       router.replace("/(tabs)/checklist");
     } catch {
-      if (request.signal.aborted) return;
       Alert.alert(
-        "Couldn't save your consent",
-        "Check your connection and try again. Your on-device personal info is unchanged.",
+        "Couldn't save your choice",
+        "Please try again. Your move details remain on this device.",
       );
     } finally {
-      requestRef.current = null;
-      if (!request.signal.aborted) setIsSubmitting(false);
+      setIsSubmitting(false);
     }
-  }
-
-  function handleDeleteAccount() {
-    Alert.alert(
-      "Delete My Data",
-      "This permanently deletes your anonymous account, checklist progress, and all personal info stored on this device. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete Everything",
-          style: "destructive",
-          onPress: async () => {
-            setAccountAction("delete");
-            try {
-              await deleteAccount();
-              queryClient.clear();
-              setHasProfile(false);
-              setHasCurrentConsent(false);
-              router.replace("/(auth)/onboarding");
-            } catch {
-              Alert.alert(
-                "Deletion failed",
-                "Couldn't delete your account. Check your connection and try again.",
-              );
-            } finally {
-              setAccountAction(null);
-            }
-          },
-        },
-      ],
-    );
-  }
-
-  function handleSignOut() {
-    Alert.alert(
-      "Sign out",
-      "Signing out removes personal info and filled PDFs from this device. Because your account is anonymous, its checklist progress may not be recoverable. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign Out",
-          style: "destructive",
-          onPress: async () => {
-            setAccountAction("signout");
-            try {
-              await signOutAccount();
-              queryClient.clear();
-              setHasProfile(false);
-              setHasCurrentConsent(false);
-              router.replace("/(auth)/onboarding");
-            } catch {
-              Alert.alert(
-                "Sign out failed",
-                "Couldn't finish signing out safely. Please try again.",
-              );
-            } finally {
-              setAccountAction(null);
-            }
-          },
-        },
-      ],
-    );
   }
 
   return (
@@ -202,8 +114,8 @@ export default function ReconsentScreen() {
               Sensitive details stay on this device
             </Text>
             <Text className="mt-1 text-sm leading-5 text-slate-600">
-              Your name, date of birth, street address, driver's licence number,
-              and health-card number remain only on this device.
+              Your route and checklist progress stay on this device. Support
+              conversations are sent to the support team so a person can reply.
             </Text>
           </View>
 
@@ -289,44 +201,6 @@ export default function ReconsentScreen() {
             )}
           </TouchableOpacity>
 
-          <View className="mt-8 border-t border-slate-200 pt-6">
-            <Text className="text-center text-sm leading-5 text-slate-500">
-              If you do not agree to the updated policies, you can permanently
-              delete your account or sign out without accepting them.
-            </Text>
-            <TouchableOpacity
-              onPress={handleDeleteAccount}
-              disabled={isBusy}
-              className="mt-4 min-h-12 py-3 items-center justify-center rounded-xl border border-red-200 bg-red-50"
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Delete My Data without accepting the updated policies"
-              accessibilityState={{ disabled: isBusy }}
-            >
-              {accountAction === "delete" ? (
-                <ActivityIndicator color="#dc2626" />
-              ) : (
-                <Text className="font-semibold text-red-700">
-                  Delete My Data
-                </Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSignOut}
-              disabled={isBusy}
-              className="mt-3 min-h-12 py-3 items-center justify-center rounded-xl"
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Sign out without accepting the updated policies"
-              accessibilityState={{ disabled: isBusy }}
-            >
-              {accountAction === "signout" ? (
-                <ActivityIndicator color="#475569" />
-              ) : (
-                <Text className="font-semibold text-slate-600">Sign out</Text>
-              )}
-            </TouchableOpacity>
-          </View>
         </View>
       </ScrollView>
       <View

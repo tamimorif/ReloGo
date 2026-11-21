@@ -1,3 +1,0 @@
-auth_users=0
-profiles=0
-progress=0

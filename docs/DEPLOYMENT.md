@@ -13,7 +13,7 @@ never infer production approval from a successful preview deploy.
 
 | # | Step | Section |
 | --- | --- | --- |
-| 1 | Rebuild iOS/Android from the reviewed SDK 57 tree after it is committed and the production audit gate is resolved. Recorded builds 8/5 identify `cd3a87c`, predate later recovery changes, and use the older SDK 55 dependency line. After explicit upload authorization, complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-57-eas) |
+| 1 | Rebuild iOS/Android from the committed SDK 57 `main` tip (`69ff576`; the production audit gate is resolved with two reviewed, time-boxed exceptions). Recorded builds 8/5 identify `cd3a87c`, predate later recovery changes, and use the older SDK 55 dependency line; no EAS build exists from the SDK 57 tree yet. After explicit upload authorization, complete real-device startup, offline/recovery, PDF, deletion, and privacy QA | [§4](#4-mobile-app-expo-sdk-57-eas) |
 | 2 | Correct and approve store/privacy metadata, then submit/release iOS 1.0.1 only after device, legal, store, and operations approval | [§4](#4-mobile-app-expo-sdk-57-eas) |
 | 3 | Confirm an owner-controlled Google Play publication path after Android device QA; the current public 404 is not publication-history evidence | [§4](#4-mobile-app-expo-sdk-57-eas) |
 | 4 | After explicit approval, apply pending migrations 027 and 028 to production, verify monitoring and admin boundaries, then trigger `.github/workflows/worker.yml` on the verified coordinated `main` worker; require all automatic checks and both manual Yukon assignments in the summary, and configure/test alert webhook ownership | [§1](#1-supabase-database), [§5](#5-rule-monitor-worker-python-311--playwright), [§8](#8-incident-runbook-and-monitoring) |
@@ -27,16 +27,16 @@ project. Values remain platform-managed and are not committed.
 
 Deployment baseline (2026-08-17); production migration, admin, and default-branch
 worker state rechecked read-only on 2026-09-14; repository and web-deployment
-state rechecked read-only on 2026-09-24; git state reverified 2026-10-05
-(`main` == `origin/main` == `0c78e56`; local `tamim` clean with committed,
-unpushed follow-ups on top of `origin/tamim` == `fff31da`; only these two
-branches exist):
+state rechecked read-only on 2026-09-24; git state reverified 2026-10-16
+(`main` == `origin/main` == `69ff576`, PR #7 merged 2026-10-10; `tamim` ==
+`origin/tamim` == `c7e4dcd`, fully pushed; only these two branches exist —
+superseding the 2026-10-05 check against `0c78e56`/`fff31da`):
 
 | Target | State |
 | --- | --- |
 | Preview Supabase `uwfblgllkibbupqyofkl` | Deliberately paused after exact 001–026, JWT-protected `support-ai` v3, and passing hosted smoke |
 | Production Supabase `yskknolxbxfxakgvrcmg` | Exact 001–026 reverified; 027 monitoring columns absent, 017 admin signup trigger still present; 027/028 pending approval. One existing admin membership, none unconfirmed. Earlier v5 JWT/authenticated smoke remains historical evidence; rerun the release gates after rollout |
-| Mobile | The active local 1.0.1 tree now targets Expo SDK 57.0.27 / React Native 0.86.3 and launched on the Xcode 27 iPhone 17 simulator against local Supabase; changes remain uncommitted. Recorded `cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives, but use the older SDK 55 dependency line and predate later recovery changes. Neither was uploaded or submitted; rebuild from the reviewed SDK 57 tree after commit and audit-gate resolution, then complete real-device QA and approval. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
+| Mobile | The 1.0.1 tree targets Expo SDK 57.0.27 / React Native 0.86.3 and launched on the Xcode 27 iPhone 17 simulator against local Supabase; it is committed as `main` `69ff576` (PR #7 merged 2026-10-10), with branch `tamim` == `origin/tamim` == `c7e4dcd` carrying the same tree, fully pushed. No EAS production build exists from this SDK 57 tree. Recorded `cd3a87c` iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) `FINISHED` with verified archives, but were built on the older SDK 55 dependency line and remain superseded. Neither was uploaded or submitted; rebuild from current `main` (expected iOS build 9 / Android versionCode 6; audit gate passing with two reviewed exceptions), then complete release-build and real-device QA and approval. Historical exact-`e75f449` iOS build 7 remains in internal TestFlight but is not the current candidate |
 | Web/admin | Reviewed admin recovery is live at `https://relo-go.vercel.app`; landing is live at `https://relogo-two.vercel.app` and, per 2026-09-24 probes, already serves the current Privacy/Support/Terms pages, while `relo-go` still returns SPA HTML for `/vite.svg` and missing `/assets/*.js` (local favicon/404 fix awaits an explicit deploy); main run `30843906264` passed public web/auth/resolver checks with required backend probes |
 | Worker/uptime | The coordinated worker is already on default branch `main`, but its preflight cannot run against production 026. Migration 027 still requires approved rollout and a live rerun. All nine replacement source rows passed fresh read-only reachability checks; the exact production mapping matches 11 rows. Two Yukon sources remain owned 30-day manual assignments. Historical worker evidence is 43/53 baselines and three PENDING alerts; `ALERT_WEBHOOK_URL` is unset |
 | GitHub | Pull request #2 merged recovery as `e75f449`. Pull request #3 final head `3f063e9` passed all 19 checks, its sole review thread was fixed/resolved, and it merged as `d2db994` |
@@ -51,7 +51,7 @@ coordinated worker cannot pass preflight until migration 027 is hosted.
 ## 1. Supabase (database)
 
 Migrations live in `supabase/migrations/` and are the single schema source of
-truth (`001_init.sql` through local `028_explicit_admin_membership.sql`). Never
+truth (`001_init.sql` through `028_explicit_admin_membership.sql`). Never
 edit a hosted schema by hand or rewrite a deployed migration. Migrations 027 and
 028 are pending explicit rollout approval and have not been applied to hosted
 production.
@@ -68,11 +68,11 @@ support, and progress tables contain zero rows. Recovery migrations add:
 - 024: one consent/bootstrap response with profile only for current consent;
 - 025: `AVAILABLE`/`COMPLETED` progress only;
 - 026: rejection of new/updated same-origin/destination moves;
-- 027 (local/pending): worker-private first-party monitor targets for nine
+- 027 (committed, awaiting authorized rollout): worker-private first-party monitor targets for nine
   previously failed rows, explicit owned manual monitoring for two Yukon rows,
   and a persistence guard that rejects manual rows. It does not change public
   canonical source links or any live corridor rule; and
-- 028 (local/pending): removal of email-based automatic admin grants. Existing
+- 028 (committed, awaiting authorized rollout): removal of email-based automatic admin grants. Existing
   memberships remain intact; new grants require explicit trusted provisioning
   of a reviewed Auth user ID.
 
@@ -484,8 +484,9 @@ The reviewed current recovery build is deployed to production at
 `https://relo-go.vercel.app`, and the manual seven-route public check includes
 its admin marker. The local `admin/.vercel/project.json` link already names
 project `relo-go` with root `admin`, so no relink is required. The committed
-`fff31da` admin favicon/missing-asset fix still needs an explicit deploy of the
-`tamim` recovery tree to that project; use a preview deployment before promotion.
+admin favicon/missing-asset fix (from the now-merged `fff31da` tree, on `main`
+`69ff576`) still needs an explicit deploy of the current `main` recovery tree
+to that project; use a preview deployment before promotion.
 
 ## 4. Mobile app (Expo SDK 57, EAS)
 
@@ -511,25 +512,31 @@ passed the release contract and existing remote signing credentials worked;
 no credential or password was requested. iOS build 7 was successfully uploaded
 on 2026-08-04 and is `VALID`/`IN_BETA_TESTING` in internal TestFlight; it has
 not been submitted for App Review. Android build 4 has not been uploaded to
-Google Play. Both artifacts predate the current `tamim` startup and dependency
-fixes, so they are historical evidence rather than current release candidates.
-Current production replacements both `FINISHED` from exact green `tamim` commit
-`cd3a87c`: iOS version 1.0.1 build 8, EAS
+Google Play. Both artifacts predate the current recovery tree's startup and
+dependency fixes, so they are historical evidence rather than current release
+candidates.
+The most recent recorded replacements both `FINISHED` from exact green `tamim`
+commit `cd3a87c`: iOS version 1.0.1 build 8, EAS
 `daa8e42a-c12d-4365-b6ca-ff36732cd858`, and Android version 1.0.1 build 5, EAS
 `f839dede-1f83-4c6a-a928-de258597e6d0`. Their archives and embedded production
-metadata passed integrity checks. Neither was uploaded or submitted to a store.
+metadata passed integrity checks. Neither was uploaded or submitted to a store,
+and both use the older SDK 55 dependency line — no EAS production build exists
+from the current SDK 57 `main` tree (`69ff576`); rebuild from current `main`
+before any upload, expecting iOS build 9 / Android versionCode 6.
 Cloud build completion still cannot replace real-device evidence or approval.
 Prioritize the iOS recovery because broken 1.0 is publicly downloadable there.
 Google Play currently returns 404 for `com.relogo.app`; that proves only that it
 is not publicly available now, not whether it was previously published.
-The mobile production audit now fails on every high/critical finding and on
-unavailable or malformed advisory data. There is no Metro/`image-size`
-exception. A 2026-10-06 SDK 57 recheck shows that `npm run audit:production`
-still fails closed (23 high, 7 moderate, 0 critical) after semver-compatible
-updates cleared the critical `shell-quote` finding. `braces`
-(GHSA-vfj7-8cjw-p6xm) and `node-forge` (GHSA-86w9-cpqp-85rv) remain among the
-high findings; do not weaken the gate, and treat this as an owner/engineering
-release blocker. The landing `next` critical RCE
+The mobile production audit gate was resolved on 2026-10-10 and passes as
+rechecked 2026-10-16. `npm run audit:production` still fails closed on every
+high/critical finding and on unavailable or malformed advisory data, with two
+owner-approved, narrowly scoped, time-boxed exceptions: `braces`
+(GHSA-vfj7-8cjw-p6xm) and `node-forge` (GHSA-86w9-cpqp-85rv), each reached only
+through build-time tooling chains; re-review is required by 2026-12-01.
+Critical findings are never excepted and there is no Metro/`image-size`
+exception; do not weaken the gate. Historical 2026-10-06 recheck: 23 high,
+7 moderate, 0 critical after semver-compatible updates cleared the critical
+`shell-quote` finding. The landing `next` critical RCE
 (GHSA-vcvr-r3jv-pc5j) was cleared by refreshing the lockfile to `next@16.3.8`
 within the existing `^16.3.5` range (0 vulnerabilities after `npm ci`).
 React Native and its community CLI plugin are `0.86.3`; SDK 57 manages its
@@ -541,18 +548,24 @@ The exact `xcode@3.0.1` override still pins the CommonJS-compatible
 The historical 2026-08-17 mobile gates passed: release configuration,
 TypeScript, lint, 13 Jest suites with 133/133 tests, iOS export at 1,753
 modules/5.8 MB Hermes bytecode, Android export at 1,774 modules/5.9 MB Hermes
-bytecode, and the then-current production audit. The committed `fff31da` tree
-records 15 suites/161 tests and 1,569/1,590-module exports; rerun the commands
-below on the final source tree and build replacements from `fff31da` before
-shipping these fixes. Cloud build completion does
+bytecode, and the then-current production audit. The earlier `fff31da` tree
+historically recorded 15 suites/161 tests and 1,569/1,590-module exports; rerun
+the commands below on the final source tree and build replacements from the
+current `main` tip (`69ff576`, SDK 57; expected iOS build 9 / Android
+versionCode 6) before shipping these fixes. Cloud build completion does
 not replace real-device QA or store-submission evidence. Do not create duplicate
 builds merely to reproduce their successful status. For internal iOS QA, only
-with explicit owner authorization, upload a fresh `fff31da` build (expected
+with explicit owner authorization, upload a fresh `main` build (expected
 build 9) to TestFlight,
 then install it with an App Store Connect internal tester. EAS device
 registration is not required. Before automated Android submission, the owner
-must provide/review a Google Play service-account key; otherwise use a
-documented owner-controlled manual path.
+must provide/review a Google Play service-account key (the gitignored
+`mobile/google-play-service-account.json` path is preconfigured in the
+uncommitted working tree, pending review; no key is
+provisioned yet — if the Play developer account is a personal account created
+after Nov 13, 2023, Google requires 12+ testers for 14+ continuous days of
+closed testing before production access, and the owner must confirm the
+account type), otherwise use a documented owner-controlled manual path.
 
 ```bash
 cd mobile
@@ -633,7 +646,7 @@ a build pass.
 The startup recovery removes network work from the static splash path, bounds
 session restore at 3 seconds and consent/profile bootstrap at 5 seconds, avoids
 duplicate initial-session requests, reuses the bootstrap profile, and defers the
-heavy PDF engine until an explicit tap. After current consent is confirmed it
+heavy PDF engine (no fill UI ships in 1.0.1; preserved for Phase 2). After current consent is confirmed it
 prefetches corridor rules and progress during route rendering; the checklist
 reuses those exact in-flight queries. Checklist profile/rules/progress reads
 abort after 8 seconds and use `retry: false`. Onboarding writes only minimal
@@ -653,15 +666,17 @@ copy the new hash: inspect actions and links, revalidate every mapped field,
 repeat editable Unicode round-trip tests, and obtain the required content/legal
 review before repinning it.
 
-Real-device PDF QA must also confirm that over-limit and integrity failures
-occur before local PII is read, backgrounding cancels an active blank-form
-transfer, mapped and Unicode values render in an editable form, and the
-pre-share warning appears before the chooser. On Android, cancel the chooser
-once and share once to an asynchronous target such as Gmail or Drive: the
-receiver must remain able to read during the ten-minute grace, and ReloGo's
-exact cached source must be gone once the app is active after that grace. App
-start and next fill reschedule younger files or delete expired ones; sign-out
-and account deletion wipe the cache unconditionally.
+The BC PDF fill/share flow is module-only in 1.0.1 (no fill UI ships; see
+`docs/QA_TEST_PLAYBOOK.md` intentional non-features), so its real-device QA
+belongs to the Phase 2 integration: when that flow ships, confirm over-limit
+and integrity failures occur before local PII is read, backgrounding cancels
+an active blank-form transfer, mapped and Unicode values render in an editable
+form, and the pre-share warning appears before the chooser. On Android at that
+time, cancel the chooser once and share once to an asynchronous target such as
+Gmail or Drive: the receiver must remain able to read during the ten-minute
+grace, and ReloGo's exact cached source must be gone once the app is active
+after that grace. App start and next fill reschedule younger files or delete
+expired ones; sign-out and account deletion wipe the cache unconditionally.
 
 For local development copy `mobile/.env.example` to `mobile/.env`.
 
@@ -1181,8 +1196,8 @@ print(f'SUCCESS: Webhook delivered ({detail}).')
    authentication failure or rotating a valid key unnecessarily.
 3. Triage every failed automatic source and verify every manual assignment is
    listed. The last live incident contained 11 failed rows across 10 URLs; the
-   local migration 027 treatment is not production evidence until it is
-   reviewed, applied to the explicitly targeted project, and verified by a live
+   committed migration 027 treatment is not production evidence until it is
+   approved, applied to the explicitly targeted project, and verified by a live
    rerun of the coordinated worker already on `main`. Do not
    silently wait for the next cron or treat a 30-day assignment as proof of
    review.

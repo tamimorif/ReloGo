@@ -6,7 +6,7 @@ import { SUPPORT_EMAIL } from "@/lib/support";
 
 const SUPPORT_TITLE = "Support - ReloGo";
 const SUPPORT_DESCRIPTION =
-  "Get help with the ReloGo app, your relocation checklist, account data, or the website waitlist.";
+  "Get help with the ReloGo app, your checklist, support conversation, or the website waitlist.";
 
 export const metadata: Metadata = {
   title: SUPPORT_TITLE,
@@ -71,7 +71,7 @@ export default function SupportPage() {
           ReloGo Support
         </h1>
         <p className="mt-3 leading-relaxed text-slate-600">
-          Help with the mobile app, your relocation checklist, account data,
+          Help with the mobile app, your checklist, support conversation,
           or the website waitlist.
         </p>
 
@@ -84,24 +84,23 @@ export default function SupportPage() {
             <span className="font-semibold text-slate-900">
               For app questions, start in ReloGo:
             </span>{" "}
-            open the Support tab and choose one of the prepared questions. You
-            can receive guidance there, and a human support agent can take over
-            when needed.
+            open the Move tab and tap Human support, then choose one of the
+            prepared questions. A human support team member can reply there.
           </p>
         </div>
 
         <Section title="Get help in the app">
           <ol className="ml-5 list-decimal space-y-2">
-            <li>Open ReloGo and select the Support tab.</li>
+            <li>Open the Move tab and tap Human support.</li>
             <li>Choose the prepared question that best matches your issue.</li>
             <li>
-              Keep the conversation open for the response or a human follow-up.
+              Reopen Help later to see the conversation and any human reply.
             </li>
           </ol>
           <p>
             Support questions are intentionally limited to general, prepared
             options. This helps keep names, addresses, dates of birth, and
-            government document numbers out of support messages and AI prompts.
+            government document numbers out of support messages.
           </p>
         </Section>
 
@@ -142,15 +141,16 @@ export default function SupportPage() {
           </div>
         </Section>
 
-        <Section title="Account and data help">
+        <Section title="Move data and support chats">
           <p>
-            To permanently remove your anonymous account and its checklist data,
-            open the app and go to{" "}
+            Move details and checklist checkmarks stay on the device. To clear
+            them, open the Move tab and choose{" "}
             <span className="font-medium text-slate-900">
-              Profile &rarr; Delete My Data
+              Clear this device&apos;s checklist
             </span>
-            . This also clears personal details and filled-form files stored by
-            ReloGo on your device.
+            . This does not remove a support conversation stored on our server.
+            The current app has no self-service chat deletion control; contact
+            options for privacy requests are listed below.
           </p>
           <p>
             {SUPPORT_EMAIL

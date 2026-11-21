@@ -1,12 +1,18 @@
 # ReloGo — Project Map
 
-An annotated tour of the current shared tree, grouped by app. The recovery
-fixes, migrations 027–028, and QA artifacts are committed in `fff31da`; local
-branch `tamim` also has committed, unpushed status-doc and landing
-`next@16.3.8` follow-ups (`3d156ec` and later) on top of `origin/tamim`. Build
-output, `node_modules/`, `.env` files, and other ignored paths are omitted. For
-prose descriptions see [README.md](../../README.md); for current agent context
-see [AI_HANDOFF.md](AI_HANDOFF.md).
+An annotated tour of the current shared tree, grouped by app. This is a source
+map; branch, release, and hosted-environment status belongs in
+[PLAN.md](../PLAN.md) and [AI_HANDOFF.md](AI_HANDOFF.md), where it is dated.
+Build output, `node_modules/`, `.env` files, and other ignored paths are
+omitted. For product context see [README.md](../../README.md).
+
+**Current source scope (2026-11-16):** mobile asks for origin/destination city
+and province, plus optional Yes / No / Skip answers for vehicle registration
+and school-age children. Route details, answers, and checkmarks stay on the
+device. Human support uses fixed questions and server-stored chats so Admin can
+reply. There is no move date, map, AI call, PDF form-filling, name, or user
+account form in this MVP. The source is unbuilt and unpublished; the legacy AI
+Edge Function and profile/progress database surfaces remain.
 
 > ReloGo = four independent apps + one Supabase backend. **No monorepo tooling** —
 > each app has its own `package.json`/`requirements.txt`, `.env.example`, and lockfile,
@@ -38,7 +44,7 @@ ReloGo/
 ├── package.json               ← root: only @vercel/analytics (near-empty; not a workspace root)
 ├── .gitignore                 ← covers all apps; .env ignored, .env.example committed
 │
-├── mobile/            ← THE PRODUCT — Expo SDK 55 / React Native 0.83 / expo-router
+├── mobile/            ← THE PRODUCT — Expo SDK 57 / React Native 0.86 / expo-router
 ├── landing/           ← marketing + waitlist — Next.js 16 (static export)
 ├── admin/             ← rule/user/support dashboard — Vite 5 + React 18
 ├── worker/            ← gov-source change monitor — Python 3.11 + Playwright
@@ -55,32 +61,30 @@ mobile/
 │   ├── index.tsx               ← entry redirect (→ onboarding or tabs)
 │   ├── (auth)/
 │   │   ├── _layout.tsx
-│   │   ├── onboarding.tsx      ← move details + policy consent → signInAnonymously()
-│   │   └── reconsent.tsx       ← mandatory current-policy review, decline/sign-out/delete paths
+│   │   ├── onboarding.tsx      ← route + optional checklist preferences
+│   │   └── reconsent.tsx       ← local policy-version review
 │   └── (tabs)/
 │       ├── _layout.tsx         ← bottom tab bar
-│       ├── checklist.tsx       ← filtered, deadline-sorted task list (optimistic toggles)
-│       ├── profile.tsx         ← move details + on-device PII vault + “Delete My Data”
-│       └── contact.tsx         ← fixed-question support chat → support-ai Edge Function
+│       ├── checklist.tsx       ← route task list, relative timing, local checkmarks
+│       ├── profile.tsx         ← move details + local checklist reset + help link
+│       └── contact.tsx         ← fixed-question human support chat
 ├── components/
+│   ├── MovePreferences.tsx     ← shared Yes / No / Skip checklist questions
 │   └── AppErrorBoundary.tsx    ← top-level PII-safe crash boundary (generic recovery UI)
 ├── lib/
 │   ├── supabase.ts             ← typed client + AES-encrypted session store, foreground-only refresh
-│   ├── secureStore.ts          ← on-device PII vault (expo-secure-store) — PII NEVER leaves the device
-│   ├── account.ts              ← secure sign-out/deletion + PII/session cleanup
-│   ├── pdfEngine.ts            ← modular on-device PDF filler (preserved for Phase 2 gov integration)
-│   ├── pdfTemplates.ts         ← destination/task PDF template registry (preserved for Phase 2)
-│   ├── legalConsent.ts         ← mobile policy version + hosted legal URLs
-│   ├── supportQuestions.ts      ← the only six client-sendable support questions
+│   ├── localJourney.ts         ← device-only route and per-corridor checkmarks
+│   ├── checklistQueries.ts     ← public rule fetch + local progress
+│   ├── supportConversation.ts  ← anonymous identity, remote chat, local chat cache
+│   ├── legalConsent.ts         ← local policy version + hosted legal URLs
+│   ├── supportQuestions.ts      ← six client-sendable fixed questions
 │   ├── errorReporting.ts       ← PII-safe crash/error redaction + global handler; unit-tested
-│   └── dateHelpers.ts          ← pure local-time date math (deadline calc); unit-tested
-├── __tests__/lib/              ← account/date/support/legal/PDF/error-reporting Jest tests
+├── __tests__/lib/              ← remaining local logic/support/error-reporting tests
 ├── eslint.config.js            ← Expo flat ESLint config (CI-gated via mobile-lint job)
-├── types/database.ts           ← Supabase types; extracted Database interface syncs with admin
-├── assets/pdfs/sample-form.pdf ← unused legacy development fixture; production form is remote
+├── types/database.ts           ← Supabase types; legacy profile/progress types remain for backend sync
 ├── app.json, eas.json          ← authoritative Expo app config + EAS build profiles
 ├── jest.config.js              ← ts-jest (node env) for pure-logic tests
-├── package.json                ← Expo SDK 55 / React Native 0.83 dependencies and scripts
+├── package.json                ← Expo SDK 57 / React Native 0.86 dependencies and scripts
 └── babel · metro · tailwind · global.css · nativewind-env.d.ts · tsconfig.json
 ```
 
@@ -172,9 +176,10 @@ supabase/
 │   ├── 024_consent_state_profile_payload.sql ← allowlisted startup profile in consent response
 │   ├── 025_available_only_progress.sql ← removes unused LOCKED progress state
 │   ├── 026_distinct_move_provinces.sql ← rejects new/updated same-origin/destination moves
-│   ├── 027_worker_source_monitoring.sql ← local/pending private monitor targets + owned manual assignments
-│   └── 028_explicit_admin_membership.sql ← local/pending removal of email-based admin grants
-├── functions/support-ai/       ← Deno/Gemini Edge Function and pure helpers
+│   ├── 027_worker_source_monitoring.sql ← committed, unhosted monitor targets/manual assignments
+│   ├── 028_explicit_admin_membership.sql ← committed, unhosted removal of email-based admin grants
+│   └── 029_policy_version_1_2.sql     ← local policy contract update; not hosted
+├── functions/support-ai/       ← retained legacy Deno/Gemini function; current mobile does not call it
 │   ├── index.ts, grounding.ts, humanTakeover.ts, supportQuestions.ts, deno.lock
 ├── tests/rls_and_rpcs_test.sql ← adversarial pgTAP security/RPC suite
 ├── config.toml                 ← local Supabase configuration

@@ -2,9 +2,8 @@
  * The only support questions the mobile client may send.
  *
  * This fixed vocabulary is a privacy boundary: users cannot type names,
- * addresses, document numbers, or other PII into the server-backed support
- * transcript. Keep the marked block byte-identical to
- * supabase/functions/support-ai/supportQuestions.ts; CI verifies the match.
+ * addresses, document numbers, or other personal information into the
+ * server-backed support transcript. The database also enforces this list.
  */
 
 // SUPPORT_QUESTIONS_START

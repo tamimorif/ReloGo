@@ -126,8 +126,8 @@ INSERT INTO public.user_profiles (
     consent_version
 )
 VALUES
-    ('00000000-0000-0000-0000-00000000000a', 'ON', 'AB', '2026-09-01', false, false, '1.1'),
-    ('00000000-0000-0000-0000-00000000000b', 'BC', 'ON', '2026-10-01', false, false, '1.1');
+    ('00000000-0000-0000-0000-00000000000a', 'ON', 'AB', '2026-09-01', false, false, '1.2'),
+    ('00000000-0000-0000-0000-00000000000b', 'BC', 'ON', '2026-10-01', false, false, '1.2');
 
 INSERT INTO public.user_task_progress (user_id, task_rule_id, status)
 VALUES
@@ -164,7 +164,7 @@ SELECT throws_ok(
     $$INSERT INTO public.user_profiles (
           id, origin_prov, dest_prov, consent_version)
       VALUES (
-          '00000000-0000-0000-0000-00000000000b', 'ON', 'AB', '1.1')$$,
+          '00000000-0000-0000-0000-00000000000b', 'ON', 'AB', '1.2')$$,
     '42501', NULL,
     'A: inserting a profile under someone else''s id is rejected by WITH CHECK'
 );
@@ -1826,7 +1826,7 @@ SELECT lives_ok(
 
 SELECT is(
     public.accept_current_policies(),
-    '1.1',
+    '1.2',
     'O: a user can accept exactly the server-current policy version'
 );
 
@@ -1859,12 +1859,12 @@ SELECT is(
 
 SELECT is(
     public.current_policy_version(),
-    '1.1',
+    '1.2',
     'O: the server exposes one current policy version to all consent gates'
 );
 
 -- Simulate a future policy release without changing any client code. Existing
--- 1.1 profiles must lose normal app access, while the state/accept/delete RPCs
+-- 1.2 profiles must lose normal app access, while the state/accept/delete RPCs
 -- remain available so an upgraded client can re-consent or erase the account.
 RESET ROLE;
 CREATE OR REPLACE FUNCTION public.current_policy_version()
@@ -1882,7 +1882,7 @@ SELECT is(
     public.get_policy_consent_state(),
     jsonb_build_object(
         'has_profile', true,
-        'accepted_version', '1.1',
+        'accepted_version', '1.2',
         'current_version', '2.0',
         'has_current_consent', false,
         'profile', NULL

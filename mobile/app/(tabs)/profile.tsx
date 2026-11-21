@@ -1,715 +1,247 @@
-/**
- * Profile screen.
- *
- * Three sections:
- * 1. Move details — origin/destination provinces, move date, vehicle and
- *    dependents flags. Stored in Supabase (user_profiles, non-PII only).
- * 2. Personal info — full name, DOB, street address, health card and
- *    driver's licence numbers. PIPEDA: these live ONLY in the device
- *    secure enclave (expo-secure-store) and are never sent to Supabase,
- *    logged, or included in error messages.
- * 3. Account — sign out and "Delete My Data" (server row + cascade,
- *    on-device PII, filled PDFs, local session).
- */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  Platform,
   ScrollView,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/app/_layout";
-import { deleteAccount, signOutAccount } from "@/lib/account";
-import { deletePII, getPII, savePII } from "@/lib/secureStore";
-import {
-  PIIKey,
-  Province,
-  PROVINCE_LABELS,
-  PROVINCES,
-} from "@/types/database";
-import { parseISODate, toISODate } from "@/lib/dateHelpers";
-import { profileQueryOptions, PROFILE_REQUEST_TIMEOUT_MS } from "@/lib/profileQueries";
-import { withAbortableTimeout } from "@/lib/startupTimeout";
-
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
-
-// ──────────────────────────────────────────────
-// On-device PII fields (never leave the device)
-// ──────────────────────────────────────────────
-
-const PII_FIELDS: {
-  key: PIIKey;
-  label: string;
-  placeholder: string;
-  sensitive: boolean;
-}[] = [
-  {
-    key: "FULL_NAME",
-    label: "Full name",
-    placeholder: "e.g. Jane Doe",
-    sensitive: false,
-  },
-  {
-    key: "DATE_OF_BIRTH",
-    label: "Date of birth",
-    placeholder: "YYYY-MM-DD",
-    sensitive: false,
-  },
-  {
-    key: "STREET_ADDRESS",
-    label: "New street address",
-    placeholder: "e.g. 123 Main St, Calgary",
-    sensitive: false,
-  },
-  {
-    key: "HEALTH_CARD_NUMBER",
-    label: "Health card number",
-    placeholder: "Stored on this device only",
-    sensitive: true,
-  },
-  {
-    key: "DRIVERS_LICENCE_NUMBER",
-    label: "Driver's licence number",
-    placeholder: "Stored on this device only",
-    sensitive: true,
-  },
-];
-
-// ──────────────────────────────────────────────
-// Screen
-// ──────────────────────────────────────────────
+import { useQueryClient } from "@tanstack/react-query";
+import { MovePreferences } from "@/components/MovePreferences";
+import { useJourney } from "@/app/_layout";
+import { TASK_PROGRESS_QUERY_KEY } from "@/lib/checklistQueries";
+import { clearLocalJourney, saveLocalJourney, type LocalJourney } from "@/lib/localJourney";
+import { PROVINCES, PROVINCE_LABELS, type Province } from "@/types/database";
 
 export default function ProfileScreen() {
-  const { session, setHasProfile } = useAuth();
-  const userId = session?.user?.id;
-  const queryClient = useQueryClient();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { journey, setJourney } = useJourney();
+  const [draft, setDraft] = useState<Partial<LocalJourney> | null>(null);
+  const [picker, setPicker] = useState<"origin" | "destination" | null>(null);
+  const originCity = draft?.originCity ?? journey?.originCity ?? "";
+  const destinationCity = draft?.destinationCity ?? journey?.destinationCity ?? "";
+  const originProvince = draft?.originProvince ?? journey?.originProvince ?? null;
+  const destinationProvince = draft?.destinationProvince ?? journey?.destinationProvince ?? null;
+  const hasVehicle = draft && "hasVehicle" in draft
+    ? draft.hasVehicle ?? null
+    : journey?.hasVehicle ?? null;
+  const hasSchoolAgeChildren = draft && "hasSchoolAgeChildren" in draft
+    ? draft.hasSchoolAgeChildren ?? null
+    : journey?.hasSchoolAgeChildren ?? null;
 
-  // ── Move details form state ──────────────────
-  const [originProvince, setOriginProvince] = useState<Province | null>(null);
-  const [destProvince, setDestProvince] = useState<Province | null>(null);
-  const [moveDate, setMoveDate] = useState<Date | null>(null);
-  const [hasVehicle, setHasVehicle] = useState(false);
-  const [hasDependents, setHasDependents] = useState(false);
-  const [showOriginPicker, setShowOriginPicker] = useState(false);
-  const [showDestPicker, setShowDestPicker] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [formHydrated, setFormHydrated] = useState(false);
-
-  // ── PII form state (device-only) ─────────────
-  const [piiValues, setPiiValues] = useState<Record<PIIKey, string>>({
-    FULL_NAME: "",
-    DATE_OF_BIRTH: "",
-    STREET_ADDRESS: "",
-    HEALTH_CARD_NUMBER: "",
-    DRIVERS_LICENCE_NUMBER: "",
-  });
-  const [piiLoaded, setPiiLoaded] = useState(false);
-  const [savingPII, setSavingPII] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
-
-  // 1. Profile ────────────────────────────────
-  const profileQuery = useQuery(profileQueryOptions(userId));
-
-  // Hydrate the form once when the profile first arrives.
-  useEffect(() => {
-    const profile = profileQuery.data;
-    if (!profile || formHydrated) return;
-    // The remote profile initializes editable local form state exactly once.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- This is a one-time hydration after the async profile query resolves.
-    setOriginProvince(profile.origin_prov);
-    setDestProvince(profile.dest_prov);
-    setMoveDate(profile.move_date ? parseISODate(profile.move_date) : null);
-    setHasVehicle(profile.has_vehicle);
-    setHasDependents(profile.has_dependents);
-    setFormHydrated(true);
-  }, [profileQuery.data, formHydrated]);
-
-  // Load on-device PII once. Values stay in component state only.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const entries = await Promise.all(
-          PII_FIELDS.map(
-            async (field) =>
-              [field.key, (await getPII(field.key)) ?? ""] as const,
-          ),
-        );
-        if (!cancelled) {
-          setPiiValues((prev) => {
-            const next = { ...prev };
-            for (const [key, value] of entries) next[key] = value;
-            return next;
-          });
-        }
-      } catch {
-        // Secure store unavailable — leave fields blank. Never log PII.
-        if (!cancelled) {
-          Alert.alert(
-            "Secure storage unavailable",
-            "Couldn't read your on-device info. Your data is unchanged.",
-          );
-        }
-      } finally {
-        if (!cancelled) setPiiLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // 2. Save move details ───────────────────────
-  const saveProfileMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await withAbortableTimeout(
-        (signal) => supabase
-        .from("user_profiles")
-        .update({
-          origin_prov: originProvince,
-          dest_prov: destProvince,
-          move_date: moveDate ? toISODate(moveDate) : null,
-          has_vehicle: hasVehicle,
-          has_dependents: hasDependents,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId!)
-        .abortSignal(signal),
-        PROFILE_REQUEST_TIMEOUT_MS,
-      );
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
-      queryClient.invalidateQueries({ queryKey: ["corridorRules"] });
-      Alert.alert("Saved", "Your move details have been updated.");
-    },
-    onError: () => {
-      Alert.alert(
-        "Update failed",
-        "Couldn't save your move details. Please try again.",
-      );
-    },
-  });
-
-  // ── Handlers ─────────────────────────────────
-
-  function handleDateChange(_event: DateTimePickerEvent, selectedDate?: Date) {
-    setShowDatePicker(Platform.OS === "ios");
-    if (selectedDate) {
-      setMoveDate(selectedDate);
-    }
+  function updateDraft<K extends keyof LocalJourney>(key: K, value: LocalJourney[K]) {
+    setDraft((current) => ({ ...(current ?? {}), [key]: value }));
   }
 
-  function handleSaveProfile() {
-    if (!userId) return;
-    if (!originProvince || !destProvince) {
+  async function saveMoveDetails() {
+    if (
+      !journey ||
+      !originProvince ||
+      !destinationProvince ||
+      !originCity.trim() ||
+      !destinationCity.trim()
+    ) {
       Alert.alert(
-        "Missing Info",
-        "Please select both your origin and destination province or territory.",
+        "Missing move details",
+        "Enter both cities and choose both provinces.",
       );
       return;
     }
-    if (originProvince === destProvince) {
+    if (originProvince === destinationProvince) {
       Alert.alert(
         "Same jurisdiction",
-        "Origin and destination must be different provinces or territories.",
+        "Choose a different destination province or territory.",
       );
       return;
     }
-    saveProfileMutation.mutate();
-  }
 
-  async function handleSavePII() {
-    setSavingPII(true);
+    const updated = {
+      ...journey,
+      hasVehicle,
+      hasSchoolAgeChildren,
+      originCity: originCity.trim(),
+      destinationCity: destinationCity.trim(),
+      originProvince,
+      destinationProvince,
+    };
     try {
-      await Promise.all(
-        PII_FIELDS.map((field) => {
-          const value = piiValues[field.key].trim();
-          return value.length > 0
-            ? savePII(field.key, value)
-            : deletePII(field.key);
-        }),
-      );
+      await saveLocalJourney(updated);
+      setJourney(updated);
+      setDraft(null);
       Alert.alert(
-        "Saved on device",
-        "Your personal info is stored securely on this device only.",
+        "Saved on this device",
+        "Your checklist details stay on this phone.",
       );
     } catch {
-      // Never include the underlying error — it could echo PII.
       Alert.alert(
-        "Save failed",
-        "Couldn't save to secure storage. Please try again.",
+        "Couldn't save",
+        "Please try again. Your checklist has not been changed.",
       );
-    } finally {
-      setSavingPII(false);
     }
   }
-
-  function handleSignOut() {
-    Alert.alert(
-      "Sign out",
-      "Signing out removes all personal info and filled PDFs stored on this device. Anonymous checklist progress may not be recoverable. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign Out",
-          style: "destructive",
-          onPress: async () => {
-            setSigningOut(true);
-            try {
-              await signOutAccount();
-              queryClient.clear();
-              setHasProfile(false);
-            } catch {
-              // Never include native storage/auth details; they may contain
-              // sensitive values or implementation-specific session data.
-              Alert.alert(
-                "Sign out failed",
-                "Couldn't finish signing out safely. Please try again.",
-              );
-            } finally {
-              setSigningOut(false);
-            }
-          },
-        },
-      ],
-    );
-  }
-
-  function handleDeleteAccount() {
-    Alert.alert(
-      "Delete My Data",
-      "This permanently deletes your account, checklist progress, and all personal info stored on this device. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete Everything",
-          style: "destructive",
-          onPress: async () => {
-            setDeletingAccount(true);
-            try {
-              await deleteAccount();
-              queryClient.clear();
-              setHasProfile(false);
-            } catch {
-              Alert.alert(
-                "Deletion failed",
-                "Couldn't delete your account. Check your connection and try again.",
-              );
-            } finally {
-              setDeletingAccount(false);
-            }
-          },
-        },
-      ],
-    );
-  }
-
-  // ── Render helpers ───────────────────────────
 
   function renderProvincePicker(
     label: string,
-    selected: Province | null,
-    isOpen: boolean,
-    onToggle: () => void,
-    onSelect: (p: Province) => void,
+    value: Province | null,
+    key: "origin" | "destination",
   ) {
     return (
       <View className="mb-4">
-        <Text className="mb-1 text-sm font-medium text-slate-700">
-          {label}
-        </Text>
+        <Text className="mb-1 text-sm font-medium text-slate-700">{label}</Text>
         <TouchableOpacity
-          onPress={onToggle}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
-          activeOpacity={0.7}
+          onPress={() => setPicker(picker === key ? null : key)}
+          className="min-h-12 justify-center rounded-xl border border-slate-200 bg-white px-4 py-3"
           accessibilityRole="button"
-          accessibilityState={{ expanded: isOpen }}
-          accessibilityLabel={`${label}: ${selected ? PROVINCE_LABELS[selected] : "none selected"}`}
-          accessibilityHint="Opens the province and territory list"
+          accessibilityLabel={`${label}: ${
+            value ? PROVINCE_LABELS[value] : "Choose a province"
+          }`}
         >
           <Text
-            className={`text-base ${selected ? "text-slate-900" : "text-slate-400"}`}
+            className={`text-base ${value ? "text-slate-900" : "text-slate-400"}`}
           >
-            {selected
-              ? PROVINCE_LABELS[selected]
-              : "Select province or territory…"}
+            {value ? PROVINCE_LABELS[value] : "Choose province or territory"}
           </Text>
         </TouchableOpacity>
-
-        {isOpen && (
-          <View className="mt-2 rounded-xl border border-slate-200 bg-white shadow-sm">
-            <ScrollView
-              nestedScrollEnabled
-              style={{ maxHeight: 220 }}
-              className="px-2 py-2"
-            >
-              {PROVINCES.map((prov) => (
-                <TouchableOpacity
-                  key={prov}
-                  onPress={() => {
-                    onSelect(prov);
-                    onToggle();
-                  }}
-                  className={`rounded-lg px-3 py-2.5 ${
-                    selected === prov ? "bg-blue-50" : ""
-                  }`}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: selected === prov }}
-                  accessibilityLabel={PROVINCE_LABELS[prov]}
+        {picker === key && (
+          <View className="mt-2 rounded-xl border border-slate-200 bg-white p-2">
+            {PROVINCES.map((province) => (
+              <TouchableOpacity
+                key={province}
+                onPress={() => {
+                  updateDraft(key === "origin" ? "originProvince" : "destinationProvince", province);
+                  setPicker(null);
+                }}
+                className={`rounded-lg px-3 py-2.5 ${
+                  value === province ? "bg-blue-50" : ""
+                }`}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: value === province }}
+              >
+                <Text
+                  className={
+                    value === province
+                      ? "font-semibold text-blue-700"
+                      : "text-slate-700"
+                  }
                 >
-                  <Text
-                    className={`text-base ${
-                      selected === prov
-                        ? "font-semibold text-blue-600"
-                        : "text-slate-700"
-                    }`}
-                  >
-                    {PROVINCE_LABELS[prov]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                  {PROVINCE_LABELS[province]}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
       </View>
     );
   }
 
-  // ── Render guards ────────────────────────────
-
-  if (profileQuery.isError && !profileQuery.data) {
-    return (
-      <View className="flex-1 items-center justify-center bg-slate-50 px-8">
-        <Ionicons
-          name={"cloud-offline-outline" as IconName}
-          size={44}
-          color="#94a3b8"
-        />
-        <Text className="mt-4 text-lg font-semibold text-slate-900">
-          Couldn't load your profile
-        </Text>
-        <Text className="mt-1 text-center text-sm text-slate-500">
-          Check your connection and try again.
-        </Text>
-        <TouchableOpacity
-          onPress={() => profileQuery.refetch()}
-          className="mt-6 rounded-xl bg-blue-600 px-8 py-3.5"
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Retry loading your profile"
-        >
-          <Text className="text-base font-bold text-white">Retry</Text>
-        </TouchableOpacity>
-      </View>
+  async function resetThisDevice() {
+    Alert.alert(
+      "Reset this checklist?",
+      "This clears your route and checkmarks from this phone. " +
+        "Support conversations are separate and remain available to the support team.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset checklist",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearLocalJourney();
+              queryClient.removeQueries({
+                queryKey: TASK_PROGRESS_QUERY_KEY,
+              });
+              setJourney(null);
+              router.replace("/(auth)/onboarding");
+            } catch {
+              Alert.alert("Couldn't reset", "Please try again.");
+            }
+          },
+        },
+      ],
     );
   }
-
-  if (profileQuery.isPending || !piiLoaded) {
-    return (
-      <View className="flex-1 items-center justify-center bg-slate-50">
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
-    );
-  }
-
-  // ── Main form ────────────────────────────────
 
   return (
     <ScrollView
       className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Move details */}
-      <View className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-        <Text className="mb-3 text-lg font-bold text-slate-900">
-          Move details
+      <View className="mb-4 rounded-2xl border border-slate-100 bg-white p-5">
+        <Text className="text-xl font-bold text-slate-900">Your move</Text>
+        <Text className="mb-5 mt-1 text-sm leading-5 text-slate-500">
+          City and province details are saved only on this device. Task rules
+          use province codes.
         </Text>
 
+        <Text className="mb-1 text-sm font-medium text-slate-700">
+          Moving from city
+        </Text>
+        <TextInput
+          value={originCity}
+          onChangeText={(value) => updateDraft("originCity", value)}
+          placeholder="e.g. Toronto"
+          autoCapitalize="words"
+          className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900"
+        />
         {renderProvincePicker(
-          "Moving from",
+          "Origin province or territory",
           originProvince,
-          showOriginPicker,
-          () => {
-            setShowOriginPicker(!showOriginPicker);
-            setShowDestPicker(false);
-          },
-          setOriginProvince,
+          "origin",
         )}
 
+        <Text className="mb-1 text-sm font-medium text-slate-700">
+          Moving to city
+        </Text>
+        <TextInput
+          value={destinationCity}
+          onChangeText={(value) => updateDraft("destinationCity", value)}
+          placeholder="e.g. Vancouver"
+          autoCapitalize="words"
+          className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900"
+        />
         {renderProvincePicker(
-          "Moving to",
-          destProvince,
-          showDestPicker,
-          () => {
-            setShowDestPicker(!showDestPicker);
-            setShowOriginPicker(false);
-          },
-          setDestProvince,
+          "Destination province or territory",
+          destinationProvince,
+          "destination",
         )}
 
-        {/* Move date */}
-        <View className="mb-4">
-          <Text className="mb-1 text-sm font-medium text-slate-700">
-            Move date
-          </Text>
-          <TouchableOpacity
-            onPress={() => setShowDatePicker(true)}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={`Move date, ${
-              moveDate
-                ? moveDate.toLocaleDateString("en-CA", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
-                : "not set"
-            }`}
-            accessibilityHint="Opens the date picker"
-          >
-            <Text
-              className={`text-base ${moveDate ? "text-slate-900" : "text-slate-400"}`}
-            >
-              {moveDate
-                ? moveDate.toLocaleDateString("en-CA", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
-                : "Select date…"}
-            </Text>
-          </TouchableOpacity>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={moveDate ?? new Date()}
-              mode="date"
-              display={Platform.OS === "ios" ? "inline" : "default"}
-              onChange={handleDateChange}
-            />
-          )}
-        </View>
-
-        {/* Has Vehicle */}
-        <View className="mb-4 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-          <View className="flex-1">
-            <Text className="text-base font-medium text-slate-900">
-              Bringing a vehicle?
-            </Text>
-            <Text className="text-sm text-slate-500">
-              Adds licence & registration tasks
-            </Text>
-          </View>
-          <Switch
-            value={hasVehicle}
-            onValueChange={setHasVehicle}
-            trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-            thumbColor={hasVehicle ? "#2563eb" : "#f1f5f9"}
-            accessibilityLabel="Bringing a vehicle?"
-          />
-        </View>
-
-        {/* Has Dependents */}
-        <View className="mb-4 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-          <View className="flex-1">
-            <Text className="text-base font-medium text-slate-900">
-              Moving with kids?
-            </Text>
-            <Text className="text-sm text-slate-500">
-              Adds school enrollment tasks
-            </Text>
-          </View>
-          <Switch
-            value={hasDependents}
-            onValueChange={setHasDependents}
-            trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-            thumbColor={hasDependents ? "#2563eb" : "#f1f5f9"}
-            accessibilityLabel="Moving with kids?"
-          />
-        </View>
+        <MovePreferences
+          hasVehicle={hasVehicle}
+          hasSchoolAgeChildren={hasSchoolAgeChildren}
+          onVehicleChange={(value) => updateDraft("hasVehicle", value)}
+          onChildrenChange={(value) => updateDraft("hasSchoolAgeChildren", value)}
+        />
 
         <TouchableOpacity
-          onPress={handleSaveProfile}
-          disabled={saveProfileMutation.isPending}
-          className={`items-center rounded-xl py-3.5 ${
-            saveProfileMutation.isPending ? "bg-blue-400" : "bg-blue-600"
-          }`}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityState={{
-            disabled: saveProfileMutation.isPending,
-            busy: saveProfileMutation.isPending,
-          }}
+          onPress={saveMoveDetails}
+          className="mt-3 min-h-12 items-center justify-center rounded-xl bg-blue-600 px-4 py-3"
         >
-          {saveProfileMutation.isPending ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-base font-bold text-white">
-              Save Move Details
-            </Text>
-          )}
+          <Text className="font-bold text-white">Save move details</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Personal info — device only */}
-      <View className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-        <Text className="text-lg font-bold text-slate-900">
-          Personal info
-        </Text>
-        <View className="mb-4 mt-1 flex-row items-center">
-          <Ionicons
-            name={"lock-closed" as IconName}
-            size={13}
-            color="#16a34a"
-          />
-          <Text className="ml-1 flex-1 text-xs text-green-700">
-            Stored only on this device — never uploaded to our servers.
-          </Text>
-        </View>
+      <TouchableOpacity
+        onPress={() => router.push("/(tabs)/contact")}
+        className="mb-3 min-h-12 flex-row items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3"
+      >
+        <Ionicons name="chatbubbles-outline" size={18} color="#2563eb" />
+        <Text className="ml-2 font-semibold text-slate-800">Human support</Text>
+      </TouchableOpacity>
 
-        {PII_FIELDS.map((field) => (
-          <View key={field.key} className="mb-4">
-            <Text className="mb-1 text-sm font-medium text-slate-700">
-              {field.label}
-            </Text>
-            <TextInput
-              value={piiValues[field.key]}
-              onChangeText={(text) =>
-                setPiiValues((prev) => ({ ...prev, [field.key]: text }))
-              }
-              placeholder={field.placeholder}
-              placeholderTextColor="#94a3b8"
-              accessibilityLabel={field.label}
-              secureTextEntry={field.sensitive}
-              autoCapitalize={field.key === "FULL_NAME" ? "words" : "none"}
-              autoCorrect={false}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900"
-            />
-          </View>
-        ))}
-
-        <TouchableOpacity
-          onPress={handleSavePII}
-          disabled={savingPII}
-          className={`items-center rounded-xl py-3.5 ${
-            savingPII ? "bg-blue-400" : "bg-blue-600"
-          }`}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: savingPII, busy: savingPII }}
-        >
-          {savingPII ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-base font-bold text-white">
-              Save On Device
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Account */}
-      <View className="rounded-xl border border-slate-200 bg-white p-4">
-        <Text className="mb-3 text-lg font-bold text-slate-900">Account</Text>
-
-        <TouchableOpacity
-          onPress={() => router.push("/(tabs)/contact")}
-          className="mb-3 flex-row items-center justify-center rounded-xl border border-slate-200 bg-slate-50 py-3.5"
-          activeOpacity={0.7}
-          accessibilityRole="button"
-        >
-          <Ionicons
-            name={"chatbubbles-outline" as IconName}
-            size={18}
-            color="#475569"
-          />
-          <Text className="ml-1.5 shrink text-center text-base font-semibold text-slate-700">
-            Help & support
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={handleSignOut}
-          disabled={signingOut || deletingAccount}
-          className={`mb-3 flex-row items-center justify-center rounded-xl border border-slate-200 py-3.5 ${
-            signingOut || deletingAccount ? "bg-slate-100" : "bg-slate-50"
-          }`}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityState={{
-            disabled: signingOut || deletingAccount,
-            busy: signingOut,
-          }}
-        >
-          {signingOut ? (
-            <ActivityIndicator size="small" color="#475569" />
-          ) : (
-            <>
-              <Ionicons
-                name={"log-out-outline" as IconName}
-                size={18}
-                color="#475569"
-              />
-              <Text className="ml-1.5 shrink text-center text-base font-semibold text-slate-700">
-                Sign Out
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={handleDeleteAccount}
-          disabled={deletingAccount || signingOut}
-          className={`flex-row items-center justify-center rounded-xl border py-3.5 ${
-            deletingAccount || signingOut
-              ? "border-slate-200 bg-slate-50"
-              : "border-red-200 bg-red-50"
-          }`}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityState={{
-            disabled: deletingAccount || signingOut,
-            busy: deletingAccount,
-          }}
-        >
-          {deletingAccount ? (
-            <ActivityIndicator size="small" color="#b91c1c" />
-          ) : (
-            <>
-              <Ionicons
-                name={"trash-outline" as IconName}
-                size={18}
-                color="#b91c1c"
-              />
-              <Text className="ml-1.5 shrink text-center text-base font-semibold text-red-700">
-                Delete My Data
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-        <Text className="mt-2 text-xs leading-4 text-slate-400">
-          Deleting removes your account, checklist progress, and all personal
-          info stored on this device. (PIPEDA right to erasure.)
-        </Text>
-      </View>
+      <TouchableOpacity
+        onPress={resetThisDevice}
+        className="min-h-12 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-3"
+      >
+        <Text className="font-semibold text-red-700">Clear this device's checklist</Text>
+      </TouchableOpacity>
+      <Text className="mt-2 text-center text-xs leading-4 text-slate-500">
+        No name, email, or home address is needed. Support messages are stored so a person can reply.
+      </Text>
     </ScrollView>
   );
 }

@@ -24,6 +24,9 @@ class SupportQuestionSyncTests(unittest.TestCase):
             "mobile/lib/supportQuestions.ts",
             "supabase/functions/support-ai/supportQuestions.ts",
             *SQL_FILES,
+            # Not in SQL_FILES: the consent-policy copy has no marker block, but
+            # the check script fails when this file is absent.
+            "supabase/migrations/031_support_policy_acceptance.sql",
         ):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)

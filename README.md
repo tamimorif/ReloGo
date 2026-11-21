@@ -1,51 +1,64 @@
 # ReloGo
 
-ReloGo converts a move between Canadian provinces or territories into a
-standardized **Relocation Navigator & Moving Checklist** with suggested timing.
-The app guides users on what to do first, what documents to prepare, and provides
-direct 1-tap links to official provincial government portals and registry locators
-with completion checkmark tracking.
+ReloGo is a simple moving checklist for people moving between Canadian
+provinces or territories. Users enter their origin and destination city and
+province, then receive relevant government task guidance and check off what
+they have completed.
 
-The product is built on a clear two-phase strategy:
-- **Phase 1 (Current / 1.0.1 Release):** Uniform relocation checklist, urgency-sorted countdown, document preparation packs, and verified official government portal links across all 13 Canadian provinces and territories.
-- **Phase 2 (Future Roadmap):** Direct provincial government partnerships, registry API access, and automated in-app form submission.
+The current mobile MVP asks for origin and destination cities and provinces,
+plus optional Yes / No / Skip questions about vehicle registration and
+school-age children. Route details, answers, and checkmarks stay on the device;
+only province codes are sent to fetch public task rules. Human support uses six
+prepared questions, with chats stored on the server and phone so an
+administrator can reply. The current app has no map, AI, profile-name fields,
+or PDF form-filling feature.
 
-Privacy is an architectural rule: full name, date of birth, street address,
-driver's licence number, and health-card number stay on the device. They are
-never written to Supabase or sent to the support AI.
+Maps and AI can be considered for later releases after the checklist is
+validated with users.
 
 ## Applications
 
 | Area | Purpose | Stack |
 | --- | --- | --- |
-| `mobile/` | Onboarding, checklist navigator, local PII vault, fixed-question support | Expo SDK 55, React Native 0.83, React 19, expo-router |
+| `mobile/` | Local route/checklist and human support chat | Expo SDK 57, React Native 0.86, React 19, expo-router |
 | `landing/` | Marketing, legal pages, and waitlist | Next.js 16 static export, React 19, Tailwind |
 | `admin/` | Rule alerts, users, support, and waitlist operations | Vite 5, React 18, Tailwind |
 | `worker/` | Official-source change monitor | Python 3.11, Playwright, Supabase |
-| `supabase/` | Auth, Postgres, RLS, RPCs, Realtime, and support AI | Ordered SQL migrations and a Deno Edge Function |
+| `supabase/` | Public rules, support chat, admin operations, legacy services | Ordered SQL migrations and retained Deno Edge Function source |
 
 The JavaScript applications are independent projects. Each owns its own
 `package.json`, lockfile, build, and environment file.
 
 ## Recovery and release status
 
-The reviewed recovery source was merged through pull request #2 into `main` at
-`e75f449`; worker hardening and its evidence then merged through pull request
-#3 at `d2db994`. The production database, final support function, reviewed
-admin recovery, and backend-aware uptime checks are live; the landing site is
-live and already serves the current support/legal pages. `main` sits at
-`0c78e56` (2026-09-08). The checked-out `tamim` branch holds committed, unpushed
-follow-up work on top of `origin/tamim` (`fff31da`, 2026-09-29): `fff31da`
-commits the 2026-09-14 verification fixes, migrations 027–028, and the
-store-readiness mobile work, and `3d156ec` (2026-10-05) reconciles the status
-docs and refreshes the landing lockfile to `next@16.3.8`. The tree is clean and
-nothing has been pushed. The App Store still distributes the
-broken 1.0 release, so real-
-device QA, approved store metadata, and release of 1.0.1 remain the user-facing
-outage gate.
+**Current source scope:** This working tree contains an unbuilt, unsubmitted
+MVP simplification: city/province route setup, optional vehicle/children
+questions, local checkmarks, and human-only support. Route details, answers,
+and progress stay on-device; the current mobile client no longer invokes
+support AI or writes route/progress rows. Legacy database tables, previously
+saved rows, and the hosted AI Edge Function have not been removed by this local
+change. Older release details below describe previous builds and are superseded
+for current app behavior. See the
+[current plan](docs/PLAN.md) and [agent handoff](docs/ai/AI_HANDOFF.md) before
+release work.
 
-- The repository now contains migrations 001–028, but migrations 027–028 and
-  the coordinated worker changes are local and pending review. Preview was migrated
+The reviewed recovery source merged through pull requests #2 (`e75f449`) and #3
+(`d2db994`); the recovery release tree — audit gate fix, iOS QA fixes, docs,
+and evidence — then merged through pull request #7 as `69ff576` (2026-10-10),
+and CI run `38071116034` passed on `main`. `main` and `origin/main` are both at
+`69ff576`, and the checked-out `tamim` branch equals `origin/tamim` at
+`c7e4dcd` (2026-10-10); everything is committed and pushed. The production
+database, final support function, reviewed
+admin recovery, and backend-aware uptime checks are live; the landing site is
+live and already serves the current support/legal pages. The App Store still
+distributes the broken 1.0 release, so real-
+device QA, approved store metadata, and release of 1.0.1 remain the user-facing
+outage gate; the Android/Play path has not started (no SDK 57 AAB, no Android
+release QA, no Play Console setup).
+
+- The repository now contains migrations 001–029, but migrations 027–029 and
+  the coordinated worker changes are committed on `main` and not yet hosted;
+  they remain pending review and deployment. Preview was migrated
   to 001–026, passed the hosted smoke checks (including authenticated AI
   support), and was then deliberately paused. Production remains active at
   exact migrations 001–026 with `support-ai` version 5 ACTIVE/JWT-protected;
@@ -54,7 +67,10 @@ outage gate.
   smoke against the final function passed anonymous auth, resolver output with
   five tasks/five HTTPS official sources, a minimal onboarding profile insert,
   authoritative consent/profile confirmation, authenticated non-fallback AI,
-  and cleanup.
+  and cleanup. Until 027 is deployed, the scheduled worker stops at preflight
+  (run `38863388197` failed on 2026-10-16 because production cannot read the 027
+  monitoring metadata), so source monitoring is stopped and writes no new
+  baselines.
 - App Store version 1.0 has been live since 2026-06-23 (Apple ID `6781947478`,
   bundle ID `com.relogo.app`). It is built from the retired SDK 51
   configuration and contains a Supabase project reference that no longer
@@ -62,11 +78,12 @@ outage gate.
   backend-dependent onboarding and checklist flows cannot be repaired by an
   OTA update. A final 1.0.1 store binary from the merged recovery tree is the
   user-facing recovery path and has not shipped.
-- The local 1.0.1 / SDK 55 app no longer holds the native splash screen on a
-  network request, restores its encrypted session with bounded timeouts,
-  avoids duplicate startup fetches, caches the profile/bootstrap result, and
-  starts rules/progress prefetch after authoritative consent while the route
-  renders. It loads the PDF engine only when the user asks to fill a form. Public Supabase
+- The earlier 1.0.1 / Expo SDK 57 app did not hold the native splash screen on a
+  network request, restored its encrypted session with bounded timeouts,
+  avoided duplicate startup fetches, cached the profile/bootstrap result, and
+  started rules/progress prefetch after authoritative consent while the route
+  renders. That recovery implementation has since been superseded by the
+  simpler current mobile scope above. Public Supabase
   runtime configuration accepts only a clean origin, and production release
   checks require the exact production origin and a trimmed, nonblank public
   key. Checklist profile, rules, and progress reads abort after 8 seconds with
@@ -76,13 +93,14 @@ outage gate.
   profile insert/update, and confirmation waits are each bounded at 10 seconds.
   Real-device QA is still required to measure and approve startup performance;
   a successful cloud build is not device evidence. Its production dependency
-  audit patches `js-yaml`, `nanoid`, and `postcss`, and rejects every
-  high/critical finding. As of 2026-10-05 it fails closed on two newly published
-  upstream advisories in build/test-only paths (`braces` GHSA-vfj7-8cjw-p6xm,
-  which has no patched release, and `node-forge` GHSA-86w9-cpqp-85rv); this is a
-  release-gate blocker requiring an owner decision and must not be silenced. A
+  audit patches `js-yaml`, `nanoid`, and `postcss`, rejects every high/critical
+  finding, and passes as of 2026-10-16 with two owner-approved, narrowly scoped,
+  time-boxed exceptions in build-time tooling only (`braces`
+  GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv, neither with a
+  patched release; criticals are never excepted; re-review by 2026-12-01). The
+  release gate must not be weakened or silenced. A
   narrow `xcode@3.0.1` override still pins `uuid` 11.1.1.
-- The latest full code matrix at `2624ad3` passed mobile release configuration,
+- An earlier full code matrix at `2624ad3` passed mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export (1,752 modules,
   5.8 MB Hermes bytecode), Android export (1,773 modules, 5.9 MB Hermes
   bytecode), and audit 0; landing and admin lint/build; Deno
@@ -99,28 +117,44 @@ outage gate.
   also `FINISHED` successfully from the same commit (version 1.0.1, EAS
   `28076f35-1495-466b-af77-97a9339c5ea2`). iOS build 7 is valid and active in
   internal TestFlight but has not entered App Review; Android build 4 has not
-  reached Google Play. Those artifacts predate the current `tamim` startup and
+  reached Google Play. Those artifacts predate the current startup and
   dependency fixes and are historical evidence, not current release
   candidates.
-- Current production artifacts were created from exact green `tamim` commit
-  `cd3a87c`: iOS 1.0.1 build 8 (EAS
+- The most recent recorded production builds were created from exact green
+  commit `cd3a87c` (Expo SDK 55): iOS 1.0.1 build 8 (EAS
   `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
   `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive integrity,
   bundle/package identity, production channel, and runtime 1.0.1 were verified.
-  Neither artifact was uploaded or submitted to a store; real-device QA and
-  owner/legal/store approval remain. The commits recorded after `cd3a87c`
-  (`d64c4cb` Phase 1 checklist cards, `e103095` EAS `ascAppId`, `df3535b` Expo
-  SDK 55.0.31 pins) are on `main` at `0c78e56`, and the committed `fff31da`
-  recovery tree is one commit further ahead on `tamim`. Builds 8/5 therefore
-  predate the committed tip — rebuild (expected iOS build 9 / Android
-  versionCode 6) before store QA and upload.
+  Neither artifact was uploaded or submitted to a store, and both are superseded
+  by the current Expo SDK 57 tree: the intervening commits `d64c4cb` (Phase 1
+  checklist cards), `e103095` (EAS `ascAppId`), and `df3535b` (Expo SDK 55.0.31
+  pins), plus the `fff31da` recovery tree, are now merged into `main` at
+  `69ff576`, which has no EAS production build yet. Rebuild both platforms
+  (expected iOS build 9 / Android versionCode 6) before store QA and upload;
+  real-device QA and owner/legal/store approval remain.
+- Google Play submission has not started: the public listing for
+  `com.relogo.app` 404s and the Play Console app record/listing is not
+  configured. Outstanding items include the 512×512 icon and 1024×500 feature
+  graphic (drafts, uncommitted, at `store-assets/play-icon-512.png` and
+  `store-assets/play-feature-graphic-1024x500.png`), Play-format phone
+  screenshots (the existing `store-screenshots/` are iOS-dimension only), the
+  Data safety questionnaire (drafts in `docs/STORE.md` §3.3), content rating,
+  target audience declaration, government-app declaration, an account-deletion
+  URL, and a monitored contact email. If the developer account is a personal
+  (individual) account created after Nov 13, 2023, Google requires 12+ testers
+  for 14+ continuous days of closed testing before production access — the
+  owner must confirm the account type. No Google Play service-account key is
+  provisioned; the uncommitted working tree preconfigures `mobile/eas.json`
+  to expect the key at `./google-play-service-account.json` (gitignored), and
+  manual upload is a documented fallback.
 - The reviewed admin build is live at `https://relo-go.vercel.app`; landing is
   live at `https://relogo-two.vercel.app` and already serves the current
   support/legal pages. A 2026-09-24 probe shows `relo-go` still returns SPA
   HTML for missing assets, so the admin favicon/404 fix awaits an explicit
   deploy. Main-branch uptime run `30843906264` passed every public route plus
   production anonymous-auth and canonical-resolver probes with
-  `REQUIRE_SUPABASE_CHECK=true`.
+  `REQUIRE_SUPABASE_CHECK=true`; public uptime runs have stayed green through
+  2026-10-16.
 - Pull request #2's final head `f34b64a` passed all 19 GitHub/Vercel checks;
   both fixed review threads were resolved and the pull request was merged as
   `e75f449`.
@@ -140,17 +174,20 @@ outage gate.
   passed 97/97 on the merged tree and 110/110 on the committed `fff31da` tree. Production verification run `30845791036` fetched 50 unique
   URLs for 53 rows, reused three duplicate outcomes, and again completed 42
   rows (`1` new baseline, `38` unchanged, `3` changed) while keeping 11 blocked
-  outcomes failed. Production now has 43/53 source baselines; the three changes
+  outcomes failed. Production's last recorded state is 43/53 source baselines; the three changes
   are PENDING human-review alerts, not live-rule edits. `ALERT_WEBHOOK_URL` is
-  still unset. A local, pending migration 027 keeps every canonical
+  still unset. The committed, not-yet-hosted migration 027 keeps every canonical
   `official_url` public while assigning nine affected rows a separately stored,
   worker-only first-party monitor target. Yukon driver-licence and vehicle-
   registration rows are instead assigned to MANUAL review by ReloGo operations
   every 30 days and appear in every Actions summary. That cadence is an
   assignment, not proof of review or overdue tracking. All nine automatic
   targets passed worker-equivalent local reachability checks; migration 027 has
-  not been applied to a hosted project and the updated worker has not had a live
-  Actions rerun. Challenge and content gates remain fail-closed.
+  not been applied to a hosted project. The scheduled worker run `38863388197`
+  failed on 2026-10-16 because production cannot read the 027 monitoring
+  metadata, so monitoring is stopped and no baselines are written; the updated
+  worker has not had a passing live Actions rerun. Challenge and content gates
+  remain fail-closed.
   Reachability is not semantic equivalence: the Quebec target is high-level
   RAMQ guidance, the Nunavut vehicle target is a general driver manual, the PEI
   school target covers the English Public Schools Branch, and the Yukon school
@@ -167,32 +204,34 @@ and the [canonical plan](docs/PLAN.md) for the human gates.
 ```text
 Landing ── waitlist RPC ───────────────┐
                                       │
-Mobile ── auth/checklist/progress ── Supabase ── protected Admin dashboard
-  │                                   ▲
-  └─ sensitive PII (SecureStore)      │
-     remains on the device            ├─ support-ai Edge Function
-                                      └─ service-role monitoring RPC ── Worker
+Mobile ── province codes ── public rules resolver
+  │
+  ├─ route + checkmarks ── local device storage
+  │
+  └─ Help ── anonymous support identity + chat ── Admin replies
+
+Landing ── waitlist RPC ── Supabase      Worker ── monitoring RPC ── Supabase
 ```
 
 - Row-level security is the client authorization boundary.
 - Admin membership is checked server-side through `admin_users` and
   `is_admin()`; there is no client email allowlist.
-- Mobile support accepts six fixed general questions. The database enforces the
-  same allowlist, and the Edge Function fails closed on legacy/unsafe history.
+- Mobile support accepts six fixed questions for human support. The database
+  enforces the allowlist. The current mobile source does not call the retained
+  legacy AI function.
 - The worker scrapes automatic official HTML/PDF sources concurrently, then
   records each result through a row-locked compare-and-swap RPC. Explicit manual
   assignments remain visible in every Actions summary. A changed source creates
   a PENDING alert; only a human admin can approve a live rule change.
 - Every task across all 13 provinces provides a uniform card experience: urgency
   badges, document requirements, verified 1-tap links to the official government
-  portal or registry locator, and completion checkmarks. Underlying PDF form-filling
-  modules remain modular for Phase 2 government integrations.
+  portal or registry locator, and local completion checkmarks.
 
 ## Database migrations
 
 `supabase/migrations/` is the schema source of truth. Apply approved migrations
-in order; do not edit the hosted schema by hand or treat local migrations
-027–028 as deployed evidence.
+in order; do not edit the hosted schema by hand or treat committed migrations
+027–029 as deployed evidence.
 
 | Migration | Purpose |
 | --- | --- |
@@ -222,8 +261,8 @@ in order; do not edit the hosted schema by hand or treat local migrations
 | `024_consent_state_profile_payload.sql` | Returns the current consent state and allowlisted non-PII startup profile in one RPC |
 | `025_available_only_progress.sql` | Removes the unused `LOCKED` state; progress is `AVAILABLE` or `COMPLETED` |
 | `026_distinct_move_provinces.sql` | Rejects new or updated profiles/waitlist rows whose origin equals destination |
-| `027_worker_source_monitoring.sql` | Adds private automatic monitor targets and explicit owned manual assignments; local and pending review/deployment |
-| `028_explicit_admin_membership.sql` | Retires email-based automatic admin grants while preserving existing memberships; local and pending review/deployment |
+| `027_worker_source_monitoring.sql` | Adds private automatic monitor targets and explicit owned manual assignments; committed, not yet hosted (pending review/deployment) |
+| `028_explicit_admin_membership.sql` | Retires email-based automatic admin grants while preserving existing memberships; committed, not yet hosted (pending review/deployment) |
 
 ## Quick start
 
@@ -280,13 +319,19 @@ when rotating them or creating another EAS project.
   verification matrix, and next engineering steps for agents.
 - [QA test playbook](docs/QA_TEST_PLAYBOOK.md) — complete visual and functional
   test playbook for human and autonomous AI simulator QA.
+- [Current iPhone simulator guide](docs/ai/SIMULATOR_TESTING_GUIDE.md) —
+  user-run end-to-end checklist for this simplified mobile MVP.
 - [Documentation index](docs/README.md) — the small set of maintained docs.
 
 The production backend is recovered, but the App Store still serves broken
-version 1.0 and the 1.0.1 recovery release is incomplete. Real-device QA,
-store submission/metadata, migration-first review and hosted rollout of 027 for
-the 11 previously failed source-row outcomes, a successful live worker rerun,
-a tested worker webhook, funded backup/restore with a drill, a monitored public
+version 1.0 and the 1.0.1 recovery release is incomplete: no EAS production
+build exists from the current SDK 57 tree, and the Android path has not started
+(no AAB, no Android release QA, and a Play Console record/listing that is not
+yet configured). Real-device QA, store submission/metadata on both stores,
+migration-first review and hosted rollout of 027–028 for the 11 previously
+failed source-row outcomes, a successful live worker rerun (source monitoring
+is stopped until 027–028 are hosted), a tested worker webhook, funded
+backup/restore with a drill, a monitored public
 mailbox/custom domain, final government
 content/legal review, and correction of the live App Store privacy answer
 remain.

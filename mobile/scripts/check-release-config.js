@@ -35,8 +35,8 @@ function versionParts(value) {
 }
 
 const version = versionParts(appJson.version);
-if (!version || version[0] < 1 || (version[0] === 1 && version[1] === 0 && version[2] < 1)) {
-  fail("mobile marketing version must be at least 1.0.1");
+if (!version || version[0] < 1 || (version[0] === 1 && version[1] === 0 && version[2] < 2)) {
+  fail("mobile marketing version must be at least 1.0.2");
 }
 if (packageJson.version !== appJson.version) {
   fail("package.json and app.json versions must match");

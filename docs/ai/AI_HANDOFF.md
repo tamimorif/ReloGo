@@ -1,44 +1,92 @@
 # ReloGo — AI agent handoff
 
-_Current as of 2026-10-06_
+_Current local scope, production schema, and release state as of 2026-11-21_
 
 Read this file completely before changing the repository. The canonical product
 roadmap is [../PLAN.md](../PLAN.md); operational commands are in
 [../DEPLOYMENT.md](../DEPLOYMENT.md).
 
+## Current MVP scope — authoritative for the current mobile source
+
+This working tree contains local mobile, database, documentation, and
+store-asset changes for the basic moving checklist. Migrations 027–031 have
+been applied to local `supabase_db_ReloGo` and linked production; no hosted
+function deployment, secret rotation, or user-data cleanup has been performed.
+EAS iOS build 1.0.2 (build 9) finished. Its App Store Connect submission job
+errored because an Apple agreement is missing or expired; no successful upload
+or App Review submission is recorded.
+
+- Git state checked 2026-11-21: branch `tamim` at `5f14fe1`, with extensive
+  pre-existing staged deletions under `qa-artifacts/` and modifications across
+  mobile, Admin, landing, Supabase, tests, screenshots, and docs. Preserve this
+  checkout; do not reset, stage, or revert it wholesale. Only the three
+  migrations were committed in `5f14fe1`; mobile source and the 1.0.2 version
+  bump were still uncommitted when EAS recorded that commit hash for the build.
+  Do not treat that commit alone as a reproducible source snapshot for the IPA.
+
+- Onboarding asks for origin/destination city and province, plus optional
+  Yes/No/Skip questions about vehicle registration and school-age children.
+  Explicit No hides matching tasks; Yes shows them without a conditional
+  label; Skip keeps them visible with an applicability label. Route details,
+  answers, and checkmarks stay on-device. No move date, name, email, home
+  address, map, PDF fill feature, or AI feature is part of the mobile MVP.
+- Province codes are sent to the public corridor-rule RPC when fetching
+  guidance; the current client does not send city, preference answers, or
+  checkmarks to that RPC or write route/progress to profile tables.
+- Help creates an anonymous Supabase identity only when opened. It offers six
+  fixed questions; the app stores the resulting human-support thread remotely
+  for Admin replies and caches it on-device. The user cannot send free text.
+- The mobile client no longer invokes `support-ai`. The Edge Function source,
+  deployment workflow, historical AI migrations, and production function are
+  retained for now; the last recorded production state had function v5 active.
+  Recheck and retire hosted AI separately before claiming it is decommissioned.
+- The legacy database still has profile/progress tables and may contain records
+  created by older clients. Production and local migration ledgers are now at
+  001–031; no legacy rows were purged. Review chat retention/deletion and
+  release sequencing before store publication.
+- Help's local 403 was traced to the consent predicate requiring a
+  `user_profiles` row the simplified client no longer creates. Migrations 030
+  and 031 keep the narrow support column grants and add a
+  private consent record/RPC for the anonymous support identity. The fixed
+  question allowlist, user ownership, and no-client-HUMAN-status rules remain
+  enforced. A simulator send after the fix returned HTTP 201 for
+  `support_threads` and `support_messages`; both rows were present in
+  `supabase_db_ReloGo`. Migrations 027–031 were subsequently applied to linked
+  production and verified with `supabase migration list --linked`.
+- Latest verification: mobile TypeScript check, lint, 11 Jest suites / 114
+  tests, database-type sync, consent-version sync, support-question sync, and
+  `git diff --check` passed. The fresh simulator run is documented at
+  `/tmp/relogo-simulator-evidence/2026-11-21-helpfix-rerun/section-6-report.md`:
+  19 PASS, 0 FAIL, 3 BLOCKED, and 1 OBSERVATION across SIM-01–SIM-14 and all
+  nine SIM-04 rows. SIM-09/10 Admin interaction was blocked by this Codex
+  session's managed localhost browser-origin policy; SIM-14 request body field
+  names were not logged. EAS build `a61bc88b-36fb-4380-9a8f-3e258cab7268`
+  finished as iOS 1.0.2 build 9. Submission
+  `1e38d883-36b0-4b81-9407-7b87181370bc` is `ERRORED` because an Apple
+  agreement is missing or expired. The Account Holder must resolve the
+  agreement before retrying this build. No Android or physical-device run was
+  performed; SIM-09/10 remain unverified.
+
+The local plan in [../PLAN.md](../PLAN.md) is the canonical product roadmap.
+Historical release and hosted environment details below are retained as
+evidence and must not be mistaken for the current local app behavior.
+
 ## Mission and stage
 
-ReloGo converts a move between Canadian provinces or territories into a
-standardized **Relocation Navigator & Moving Checklist** of government tasks,
-urgency timing, document preparation guides, and direct official government
-links. Pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel checks,
-its two fixed review threads were resolved, and it merged into `main` as
-`e75f449`. Pull request #3 final head `3f063e9` then passed all 19 checks, its
-sole review thread was fixed/resolved, and worker hardening merged as `d2db994`.
-The final production Edge Function v5, reviewed admin recovery, landing site,
-and backend-aware main uptime are live. The App Store still distributes the
-broken 1.0 binary; 1.0.1 has not shipped. Recovery is not complete because
-real-device/store, hosted rollout of the local source-monitoring fix, and human
-approval gates remain. `main` sits at `0c78e56` (2026-09-08), the base of the
-recovery work. The checked-out branch `tamim` holds committed, unpushed
-follow-up commits on top of `origin/tamim` (`fff31da`, 2026-09-29): `fff31da`
-commits the 2026-09-14 recovery fixes, migrations 027–028, the store-readiness
-mobile fixes, and the supporting QA/docs/CI updates; `3d156ec` (2026-10-05)
-reconciles the status docs and refreshes the landing lockfile to `next@16.3.8`
-(clearing the critical RCE advisory); later commits record the committed state.
-The working tree was clean at its last check on 2026-10-05; nothing had been pushed. The recorded store
-artifacts were built from the earlier `cd3a87c`, so a rebuild from the committed
-`tamim` tip (expected iOS build 9 / Android versionCode 6) is required before
-store QA.
+ReloGo helps people organize common government tasks when moving between
+Canadian provinces or territories. Current mobile scope is a city/province
+route, local checkmark checklist, and human-only support. Maps and AI are not
+part of this release. The broken App Store 1.0 binary still requires a new
+store update; the 1.0.2 iOS build now exists, but its EAS submission failed at
+Apple's agreement gate. Migrations 027–031 are applied in production. The
+current checkout is branch `tamim` at `5f14fe1` with uncommitted app changes.
 
-The product operates under a clear, phased architectural strategy:
-- **Phase 1 (Current / 1.0.1 MVP — Relocation Navigator & Checklist):**
-  A uniform, distraction-free moving guide across all 13 provinces. Every task card
-  gives users the urgency countdown, document preparation pack, direct link to the
-  official government portal, and a 1-tap completion checkmark (Available ↔ Completed).
-- **Phase 2 (Future Roadmap — Direct Government Integration):**
-  Provincial ministry partnerships and registry system access to enable automated
-  in-app form auto-fill and direct digital submission.
+The current iPhone run is Expo Go only. It does not verify a signed build on a
+physical device. SIM-09/10 Admin workflows were blocked by the managed browser
+origin policy and the SIM-14 request-body field names were unavailable. Read
+the dated QA report above before making a release decision. Historical PR,
+store, and worker records below are retained as evidence; use the dated current
+snapshot above whenever an older status conflicts.
 
 The shipped App Store 1.0 binary was built from SDK 51 and contains the retired
 Supabase ref `fxrynmgaymslwcklfena`. That project is deleted, the ref is present
@@ -48,15 +96,17 @@ redirected. Recovery requires a new 1.0.1 store binary.
 
 Environment truth:
 
-- Repository schema: migrations 001–028. Production remains at 001–026.
-  The default-branch worker already requires 027 and currently fails its schema
-  preflight. Migration 028 retires automatic email-based admin bootstrap.
-  Both migrations are locally verified and await explicit hosted authorization.
+- Repository, local, and linked production migration ledgers are at 001–031.
+  Production was advanced from 026 by migrations 027–031 on 2026-11-21 and
+  verified with `supabase migration list --linked`. The 2026-10-16 worker
+  preflight failure happened before 027 was applied; no post-migration live
+  worker run has been verified in this task.
 - Preview `uwfblgllkibbupqyofkl`: migrations 001–026 and JWT-protected
   `support-ai` v3; live smoke passed, then the project was deliberately paused.
 - Production `yskknolxbxfxakgvrcmg`: active, currently linked locally,
-  exact migrations 001–026 and JWT-protected `support-ai` v5. Its last pre-027
-  dry run was clean,
+  exact migrations 001–031 and `support-ai` v5 (the function version is the
+  last recorded hosted version; these migrations did not deploy a function).
+  Its last pre-027 dry run was clean,
   anonymous auth is enabled, unauthenticated function invocation returns 401,
   and the self-cleaning smoke passed anonymous auth, resolver output with five
   tasks/five HTTPS sources, a minimal onboarding profile insert, authoritative
@@ -78,32 +128,37 @@ Environment truth:
   uploaded to App Store Connect on 2026-08-04 and is `VALID`/`IN_BETA_TESTING`
   in internal TestFlight; it has not been submitted for App Review. Android
   build 4 has not been uploaded to Google Play. Both artifacts predate the
-  current `tamim` startup-prefetch and dependency-audit fixes and must not be
-  treated as current release candidates. Current replacements were built from
-  exact green commit `cd3a87c`: iOS 1.0.1 build 8 (EAS
+  current recovery tree and must not be treated as current release candidates.
+  The recorded replacements were built on SDK 55 from exact green commit
+  `cd3a87c`: iOS 1.0.1 build 8 (EAS
   `daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android 1.0.1 build 5 (EAS
   `f839dede-1f83-4c6a-a928-de258597e6d0`) both `FINISHED`. Archive identity and
-  integrity pass; neither artifact was uploaded or submitted to a store. Both
-  were recorded from `cd3a87c` and are now superseded by the committed
-  `fff31da` tree; rebuild before store QA.
+  integrity pass. iOS build 8 was uploaded and submitted as 1.0.1 (8) on
+  2026-09-08, rejected on 2026-09-09 under Guideline 2.3.10 for non-iOS
+  status-bar screenshots, then resubmitted on 2026-10-20 after all eight
+  iPhone/iPad screenshots were replaced with iOS-status-bar versions; the
+  version is now `WAITING_FOR_REVIEW` under submission
+  `a5d59778-8286-4ebf-9373-d96917499171`. Android build 5 was not uploaded.
+  Both artifacts are superseded. The current SDK 57 iOS build 1.0.2 build 9 is
+  documented in the release snapshot above; no current Android EAS build is
+  recorded.
 - GitHub: pull request #2 final head `f34b64a` passed all 19 GitHub/Vercel
   checks, both fixed review threads were resolved, and it merged as `e75f449`.
-- Local git state (read-only check 2026-10-05): the checked-out branch `tamim`
-  is clean and holds committed, unpushed follow-up work on top of `origin/tamim`
-  (`fff31da`, 2026-09-29); `main`/`origin/main` remain at `0c78e56` (PR #6 merge,
-  2026-09-08). Three commits follow `cd3a87c`: `d64c4cb` (Phase 1 checklist task
-  cards and roadmap documentation), `e103095` (EAS submit `ascAppId`), and
-  `df3535b` (Expo SDK 55.0.31 patch alignment and audit policy). `fff31da` then
-  commits the 2026-09-14 verification fixes, migrations 027–028, the
-  store-readiness mobile fixes, and the supporting QA/docs/CI updates;
-  `3d156ec` reconciles the status docs and refreshes the landing lockfile to
-  `next@16.3.8`. Nothing has been pushed and only the `main` and `tamim`
+- Local git state (read-only check 2026-10-16): `main` == `origin/main` ==
+  `69ff576` (PR #7 merge, 2026-10-10) and the checked-out branch `tamim` ==
+  `origin/tamim` == `c7e4dcd` (2026-10-10); all commits are pushed, nothing is
+  unpushed, and `tamim` is contained in `main`. Only the `main` and `tamim`
   branches exist.
-- Local git state (verified 2026-10-06): branch `tamim` remains unpushed. The
-  working tree contains the mobile SDK 57 / Xcode 27 simulator compatibility
-  work, plus pre-existing root `package.json`/lock changes for Supabase CLI
-  2.120.0. These changes remain uncommitted; no hosted, EAS, store, or push
-  action was taken.
+- Working-tree hygiene (verified 2026-10-16): sync-duplicate "... 2.ext" files
+  and broken duplicate git ref files were removed to a local backup;
+  `qa-artifacts/` is staged-deleted pending an owner decision; `.gitignore`
+  carries a trivial two-blank-line edit; and an uncommitted change set awaits
+  owner review: doc/status updates plus the four `.opencode/skills` refreshes,
+  `mobile/eas.json` Android submit prep, the `mobile/.gitignore` Play-key
+  ignore entry, and the new `store-assets/` Play drafts. The 2026-10-20 App
+  Review screenshot fix is also uncommitted: all eight `store-screenshots/`
+  PNGs were regenerated with iOS status bars, uploaded to ASC, and the 1.0.1
+  submission was resubmitted. No EAS build or git push action is pending.
 - Worker: main run `30843904269` installed `supabase==2.31.0`; its exact-origin
   key/schema/resolver preflight passed, proving the encrypted key works. It
   created 42 baselines and failed closed on 11 source rows. Hardened run
@@ -156,39 +211,41 @@ or submit a store build without the corresponding explicit authorization.
 
 ## Non-negotiable rules
 
-### PII stays on the device
+### Local checklist data and support boundary
 
-These values may exist only in `mobile/lib/secureStore.ts` and ephemeral local
-PDF memory/cache:
+The current mobile app does not ask for a name, email, street address,
+government document number, move date, vehicle ownership, or child/dependent
+details. It saves origin/destination city and province, consent version, and
+checkmarks in AsyncStorage on the device. Province codes alone are sent to
+`resolve_corridor_rules()` to fetch public task guidance. Do not describe this
+as a fully offline app or as making no server request.
 
-- full name;
-- date of birth;
-- street address;
-- driver's licence number; and
-- health-card number.
+Support is the only user content intentionally stored by the current mobile
+client: a random anonymous support identity, six fixed user questions, human
+replies, and thread status. The thread is also cached on-device. There is no
+free-text user composer, and migration 010 remains the server enforcement
+boundary. The mobile app no longer invokes AI. Old AI rows, the production
+function, function deployment workflow, and legacy profile/progress schema may
+remain until separately reviewed and retired.
 
-Never put them in a Supabase row/query, support field, AI prompt, log, error,
-analytics event, environment variable, or admin view. Never expose a raw native
-or database error if it could echo input. `mobile/lib/errorReporting.ts`
-discards arbitrary exception text, stack, custom names and unknown context;
-only allowlisted diagnostic metadata reaches the development log. Nothing is
-transmitted or persisted by this reporter. `AppErrorBoundary` shows generic
-recovery UI. Adding an external
+Never expose a raw native or database error if it could echo input.
+`mobile/lib/errorReporting.ts` discards arbitrary exception text, stack,
+custom names and unknown context; only allowlisted diagnostic metadata reaches
+the development log. Nothing is transmitted or persisted by this reporter.
+`AppErrorBoundary` shows generic recovery UI. Adding an external
 crash/analytics service requires explicit privacy review and may receive only a
 sanitized record.
 
-Support is deliberately not free text. Mobile, migration 010, and the Edge
-helper contain the same six-question allowlist; CI checks all copies. Migration
-012 blocks arbitrary client-authored thread subjects. Migration 014 permanently
-marks human involvement. Unknown/legacy user messages fail closed to a human
-without reaching Gemini.
-
-Sign-out and account deletion wipe the local PII vault and filled-PDF cache.
-Deletion also removes the server account and local session.
+Support questions are deliberately not free text. Mobile and migration 010
+enforce the same six-question allowlist. CI still syncs the retained Edge
+helper because that server code is not yet decommissioned. Migration 012 blocks
+client-authored thread subjects; migration 014 permanently marks human
+involvement.
 
 ### RLS/RPCs are the authorization boundary
 
-- Users access only their own profile, progress, and support rows.
+- Current mobile users access only their own support rows. Profile/progress
+  tables and admin user views remain legacy backend surfaces.
 - Admin membership comes from `admin_users` and `is_admin()`, never a client
   email list.
 - Only public Supabase publishable/legacy anon keys may ship in mobile,
@@ -201,15 +258,15 @@ Deletion also removes the server account and local session.
 
 ### Migrations and types
 
-- `supabase/migrations/001_*.sql` through `028_*.sql` are the ordered repository
-  schema source of truth. Preview and production both remain at exact 001–026;
-  migrations 027–028 remain unhosted. Never rewrite a deployed migration
-  or treat the presence of 027 in Git as hosted evidence.
+- `supabase/migrations/001_*.sql` through `031_*.sql` are the ordered repository
+  schema source of truth. Production is at 001–031; preview remains paused at
+  its last verified 001–026. Never rewrite a deployed migration or infer hosted
+  state from Git alone; verify with the linked migration ledger.
 - `supabase/seed.sql` is local-only. It reproduces hosted baseline
   table/sequence grants before reapplying migration-defined restrictions;
   `supabase db push` never applies it. Read its header before changing grants.
-- Migration 017 is still hosted and automatically grants membership by signup
-  email. Unhosted migration 028 removes that trigger and function: neither
+- Migration 028 removes the email-based admin bootstrap trigger and function:
+  neither
   signup, confirmation, email changes nor user metadata can grant admin access.
   Trusted operators provision reviewed user IDs explicitly; existing memberships
   are preserved. A read-only production check found one confirmed membership.
@@ -244,11 +301,23 @@ Deletion also removes the server account and local session.
   targets; Yukon driver-licence and vehicle-registration rows are manual,
   assigned to ReloGo operations every 30 days. The interval is not evidence of
   a completed review and no overdue-review state exists. The migration also
-  blocks the persistence RPC from writing manual rows. Review and apply it
-  before running the coordinated worker; it has not been hosted.
+  blocks the persistence RPC from writing manual rows. It is applied to
+  production; a coordinated live worker rerun still needs verification.
 - Migration 028 retires email-based admin bootstrap without changing existing
   memberships or the public typed API. Confirmation alone is insufficient when
   Auth auto-confirms signup. Never edit deployed 017 to make this change.
+- Migration 029 advances the legacy policy version to 1.2. Migration 030
+  reasserts only the support-message insert columns and support-thread
+  insert/status-update columns required by the mobile client. Migration 031
+  stores current policy acceptance for the anonymous support identity and
+  updates support RLS checks to accept either that private record or a current
+  legacy profile consent. Its RPC validates the current policy version and
+  stores only the identity, version, and server timestamp. Migrations 029–031
+  are applied in local `supabase_db_ReloGo` and linked production.
+- Help support INSERT permission is not a table-wide grant. Preserve the narrow
+  column grants and the 031 RLS consent, ownership, allowlist, and status checks
+  if the support flow changes. The mobile app must record support consent before
+  attempting its first thread insert.
 - The extracted `Database` interface must remain byte-identical in
   `mobile/types/database.ts` and `admin/src/types/database.ts`; app-specific
   helper types outside that interface may differ.
@@ -272,23 +341,24 @@ Deletion also removes the server account and local session.
   SDK 57 select its supported Metro version; XML stays on compatible patched
   0.8.15/0.9.12 paths, js-yaml is pinned to 4.3.2, and the exact `xcode@3.0.1`
   UUID override remains scoped. The mobile audit rejects every high/critical
-  finding. A 2026-10-06 semver-compatible production audit fix removed the
-  critical `shell-quote` finding and other patchable findings; the gate still
-  fails closed on 23 high and 7 moderate findings, including `braces`
-  GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv. Do not force
-  breaking Tailwind/Expo Updates upgrades or weaken the gate without an owner
-  decision.
+  finding; the 2026-10-05/06 audit regression is resolved as of 2026-10-10 with
+  two owner-approved, narrowly scoped, time-boxed exceptions (`braces`
+  GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv, both reachable only
+  through build-time tooling chains; critical findings are never excepted;
+  re-review 2026-12-01), and the gate still fails closed on anything outside
+  those entries. Do not force breaking Tailwind/Expo Updates upgrades or weaken
+  the gate without an owner decision.
 - Never use destructive git commands without explicit authorization.
 
 ## Repository map
 
 ```text
 ReloGo/
-├── mobile/                    Expo SDK 57 / 1.0.1 user app
-│   ├── app/(auth)/            onboarding and fail-closed re-consent
-│   ├── app/(tabs)/            checklist, profile, fixed-question support
-│   ├── components/            PII-safe crash/recovery boundary
-│   ├── lib/                   startup, auth, PII, PDF, legal, dates
+├── mobile/                    Expo SDK 57 / local checklist + human support
+│   ├── app/(auth)/            route setup and local policy re-consent
+│   ├── app/(tabs)/            checklist, move details, fixed-question support
+│   ├── components/            safe crash/recovery boundary
+│   ├── lib/                   local journey/progress, rules, support, legal, dates
 │   ├── scripts/               release-configuration preflight
 │   └── types/database.ts      synchronized database contract
 ├── landing/                   static marketing/legal/support/waitlist
@@ -296,7 +366,7 @@ ReloGo/
 ├── worker/                    source monitor plus read-only preflight
 ├── supabase/
 │   ├── migrations/            ordered schema/security/RPC source
-│   ├── functions/support-ai/  Deno/Gemini function and tests
+│   ├── functions/support-ai/  retained legacy Deno/Gemini function and tests
 │   └── tests/                 pgTAP RLS/RPC adversarial suite
 ├── scripts/                   cross-app checks and hosted smoke
 ├── tests/e2e/                 Python 3.11 API integration suite
@@ -308,39 +378,29 @@ See [PROJECT_MAP.md](PROJECT_MAP.md) for annotated paths.
 
 ## Runtime behavior
 
-### Authentication, startup, profile, and checklist
+### Startup, local journey, and checklist
 
-1. Supabase config is validated without throwing during module evaluation.
-   Runtime URLs must be clean origins; production build preflight accepts only
-   the exact production origin and trims/rejects a blank public key.
-   Missing/invalid configuration renders a controlled recovery screen.
-2. Native splash is released after React paints; remote session/profile work no
-   longer holds a static splash. AsyncStorage ciphertext and SecureStore key
-   are read concurrently.
-3. Session restore is bounded at 3 seconds and consent/profile bootstrap at 5
-   seconds. Failure produces retry UI rather than an indefinite loading page.
-   The auth subscription ignores duplicate `INITIAL_SESSION` startup work.
-4. The consent RPC returns server-current state plus an allowlisted profile only
-   when current. Root seeds React Query with that profile, avoiding a duplicate
-   profile round trip, then immediately prefetches corridor rules and progress
-   while the route renders. The checklist subscribes to the same keys, so it
-   reuses in-flight work. Checklist profile/rule/progress reads have bounded
-   stale times, an 8-second abort deadline, and `retry: false`.
-5. Onboarding requires legal consent, signs in anonymously, and INSERTs only
-   minimal non-PII move metadata, falling back to UPDATE where appropriate. It
-   then calls `get_policy_consent_state()`; the RPC's authoritative allowlisted
-   profile seeds the cache before routing to the checklist. Auth, profile
-   insert/update, and confirmation waits are each bounded at 10 seconds.
-6. Stale consent routes to re-consent; declining may still delete the account.
-7. Checklist calls `resolve_corridor_rules()` once, filters required/optional
-   rules by vehicle/dependents, calculates local-calendar deadlines, and shows
-   safe official sources. Missing progress means `AVAILABLE`; optimistic writes
-   toggle between `AVAILABLE` and `COMPLETED`.
-8. Profile and checklist share the same abortable eight-second profile query
-   and cache policy. Re-consent acceptance and authoritative confirmation share
-   one ten-second deadline; cancelled or late responses cannot route the user.
+1. Supabase public config is validated without throwing during module
+   evaluation. Invalid config renders a controlled recovery screen because
+   corridor rules are fetched from the public resolver.
+2. Startup loads only `LocalJourney` from AsyncStorage. It does not create or
+   restore a support identity just to open the checklist.
+3. Onboarding saves only origin/destination city and province plus local
+   consent version to AsyncStorage.
+   Re-consent updates that local version.
+4. The checklist reads the journey from `JourneyContext`, calls
+   `resolve_corridor_rules()` with province codes only, shows relative task
+   timing and applicability labels, and displays safe official sources. The
+   public request is abortable and bounded at 8 seconds so a stalled connection
+   can reach the retry screen.
+5. Checkmarks are stored per province corridor in AsyncStorage. Writes are
+   serialized so rapid taps do not overwrite another task's update. Clear
+   checklist removes local route/progress and the corresponding React Query
+   cache; support data remains separate.
+6. City names are display-only. There is no geocoding, map, or nearby-place
+   lookup.
 
-### Local PII, Privacy, and Unified Navigation
+### Local data, privacy, and navigation
 
 The native app declares light appearance. Status-bar icons explicitly match
 the rendered header: light over blue Auth/Profile headers, dark over light
@@ -348,43 +408,37 @@ Checklist/Help/recovery screens. Tabs use navigation history for Support Back.
 Large support text uses full-width questions and scrollable controls without
 disabling font scaling; current physical-device/visual confirmation remains open.
 
-1. Profile PII uses `expo-secure-store`; it never enters Supabase.
-2. The checklist interface presents a 100% unified experience across all 13
-   provinces and territories: urgency badge, document preparation guide, verified
-   official government portal link, and an optimistic completion checkmark.
-3. Users are guided directly to official government portals and registry locators
-   to complete applications directly on official systems.
-4. Underlying PDF form-filling modules (`pdfEngine.ts`, `pdfTemplates.ts`) remain
-   modular and preserved for Phase 2 government integration.
-5. Sign-out and account deletion wipe the local PII vault and local session.
-   Deletion also removes the server account and session.
+1. No profile PII vault or PDF form-filling engine is included in the current
+   mobile source. The unused Expo native packages and sample PDF were removed.
+2. The checklist retains urgency, task guidance, official links, and local
+   checkmarks. The rule resolver still requires connectivity when refreshing
+   task guidance.
+3. Route/progress data in AsyncStorage is not encrypted; it is ordinary local
+   app data. The support session is separately encrypted using the existing
+   secure-store-backed Supabase session storage.
+4. The Move tab explains local storage, offers a local checklist reset, and
+   links to human support. Resetting the checklist does not delete support chat.
 
-### Support
+### Human support
 
-Support requests use ten-second deadlines; AI invocation uses twenty seconds.
-A failed write requires an authoritative refresh before another write, because
-an absent response does not prove the server did not commit. Realtime connection
-reconciles an authoritative snapshot with streamed messages. Arbitrary startup
-errors also pass through the same metadata-only error reporter.
-
-1. Mobile loads the latest owned thread and subscribes to messages/status.
-2. The user selects one of six fixed questions; the database blocks other user
-   bodies and free-text metadata.
-3. While status is `AI`, mobile invokes `support-ai` with only `thread_id`.
-4. Function v5 authenticates ownership, rejects durable human involvement,
-   validates every user turn, bounds context/output, and applies one provider
-   deadline across both response headers and the full response-body read. It
-   grounds through the canonical corridor resolver and validated official
-   sources.
-5. Gemini receives only the bounded fixed-question transcript plus non-PII
-   grounding. Persistence is a row-locked RPC that rechecks current state.
-6. Human takeover/admin reply permanently disqualifies AI even after
-   resolve/reopen. Provider/query/model failures expose generic PII-safe errors
-   and fail closed to human support.
-7. Preview v3 remains paused after authenticated smoke. Production v5 is ACTIVE
-   with JWT verification, rejects unauthenticated invocation with 401, and has
-   a passing public resolver smoke. Keep a production authenticated support
-   check in release QA.
+1. Opening Help lazily restores or creates a Supabase anonymous identity. The
+   checklist itself does not require this identity.
+2. Mobile loads the latest owned thread and subscribes to messages/status.
+   Conversation snapshots are cached in AsyncStorage by that anonymous ID and
+   reconciled with Realtime.
+3. A new thread starts in `AWAITING_HUMAN`; users choose among six fixed
+   questions. The database allowlist still blocks arbitrary user messages.
+4. The Admin inbox displays the thread; an admin can take over, reply, and
+   resolve it. A user may start a new thread after resolution.
+5. Support writes have a ten-second deadline. If the result is unknown, the
+   app requires an authoritative refresh before another write. The current
+   mobile client makes no AI function invocation.
+6. The server transcript and a local cache are retained; there is no
+   self-service chat deletion control in the current app. A retention and
+   deletion path is a launch decision.
+7. The production AI Edge Function was last documented as active (v5) on
+   2026-10-16. The source and secret may still be deployed; do not claim server
+   decommissioning without a separate authorized rollout and verification.
 
 ### Worker and rule review
 
@@ -511,10 +565,26 @@ deno test --config supabase/functions/support-ai/deno.json \
   supabase/functions/support-ai/supportQuestions_test.ts
 ```
 
-### Latest established results
+### Historical established results (verified 2026-10-16)
 
-- Current git state (read-only check 2026-10-05): `main` == `origin/main` ==
-  `0c78e56` (PR #6 merge, 2026-09-08), untouched. Local `tamim` is clean and
+- Current git/CI state (verified 2026-10-16): `main` == `origin/main` ==
+  `69ff576` (PR #7 merge, 2026-10-10); `tamim` == `origin/tamim` == `c7e4dcd`
+  is fully pushed and contained in `main`. CI run `38071116034` (PR #7 merge
+  push) succeeded on 2026-10-10; public uptime runs on `main` remain green
+  through 2026-10-16 (e.g., `38925058297`). Mobile `npm run check:release`
+  passes and `npm run audit:production` passes with the two reviewed exceptions
+  (resolution of the 2026-10-05/06 regression; the gate still fails closed on
+  anything outside the exception list). Scheduled worker run `38863388197`
+  failed on 2026-10-16 before migrations 027–028 were deployed. Those migrations
+  have since been applied, but no post-migration live worker rerun is recorded.
+  No SDK 57 build existed at that time; iOS 1.0.2 build 9 is recorded above.
+  Visual QA remains partial: iPhone Expo Go runs on
+  2026-10-09/10-10 passed most committed visual cases, Android evidence is
+  seven Expo Go emulator screenshots (2026-10-07), the Android Suite A–J has
+  never run, and no real-device QA exists on either platform.
+- Historical git state (read-only check 2026-10-05; superseded by PR #7):
+  `main` == `origin/main` == `0c78e56` (PR #6 merge, 2026-09-08), untouched.
+  Local `tamim` is clean and
   carries committed, unpushed work on top of `origin/tamim` (`fff31da`,
   2026-09-29): `fff31da` commits the 2026-09-14 verification fixes, migrations
   027–028, the store-readiness mobile fixes, and the supporting QA/docs/CI
@@ -540,8 +610,9 @@ deno test --config supabase/functions/support-ai/deno.json \
   has zero findings across 16 routine/trigger combinations. No reset-based API
   E2E rerun or fresh simulator visual pass is claimed. Production remains 026;
   027/028 and web fixes await explicitly authorized rollout. Detailed evidence:
-  [fix verification](../../qa-artifacts/fix-verification-2026-09-14.md).
-- Current `tamim` recovery recheck (2026-08-17): Node 22 clean installs pass;
+  [fix verification](../../qa-artifacts/fix-verification-2026-09-14.md)
+  (staged-deleted in the working tree; available in git history).
+- Historical `tamim` recovery recheck (2026-08-17): Node 22 clean installs pass;
   mobile release/dependency checks, TypeScript, lint, 13 Jest suites with
   133/133 tests, and both 1,753-module iOS/1,774-module Android Hermes exports
   pass; admin/landing lint and production builds pass; worker compile and
@@ -583,15 +654,18 @@ deno test --config supabase/functions/support-ai/deno.json \
   closed (26 high, 0 critical) from newly published `braces`
   GHSA-vfj7-8cjw-p6xm (affected `<=3.0.3`, **no patched release**, reached via
   micromatch/Tailwind/NativeWind/Jest/Metro) and `node-forge`
-  GHSA-86w9-cpqp-85rv. This is a release-gate blocker requiring an owner/
-  engineering decision; the audit gate must not be weakened.
+  GHSA-86w9-cpqp-85rv. This was a release-gate blocker requiring an owner/
+  engineering decision; the audit gate must not be weakened. (Superseded
+  2026-10-10 by the reviewed, time-boxed audit exceptions; see the 2026-10-16
+  entry.)
 - Local iOS simulator verification (2026-10-06): Xcode 27 / Device Hub,
   iPhone 17 with iOS 26.5, local Supabase on loopback, and Expo Go 57.0.9.
   `python3.11 scripts/run-local-app.py mobile -- --ios --clear` launched the
   app; Metro bundled 1,833 modules and the onboarding screen rendered. Expo
   Doctor passed 21/21, mobile lint/typecheck/release-config passed, Jest passed
-  161/161, and launcher checks passed 13/13. The production audit still fails
-  on 23 high findings (zero critical) after compatible fixes.
+  161/161, and launcher checks passed 13/13. At that time the production audit
+  still failed on 23 high findings (zero critical) after compatible fixes;
+  this is resolved as of 2026-10-10 (see the 2026-10-16 entry).
 - Latest full code matrix at `2624ad3` (2026-08-01): mobile release configuration,
   TypeScript, lint, 11 Jest suites with 116/116 tests, iOS export at 1,752
   modules/5.8 MB Hermes bytecode, Android export at 1,773 modules/5.9 MB Hermes
@@ -618,21 +692,24 @@ deno test --config supabase/functions/support-ai/deno.json \
   (`28076f35-1495-466b-af77-97a9339c5ea2`) is also `FINISHED` from the same
   commit. iOS build 7 is valid and active in internal TestFlight, but has not
   been submitted for App Review. Android build 4 has no Google Play submission.
-  Both predate the current `tamim` changes and are not current candidates.
-- Current iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android
+  Both predate the current recovery tree and are not current candidates.
+- Recorded iOS build 8 (`daa8e42a-c12d-4365-b6ca-ff36732cd858`) and Android
   build 5 (`f839dede-1f83-4c6a-a928-de258597e6d0`) are `FINISHED` from exact
-  green commit `cd3a87c`; both archives and embedded production metadata pass
-  verification. Neither was uploaded or submitted to a store.
+  green commit `cd3a87c` (SDK 55); both archives and embedded production
+  metadata pass verification. Neither was uploaded or submitted to a store, and
+  both are superseded by the merged SDK 57 tree; no EAS build exists from that
+  tree.
 - No current real-device QA or App Review submission result exists.
 
-## Hosted environment state
+## Historical hosted environment state (verified 2026-10-16; current ledger is above)
 
 - Preview: `ReloGo Preview`, `uwfblgllkibbupqyofkl`, `ca-central-1`, currently
   INACTIVE by deliberate pause. Before pause it had exact migrations 001–026,
   `support-ai` v3 ACTIVE with JWT verification, and a passing live smoke.
 - Production: `ReloGo Production`, `yskknolxbxfxakgvrcmg`, `ca-central-1`,
-  ACTIVE_HEALTHY and currently linked locally. Remote ledger is exact 001–026;
-  the last pre-027 dry run was clean; final `support-ai` v5 is ACTIVE with JWT verification and returns
+  ACTIVE_HEALTHY and currently linked locally. At the time of this snapshot the
+  remote ledger was 001–026; migrations 027–031 are applied per the current
+  snapshot above. The last recorded `support-ai` version is v5 with JWT verification and returns
   401 unauthenticated. The self-cleaning smoke passed anonymous auth, resolver
   output with five tasks/five HTTPS sources, a minimal onboarding profile
   insert, authoritative consent/profile confirmation, authenticated
@@ -648,8 +725,9 @@ deno test --config supabase/functions/support-ai/deno.json \
 - Hosted `supabase test db --linked` uses a restricted temporary role without
   pgTAP schema usage. Run pgTAP through the password-authenticated linked pooler
   URL and keep passwords in Keychain/`PGPASSWORD`, never output.
-- Supabase CLI was last observed at 2.109.1. Optional pg-delta cache warnings do
-  not replace ledger, dry-run, lint, pgTAP, advisor, and smoke verification.
+- Supabase CLI is pinned at 2.120.0 (root `package.json`). Optional pg-delta
+  cache warnings do not replace ledger, dry-run, lint, pgTAP, advisor, and
+  smoke verification.
 - Vercel `relogo` maps to `landing/`; `relo-go` maps to `admin/`. The reviewed
   admin recovery is live at `https://relo-go.vercel.app`, and the landing site
   at `https://relogo-two.vercel.app` is live. Read-only probes on 2026-09-24:
@@ -665,11 +743,13 @@ deno test --config supabase/functions/support-ai/deno.json \
 - EAS project `@tamimorif/relogo` separates development/preview from production.
   Recorded production artifacts are iOS 1.0.1 build 8 at EAS
   `daa8e42a-c12d-4365-b6ca-ff36732cd858` and Android 1.0.1 build 5 at EAS
-  `f839dede-1f83-4c6a-a928-de258597e6d0`; both `FINISHED` from `cd3a87c`, which
-  predates `0c78e56` and the committed `fff31da` recovery tree, using production
+  `f839dede-1f83-4c6a-a928-de258597e6d0`; both `FINISHED` on SDK 55 from
+  `cd3a87c`, which predates the merged recovery tree, using production
   channel/runtime 1.0.1 and existing frozen credentials. Archive checks pass.
-  Neither was uploaded or submitted, and both are now superseded by `fff31da`;
-  rebuild before store QA. Earlier iOS production 1.0.1 build 7 is `FINISHED` at
+  Neither was uploaded or submitted; both are superseded. The current iOS 1.0.2
+  build 9 and its errored submission are recorded at the top of this file. No
+  current Android production build is recorded. Earlier iOS
+  production 1.0.1 build 7 is `FINISHED` at
   EAS `765965d7-c7c1-432c-ac1d-302d2f0c5116`; Android production 1.0.1 build 4 is
   also `FINISHED` at EAS `28076f35-1495-466b-af77-97a9339c5ea2`. Both use exact merged
   commit `e75f449`. Production EAS variables pass the release contract and
@@ -677,35 +757,31 @@ deno test --config supabase/functions/support-ai/deno.json \
   iOS build 7 is already in internal TestFlight (`VALID`, `IN_BETA_TESTING`),
   so EAS device registration is not required; no physical iPhone was connected
   during the 2026-08-17 audit. It is not in App Review. Android build 4 has not
-  been submitted, and automated Android submission has no Google Play service-
-  account key. Those earlier artifacts predate the committed `fff31da` tree.
+  been submitted, the Google Play listing is not configured, and automated
+  Android submission has no Google Play service-account key. Those earlier
+  artifacts predate the merged recovery tree.
 
 ## Known limits and next work
 
-1. Settle the artifact question by rebuilding iOS/Android from committed tip
-   `fff31da` (expected iOS build 9 / Android versionCode 6). Recorded builds 8/5
-   were built from `cd3a87c` and predate `d64c4cb` (Phase 1 checklist cards),
-   `df3535b` (Expo SDK 55.0.31 pins), and the committed 2026-09-14 recovery
-   fixes; `docs/STORE.md` records them as superseded. After explicit owner
-   authorization, upload the fresh iOS artifact to TestFlight and use the fresh
-   Android artifact for real-device startup, offline/recovery, PDF, deletion,
-   and privacy QA. Do not upload or submit either automatically.
-2. Apply locally verified migrations 027–028 only after explicit authorization.
-   Migration 027 maps the
-   11 failed rows/10 URLs to nine validated automatic first-party targets plus
-   two owned Yukon manual assignments without changing public `official_url`
-   values. The default-branch worker is already coordinated (verified 2026-09-14),
-   so missing hosted 027 is now a monitoring outage. Apply 027 then 028 to an
-   explicitly targeted environment and obtain a live Actions result. Migration
-   028 removes automatic email-based admin grants while retaining reviewed access. Never bypass
+1. Finish the iOS upload path. EAS build 1.0.2 build 9 exists, but its
+   submission job errored at Apple's agreement gate. The Account Holder must
+   accept the required agreement; then retry the submission. The EAS build
+   recorded commit `5f14fe1` while mobile source/version edits were uncommitted,
+   so make the intended release source reproducible from a clean commit before
+   App Review. No current Android EAS build exists.
+2. Production migrations 027–031 are applied. Migration 027 maps the 11 failed
+   rows/10 URLs to nine validated automatic first-party targets plus two owned
+   Yukon manual assignments without changing public `official_url` values.
+   Obtain a post-migration live worker result. Migration 028 removes automatic
+   email-based admin grants while retaining reviewed access. Never bypass
    CAPTCHAs or baseline challenge text.
 3. Configure and test `ALERT_WEBHOOK_URL`, assign worker/uptime alert owners,
    and require failed/manual sources to remain visible. The existing worker key
    passed preflight and must not be rotated or requested again.
-4. Archive the production ledger/dry-run/smoke and final build evidence. Run
-   final production lint, pgTAP, advisors, and authenticated AI smoke if they
-   are not already captured. The next hosted changes are pending migrations 027–028
-   and still need explicit approval.
+4. Archive the production ledger, post-migration smoke, and final build
+   evidence. Run production lint, pgTAP, and advisors if they are not already
+   captured. Do not invoke the retained legacy AI function as part of the
+   mobile MVP verification.
 5. Configure a monitored public support/privacy mailbox and domain, then
    establish recurring schedule and notification ownership; one passing uptime
    run does not prove either.
@@ -719,8 +795,22 @@ deno test --config supabase/functions/support-ai/deno.json \
    draft: account owners must correct the live App Store "Data Not Collected"
    answer, confirm App Store/Play privacy answers for anonymous linked data and
    Gemini processing, finish age rating, availability/trader status, final
-   screenshots, Support URL, Apple metadata/device/2FA actions, and provide a
-   Google Play service-account key or reviewed manual Android submission path.
+   screenshots, Support URL, and Apple metadata/device/2FA actions. The Google
+   Play listing is not configured: `com.relogo.app` 404s publicly and no Play
+   Console record/listing exists in-repo. Before any Android submission,
+   provide the 512×512 icon, 1024×500 feature graphic, and Play-format phone
+   screenshots (uncommitted draft Play assets exist in `store-assets/`
+   (`play-icon-512.png`, `play-feature-graphic-1024x500.png`); existing
+   `store-screenshots/` are iOS-dimension only), complete the Data safety
+   questionnaire (drafts in `docs/STORE.md` §3.3), content rating, target
+   audience, government-app declaration, account-deletion URL, and a monitored
+   contact email. If the Play developer account is a personal (individual)
+   account created after 2023-11-13, Google requires 12+ testers across 14+
+   continuous days of closed testing before production access; the owner must
+   confirm the account type. Automated Android submission expects the Play
+   service-account key at `mobile/google-play-service-account.json`
+   (working-tree `eas.json`/`.gitignore` prep, uncommitted pending review;
+   none provisioned), with manual Console upload as the documented fallback.
 
 10. Mobile dependency-advisory regression — **locally resolved 2026-10-10**
     (owner approved). Both remaining roots — `braces` GHSA-vfj7-8cjw-p6xm and
@@ -733,7 +823,7 @@ deno test --config supabase/functions/support-ai/deno.json \
     unknown data) with per-entry justification and a 2026-12-01 re-review date;
     the gate still fails on anything outside those entries. Verified:
     `npm run audit:production` passes with the two exceptions in effect, lint,
-    typecheck, and Jest 16 suites / 174 tests all pass. Remove each exception as
+    typecheck, and Jest 16 suites / 178 tests all pass. Remove each exception as
     soon as an upstream patch ships; do not bypass or weaken the gate further.
 
 Out of MVP scope unless new evidence justifies reopening: a recoverable AI
@@ -745,18 +835,19 @@ decision.
 
 - Old binary recovery is impossible. Historical iOS 1.0.1 build 7 is `FINISHED`
   from exact merged commit `e75f449`; Android 1.0.1 build 4 is also `FINISHED`
-  from that commit. Both predate the committed `fff31da` tree. iOS build 8 and
-  Android build 5 are `FINISHED` with verified archives but were recorded from
-  `cd3a87c`, which predates `0c78e56` and `fff31da`; they are superseded and
-  still need a rebuild from `fff31da`, real-device QA, and store approval. OTA
-  can be considered only for a released compatible
+  from that commit. Both predate the current recovery tree. iOS build 8 and
+  Android build 5 are `FINISHED` with verified archives but were recorded on
+  SDK 55 from `cd3a87c`, which predates the merged recovery tree; they are
+  superseded. The current iOS 1.0.2 build 9 is recorded above; its App Store
+  Connect upload failed at Apple's agreement gate. A committed source archive,
+  physical-device QA, and successful ASC upload remain. OTA can be considered
+  only for a released compatible
   runtime/channel, never for v1.0.
 - Mobile runtime configuration accepts only clean Supabase origins; production
   release preflight accepts only
   `https://yskknolxbxfxakgvrcmg.supabase.co` (with an optional trailing slash).
-- Local Supabase link points to production. Use explicit refs and leave
-  production at exact 001–026/v5. Migrations 027–028 remain unhosted; their
-  rollout still requires explicit approval.
+- Local Supabase link points to production. Use explicit refs. Production is
+  now at migrations 001–031; the last recorded hosted AI function is v5.
 - Preview is paused after successful verification; resume deliberately and
   account for the project's live plan and pausing behavior.
 - Pull request #2 final head `f34b64a` passed all 19 checks, its fixed review
@@ -766,8 +857,9 @@ decision.
   PENDING alerts while 11 outcomes remained failed; 43/53 sources now have
   baselines. Those 11 rows/10 URLs were anti-bot, CAPTCHA, or empty-content
   failures. The local 027 treatment uses nine automatic worker-only first-party
-  targets and two visible, owned manual assignments, but it is not hosted and
-  has no live rerun. Keep challenge gates fail-closed. Key rotation is not
+  targets and two visible, owned manual assignments; migration 027 is now
+  hosted but has no recorded post-migration live rerun. Keep challenge gates
+  fail-closed. Key rotation is not
   needed; the webhook is absent.
 - The worker preflight and backend-aware uptime probe fail closed unless
   `SUPABASE_URL` is the exact production origin
@@ -792,4 +884,5 @@ decision.
 - Deployment commands/platform setup: `docs/DEPLOYMENT.md`.
 - Backup posture and restore drills: `docs/BACKUP_RESTORE.md`.
 - Annotated structure only: `docs/ai/PROJECT_MAP.md`.
+- Current user-run iPhone flow: `docs/ai/SIMULATOR_TESTING_GUIDE.md`.
 - Do not create another roadmap, status file, action list, or handoff log.

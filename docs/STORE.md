@@ -1,7 +1,19 @@
-# ReloGo 1.0.1 Store Submission & Verification Package
+# ReloGo Store Submission & Verification History
+
+> **Current release snapshot (2026-11-21):** iOS marketing version 1.0.2 was
+> built successfully as EAS build 9 (`a61bc88b-36fb-4380-9a8f-3e258cab7268`).
+> Its App Store Connect submission job (`1e38d883-36b0-4b81-9407-7b87181370bc`)
+> is `ERRORED`: Apple requires the Account Holder to accept a missing or
+> expired agreement. The build has not entered App Review. The EAS record points
+> to commit `5f14fe1`, but mobile source and the version bump were uncommitted
+> when it ran; create the final review candidate from a committed source tree.
+> Production Supabase is at migrations 001–031. Simulator findings and release
+> follow-ups are in [AI_HANDOFF.md](ai/AI_HANDOFF.md) and the dated
+> [section 6 report](/tmp/relogo-simulator-evidence/2026-11-21-helpfix-rerun/section-6-report.md).
+> The sections below retain the historical 1.0.1 recovery-release audit.
 
 > **Authoritative Specification & Operational Runbook**
-> Current as of: 2026-10-05 | Target Version: 1.0.1 (Recovery Release)
+> Historical snapshot: 2026-10-16 | Target Version: 1.0.1 (Recovery Release)
 > Repository Root: `/Users/tamimorif/Documents/GitHub/ReloGo`
 > Exclusively Governs: Mobile App Store Submission, Privacy Disclosure Reconciliation, and Real-Device Release Verification.
 
@@ -10,28 +22,33 @@
 ## 1. EAS 1.0.1 Production Build Audit
 
 ### 1.1 Executive Summary & Target Environment
-The ReloGo 1.0.1 mobile recovery release provides cross-Canada relocation checklists and official government navigation across all 13 provinces and territories. The shipped App Store 1.0 binary (Apple ID `6781947478`, bundle ID `com.relogo.app`) was compiled against Expo SDK 51 and bundled the deleted Supabase project `fxrynmgaymslwcklfena`. Because that binary contains no OTA update capability, recovery requires releasing new store binaries compiled from Expo SDK 55 against active production Supabase (`yskknolxbxfxakgvrcmg`).
+The ReloGo 1.0.1 mobile recovery release provides cross-Canada relocation checklists and official government navigation across all 13 provinces and territories. The shipped App Store 1.0 binary (Apple ID `6781947478`, bundle ID `com.relogo.app`) was compiled against Expo SDK 51 and bundled the deleted Supabase project `fxrynmgaymslwcklfena`. Because that binary contains no OTA update capability, recovery requires releasing new store binaries compiled from Expo SDK 57 against active production Supabase (`yskknolxbxfxakgvrcmg`).
 
 Both recorded 1.0.1 production release candidates (iOS build 8 / Android build
 5) were built, archived, and verified via Expo Application Services (EAS) from
-commit `cd3a87c5433c18d57509af6b0d4d23b1b4e5fe9e`. They are now **superseded**
-by the committed `fff31da` tree (see the note below) and must not be uploaded.
+commit `cd3a87c5433c18d57509af6b0d4d23b1b4e5fe9e` on the older Expo SDK 55
+dependency line. They are now **superseded** by the current `main` tip
+(`69ff576`, PR #7 merged 2026-10-10 — see the note below) and must not be
+uploaded.
 
-> **Current-tree supersession (2026-09-29):** recorded builds 8 (iOS) and 5
-> (Android) predate the committed `fff31da` tree and **must not be uploaded**.
-> The committed tree additionally fixes the Android/iOS bundle breaker (stale `expo-router`
-> resolved via a clean install), pins `expo-updates` 55.0.33 and security
-> overrides (`js-yaml` 4.3.2, `@xmldom/xmldom` 0.8.15/0.9.12, `metro`/
-> `metro-config` 0.83.8), adds the iOS `privacyManifests` required-reason
-> declarations, blocks unused `SYSTEM_ALERT_WINDOW` on Android, adds
-> `expo-system-ui`, fixes Android edge-to-edge tab-bar insets, and adds
-> `.catch()` to the onboarding/re-consent legal links. Verification on this
-> tree: mobile lint, typecheck, 161/161 Jest tests, `check:release`,
-> `audit:production` (0 high/critical as recorded 2026-09-29; a 2026-10-05
-> recheck shows the mobile audit is now red on new upstream `braces`/
-> `node-forge` advisories — resolve before shipping), `expo-doctor` 20/20, and
-> both iOS and Android Hermes exports pass. Rebuild before any upload; expect
-> **iOS build 9** and **Android versionCode 6**.
+> **Current-tree supersession (rechecked 2026-10-16):** recorded builds 8 (iOS)
+> and 5 (Android) predate the SDK 57 recovery tree and **must not be uploaded**.
+> The current release tree is `main` `69ff576` (PR #7 "Recovery release tree:
+> audit gate fix, iOS QA fixes, docs + evidence" merged 2026-10-10); branch
+> `tamim` == `origin/tamim` == `c7e4dcd` carries the same tree and is fully
+> pushed. **No EAS build has ever been produced from this SDK 57 tree**, so
+> rebuild from current `main` before any upload or store QA — expect **iOS
+> build 9** and **Android versionCode 6**. The merged recovery tree fixed the
+> Android/iOS bundle breaker (stale `expo-router` resolved via a clean install),
+> added the iOS `privacyManifests` required-reason declarations, blocked unused
+> `SYSTEM_ALERT_WINDOW` on Android, added `expo-system-ui`, fixed Android
+> edge-to-edge tab-bar insets, and added `.catch()` to the onboarding/re-consent
+> legal links. Historical 2026-09-29 verification (then-tip `fff31da`, SDK 55
+> dependency line): mobile lint, typecheck, 161/161 Jest tests, `check:release`,
+> 0 high/critical in `audit:production`, `expo-doctor` 20/20, and passing iOS
+> and Android Hermes exports. Current-tree recheck (2026-10-16):
+> `npm run check:release` and `npm run audit:production` both pass — the audit
+> under two reviewed, time-boxed exceptions (see §5.1 Step 1).
 
 ### 1.2 iOS Production Build 8 Specifications
 - **Platform**: iOS
@@ -50,7 +67,15 @@ by the committed `fff31da` tree (see the note below) and must not be uploaded.
 - **Archive Size**: 19,516,089 bytes (~18.6 MB)
 - **Apple Bundle Identifier**: `com.relogo.app`
 - **Non-Exempt Encryption**: `false` (`ITSAppUsesNonExemptEncryption: false`)
-- **Submission State**: Archive verified and intact. Not yet uploaded to App Store Connect / TestFlight.
+- **Submission State**: Uploaded to App Store Connect and submitted for review as 1.0.1 (8) on 2026-09-08. Rejected on 2026-09-09 under Guideline 2.3.10 (non-iOS status-bar images in the screenshots). The iPhone 6.5" and iPad 12.9" screenshot sets were replaced with iOS-status-bar versions on 2026-10-20 and the same build was resubmitted; current state `WAITING_FOR_REVIEW`. The SDK 55 artifact remains superseded by the SDK 57 tree for any future rebuild.
+
+> **App Review correction (2026-10-20):** all eight store screenshots in
+> `store-screenshots/` now use an iOS status bar (time, cellular, Wi-Fi,
+> battery); the previous Android status bar was removed. Both ASC sets
+> (`APP_IPHONE_65`, `APP_IPAD_PRO_3GEN_129`) contain exactly four new assets
+> (1284×2778 and 2064×2752) with `assetDeliveryState = COMPLETE`, and submission
+> `a5d59778-8286-4ebf-9373-d96917499171` was resubmitted. Do not upload build 8
+> to any other slot.
 
 ### 1.3 Android Production Build 5 Specifications
 - **Platform**: Android
@@ -68,7 +93,7 @@ by the committed `fff31da` tree (see the note below) and must not be uploaded.
 - **Archive SHA-256**: `afad9d7cd505c2f0c0e516a1f7eddb02ef71748de2e21d0125b735e4b1a15343`
 - **Archive Size**: 68,966,684 bytes (~65.8 MB)
 - **Android Package Name**: `com.relogo.app`
-- **Submission State**: Archive verified and intact. Not yet uploaded to Google Play Console (service account key pending or manual upload required).
+- **Submission State**: Archive verified and intact, but **superseded** by the current SDK 57 recovery tree — do not upload. Not uploaded to Google Play Console (service account key not yet provisioned; manual Console upload remains the default path).
 
 ### 1.4 Historical Build Deprecation & Audit Comparison
 | Attribute | Historical iOS Build 7 | Recorded iOS Build 8 (superseded) | Historical Android Build 4 | Recorded Android Build 5 (superseded) |
@@ -76,23 +101,23 @@ by the committed `fff31da` tree (see the note below) and must not be uploaded.
 | **EAS ID** | `765965d7-c7c1-432c-ac1d-302d2f0c5116` | `daa8e42a-c12d-4365-b6ca-ff36732cd858` | `28076f35-1495-466b-af77-97a9339c5ea2` | `f839dede-1f83-4c6a-a928-de258597e6d0` |
 | **Commit** | `e75f449` | `cd3a87c` | `e75f449` | `cd3a87c` |
 | **Build Number** | `7` | `8` | `4` | `5` |
-| **App Store Status** | `VALID` / `IN_BETA_TESTING` (TestFlight) | Pending Upload | Never uploaded | Pending Upload |
+| **App Store Status** | `VALID` / `IN_BETA_TESTING` (TestFlight) | Rejected 2026-09-09 (2.3.10); screenshot fix resubmitted 2026-10-20 (`WAITING_FOR_REVIEW`) | Never uploaded | Not uploaded (superseded) |
 | **Startup Prefetch Fixes** | Missing | **Included** (`cd3a87c`) | Missing | **Included** (`cd3a87c`) |
 | **SDK 55 Dependency Audit** | Unpatched | **Patched & Verified** | Unpatched | **Patched & Verified** |
 | **Candidate Verdict** | **DEPRECATED** (Do not ship) | **SUPERSEDED** (rebuild required) | **DEPRECATED** (Do not ship) | **SUPERSEDED** (rebuild required) |
 
-> **Branch-tip note (read-only check 2026-10-05):** `main` points at `0c78e56`
-> (2026-09-08), which adds the Phase 1 checklist simplification (`d64c4cb`), EAS
-> submit `ascAppId` configuration (`e103095`), and the Expo SDK 55.0.31 patch
-> alignment (`df3535b`) on top of `cd3a87c`. The checked-out `tamim` branch
-> holds committed, unpushed follow-ups on top of `origin/tamim` (`fff31da`,
-> 2026-09-29): `fff31da` commits the 2026-09-14 verification fixes, migrations
-> 027–028, and the store-readiness work, and `3d156ec` (2026-10-05) reconciles
-> the status docs and refreshes the landing lockfile to `next@16.3.8`. The tree
-> is clean. Builds
-> 8/5 recorded from `cd3a87c` predate this tip, so rebuild (expected iOS build 9
-> / Android versionCode 6) before upload or store QA.
-> The verdicts above describe the recorded artifacts, not the committed tip.
+> **Branch-tip note (read-only check 2026-10-16):** `main` and `origin/main`
+> point at `69ff576` (PR #7 "Recovery release tree: audit gate fix, iOS QA
+> fixes, docs + evidence" merged 2026-10-10); branch `tamim` == `origin/tamim`
+> == `c7e4dcd` carries the same tree and is fully pushed — there are no
+> unpushed commits. (A staged `qa-artifacts/` deletion and a trivial
+> `.gitignore` edit await an owner decision.) Builds 8/5 recorded from
+> `cd3a87c` predate this tip and the SDK 57 tree, so rebuild (expected iOS
+> build 9 / Android versionCode 6) before upload or store QA. No EAS build has
+> ever been produced from the SDK 57 tree. (Superseded 2026-10-05 check: `main`
+> was `0c78e56` and `tamim` held committed, unpushed follow-ups
+> `fff31da`/`3d156ec`, since merged into `main` via PR #7.)
+> The verdicts above describe the recorded artifacts, not the current tip.
 
 ### 1.5 Configuration Invariants & Pre-Submission Contracts
 All mobile builds enforce the following strict configuration invariants:
@@ -228,13 +253,18 @@ The customer support AI assistant is executed via a server-side Deno Edge Functi
 - **Model Guardrails**: The system prompt strictly prohibits the model from soliciting, requesting, or echoing personal identification numbers, names, or addresses.
 
 ### 2.5 Official Government PDF Form Engine
+
+> **1.0.1 status:** the fill/share UI is **not exposed in 1.0.1** (intentional;
+> see the QA playbook's non-features list). The engine below is preserved for
+> the Phase 2 direct-integration roadmap and is not user-reachable today.
+
 ReloGo assists users with filling official government PDFs (such as the British Columbia Application for Health Coverage, form `101fil.pdf`):
 - **Download Integrity Gate**: The app downloads the blank form directly from the official ministry portal (`https://www2.gov.bc.ca/assets/gov/health/forms/101fil.pdf`).
 - **Cryptographic Hash Validation**: `mobile/lib/pdfEngine.ts` computes the SHA-256 checksum of the downloaded file and verifies it against the pinned hash `30de754d48f2e90e9c8b49b1d4339ddc54be3d5fc913aab1ac45738c3e719f81`. It also enforces a strict 10 MB maximum size limit.
 - **Fail-Closed Execution**: If the digest mismatches or the file exceeds 10 MB, execution terminates with an error **before** reading any PII from the Secure Enclave.
 - **In-Memory Population**: Form field mapping is executed purely in local device RAM using `pdf-lib`. Filled forms are never uploaded to ReloGo or any third-party server.
 
-### 2.6 Ephemeral Cache Hygiene & Android 10-Minute Share Grace Window
+### 2.6 Ephemeral Cache Hygiene & Android 10-Minute Share Grace Window (Phase 2 module)
 - **iOS Cleanup**: On iOS, the native share sheet (`expo-sharing`) retains synchronous access to the file. Immediately upon dismissal of the share sheet, `pdfEngine.ts` deletes the filled PDF from the app cache.
 - **Android Share Grace Window**: Android share targets (e.g. Google Drive, Gmail) operate as asynchronous background processes. Deleting the file immediately causes external applications to fail with `FileNotFoundException`.
   To ensure privacy while supporting Android background handlers, `mobile/lib/pdfEngine.ts` applies a persisted expiry marker (`.expiry`) and grants a 10-minute grace window (`ANDROID_SHARE_GRACE_MS = 10 * 60 * 1000 = 600,000 ms`).
@@ -346,9 +376,11 @@ Configure the Google Play Console Data Safety section with the following exact s
 This runbook must be executed on physical hardware prior to public rollout.
 
 ### Test Environment Setup
-- **iOS Test Device**: Physical iPhone running iOS 17.0+ or iOS 18.0+, installed via TestFlight (fresh build from `fff31da`, expected build 9).
-- **Android Test Device**: Physical Android smartphone running Android 13.0+, installed from the fresh `fff31da` AAB/APK (expected versionCode 6).
+- **iOS Test Device**: Physical iPhone running iOS 17.0+ or iOS 18.0+, installed via TestFlight (fresh build from current `main` (`69ff576`), expected build 9).
+- **Android Test Device**: Physical Android smartphone running Android 13.0+, installed from the fresh current-`main` AAB/APK (expected versionCode 6).
 - **Backend Target**: Active Supabase Production (`https://yskknolxbxfxakgvrcmg.supabase.co`).
+
+No Android Suite A–J run and no release (EAS) build QA has been executed to date (2026-10-16); the Android runbook must run on the new AAB on a physical device before public rollout. The partial 2026-10-09/10 iPhone simulator (Expo Go) runs are not a Suite Z sign-off.
 
 ---
 
@@ -417,7 +449,7 @@ This runbook must be executed on physical hardware prior to public rollout.
 
 ---
 
-### Step 5: On-Device Personal Vault & BC Health PDF Assistance
+### Step 5: On-Device Personal Vault
 1. Navigate to the **Profile** tab.
 2. Scroll to *"Personal Vault (Stored on Device Only)"* and enter sample test data:
    - Full Name: `Jane Doe`
@@ -427,14 +459,14 @@ This runbook must be executed on physical hardware prior to public rollout.
    - Health Card Number: `9876543210`
 3. Tap *"Save Vault"*.
    - **Verify**: Confirmation alert confirms data was securely saved to device enclave.
-4. Switch to the **Checklist** tab and locate the British Columbia *"Apply for MSP health coverage"* task.
-5. Tap *"Fill Official Form"*:
-   - **Verify**: Review Warning Modal appears, reminding the user that ReloGo provides local assistance only and all fields must be reviewed.
-   - Tap *"Proceed"*.
-   - **Verify**: App downloads official BC blank PDF, verifies SHA-256 hash (`30de754d...`), fills AcroForm fields in device RAM, and opens the native OS Share Sheet.
-6. **Verify Cache Hygiene**:
-   - On iOS: Dismiss the share sheet. Inspect app sandbox cache (`FileSystem.cacheDirectory`) -> filled PDF is deleted immediately.
-   - On Android: Cancel chooser or share to Google Drive. Check cache -> `.expiry` marker is created; file is deleted after 10-minute grace window.
+4. Force quit and relaunch the app, then revisit the Profile tab.
+   - **Verify**: Vault values persist; clearing and re-entering the name field follows the QA playbook (E-05–E-08).
+
+> **1.0.1 note:** the British Columbia health-form PDF fill/share workflow is
+> **not exposed in the 1.0.1 UI** (`pdfEngine.ts` / `pdfTemplates.ts` are
+> preserved module-only for the Phase 2 direct-integration roadmap, consistent
+> with the QA playbook's intentional non-features list). Do not test or claim
+> an in-app "Fill Official Form" action for this release.
 
 ---
 
@@ -482,12 +514,14 @@ npm run typecheck
 npm run audit:production
 ```
 
-**Upload is blocked while the documented mobile production audit is failing.**
-As recorded on 2026-10-05, `npm run audit:production` fails closed (26 high,
-0 critical) on the `braces` GHSA-vfj7-8cjw-p6xm (no patched release) and
-`node-forge` GHSA-86w9-cpqp-85rv advisories. Resolve them, or obtain a
-reviewed, narrowly scoped exception, before any store upload. Do not bypass or
-weaken the audit to make the upload proceed.
+**Production audit: passing with reviewed exceptions (rechecked 2026-10-16).**
+`npm run audit:production` passes. Two advisories without patched releases are
+covered by owner-approved, narrowly scoped, time-boxed exceptions: `braces`
+GHSA-vfj7-8cjw-p6xm and `node-forge` GHSA-86w9-cpqp-85rv, both reached only
+through build-time tooling chains (not the app runtime bundle), with re-review
+required by 2026-12-01. Critical findings are never excepted, and the gate still
+fails closed on every high/critical finding outside these exceptions. Do not
+bypass or weaken the audit to make an upload proceed.
 
 #### Step 2: Build and Upload the Current Tree via EAS
 Build a fresh production binary from the committed tree (version `1.0.1`,
@@ -518,7 +552,7 @@ Log into [App Store Connect](https://appstoreconnect.apple.com):
    ReloGo 1.0.1 provides a standardized Relocation Navigator & Moving Checklist across all 13 Canadian provinces and territories:
    - Tailored checklist with countdown deadlines based on your move date.
    - Document preparation guides and direct links to official provincial portals.
-   - Local PDF assistance for compatible forms with zero off-device PII transmission.
+   - Hardware-backed on-device vault for the details you'll need at government counters (never transmitted).
    - Resilient offline mode and instant account deletion under PIPEDA.
    ```
 5. **App Privacy Updates**: Complete the questionnaire strictly according to Section 3.2 (Declare User ID, Customer Support, and Other User Content under App Functionality).
@@ -534,9 +568,32 @@ Log into [App Store Connect](https://appstoreconnect.apple.com):
 
 ### 5.2 Google Play Store Submission (Android versionCode 6)
 
-> **Do not upload historical build 5** (EAS `f839dede-...`): it predates the
-> current tree. Build a fresh AAB first (`eas build --platform android
-> --profile production`, expected versionCode 6), then use Option A or B.
+> **Do not upload historical build 5** (EAS `f839dede-...`): it was built from
+> `cd3a87c` on Expo SDK 55 and predates the current `main` tip (`69ff576`,
+> SDK 57; no EAS build has been produced from that tree yet). Build a fresh AAB
+> first (`eas build --platform android --profile production`, expected
+> versionCode 6), then use Option A or B.
+
+**Google Play Console prerequisites (owner actions, checked 2026-10-16).** The
+public listing currently 404s for `com.relogo.app`, and the Play Console app
+record/listing is not yet configured. Before release, complete:
+- **App record**: create `ReloGo` (`com.relogo.app`) in Play Console if absent.
+- **Store listing**: 512×512 icon (draft, uncommitted
+  `store-assets/play-icon-512.png`); 1024×500 feature graphic (draft,
+  uncommitted `store-assets/play-feature-graphic-1024x500.png` — replaceable
+  with final branded art); at least 2 phone-format screenshots (the existing
+  `store-screenshots/` are iOS-dimension only).
+- **Data safety questionnaire**: configure strictly per §3.3.
+- **Content rating**: complete the questionnaire.
+- **Target audience**: declare the target age group.
+- **Government-app declaration**: "not developed by or on behalf of a government
+  agency" (per §3.4).
+- **Account-deletion URL**: `https://relogo-two.vercel.app/privacy` (per §3.3).
+- **Monitored contact email**: owner-assigned and actively monitored.
+- **Account type caveat**: if the developer account is a personal (individual)
+  account created after Nov 13, 2023, Google requires 12+ testers for 14+
+  continuous days of closed testing before production access — the owner must
+  confirm the account type.
 
 #### Step 1: Binary Submission Options
 - **Option A (Manual Console Upload)**:
@@ -550,7 +607,10 @@ Log into [App Store Connect](https://appstoreconnect.apple.com):
   3. Navigate to `ReloGo` (`com.relogo.app`) -> *Testing* -> *Internal testing* (or *Production*).
   4. Create new release, upload the AAB file, and enter release notes.
 - **Option B (Automated via EAS Submit)**:
-  Once the Google Play Service Account JSON key is provisioned:
+  the working tree preconfigures `mobile/eas.json` to expect the Play
+  service-account key at `mobile/google-play-service-account.json` (that
+  `.gitignore` entry and `eas.json` change are uncommitted, pending review);
+  no key is provisioned yet. Once the account owner provisions and reviews it:
   ```bash
   cd /Users/tamimorif/Documents/GitHub/ReloGo/mobile
   EXPECTED_COMMIT=$(git rev-parse HEAD)
@@ -605,7 +665,7 @@ KEY FEATURES:
 • Personalized Moving Checklist: Select your origin and destination provinces, move date, and whether you have a vehicle or dependents to generate a tailored task list.
 • Urgency Countdowns & Suggested Timing: Track time-sensitive requirements with countdown badges based on official provincial regulations.
 • Direct Official Sources: Every task card links directly to the verified government portal (e.g., ServiceOntario, ICBC, RAMQ, Health PEI) for authoritative information.
-• Local Document Assistance: For supported forms—including British Columbia's Medical Services Plan application—fill standard fields directly on your device before sharing or printing.
+• Document Preparation Guides: Each task lists exactly which documents to prepare before you visit a registry or service counter.
 • Zero-PII Hardware Security: Your personal details (name, date of birth, address, health card number, driver's licence number) are stored exclusively in your device's hardware-backed Secure Enclave. Sensitive identity details are never sent to ReloGo servers.
 • Anonymous Onboarding: Start building your move checklist immediately with zero email registration or password friction.
 • Complete Data Control: Exercise your PIPEDA rights anytime with our one-tap "Delete My Data" feature, completely wiping your device vault and cloud records.

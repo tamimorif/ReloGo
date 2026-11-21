@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MOBILE="$ROOT/mobile/lib/supportQuestions.ts"
 EDGE="$ROOT/supabase/functions/support-ai/supportQuestions.ts"
 MIGRATIONS="$ROOT/supabase/migrations"
+INLINE_POLICY_COPY="$MIGRATIONS/031_support_policy_acceptance.sql"
 # grep, not rg: GitHub's runners do not ship ripgrep, so an rg-based check
 # aborts with "command not found" and never actually compares anything.
 SQL_COPIES="$(grep -l -- '-- SUPPORT_QUESTIONS_SQL_START' \
@@ -20,6 +21,12 @@ for required in 010_support_question_privacy_boundary.sql 019_policy_reconsent.s
     exit 1
   fi
 done
+
+if [[ ! -f "$INLINE_POLICY_COPY" ]] ||
+   [[ "$(grep -c -F 'body = ANY (ARRAY[' "$INLINE_POLICY_COPY" || true)" != 1 ]]; then
+  echo "ERROR: the support consent policy allowlist is missing or ambiguous in 031_support_policy_acceptance.sql." >&2
+  exit 1
+fi
 
 extract_allowlist() {
   awk '
@@ -82,3 +89,28 @@ while IFS= read -r migration; do
     exit 1
   fi
 done <<< "$SQL_COPIES"
+
+# Migration 031 adds the same fixed-question boundary to the support-consent
+# predicate but predates the marker convention. Check this policy copy directly
+# without editing the already-applied migration.
+inline_policy_values="$(awk '
+  /body = ANY \(ARRAY\[/ { in_block = 1; next }
+  in_block && /\]::TEXT\[\]/ { exit }
+  in_block { print }
+' "$INLINE_POLICY_COPY" | sed -n "s/^[[:space:]]*'\\(.*\\)'[,]\{0,1\}$/\1/p")"
+
+if [[ -z "$inline_policy_values" ]]; then
+  echo "ERROR: could not extract SQL support questions from 031_support_policy_acceptance.sql." >&2
+  exit 1
+fi
+
+if diff -u \
+  -L "mobile/Edge support questions" \
+  -L "supabase/migrations/031_support_policy_acceptance.sql" \
+  <(printf '%s\n' "$ts_values") \
+  <(printf '%s\n' "$inline_policy_values"); then
+  echo "OK: 031_support_policy_acceptance.sql matches mobile and Edge exactly."
+else
+  echo "ERROR: database support questions have drifted in 031_support_policy_acceptance.sql." >&2
+  exit 1
+fi

@@ -1,2 +1,0 @@
-auth_users=1
-profiles=1

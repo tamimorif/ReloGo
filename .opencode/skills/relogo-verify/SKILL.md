@@ -9,6 +9,12 @@ description: Use when verifying, testing, linting, typechecking, building, or QA
 **Source of truth** — `docs/ai/AI_HANDOFF.md` → "Verification matrix".
 **Related** — `relogo-mobile` · `relogo-backend` · `relogo-release-qa`.
 
+> **Current-tree notice (2026-11-16):** The simplified mobile MVP has not been
+> built or released. Older green counts below refer to earlier trees; several
+> mobile feature tests were removed with the retired account/PDF/date code, so
+> do not treat those counts as current evidence. Read the current handoff and
+> verify the exact changed tree before any release decision.
+
 ## Fast facts
 
 | Topic | Value |
@@ -73,17 +79,18 @@ python3.11 -m pytest tests/e2e/ --strict-markers -ra
 
 | Check | Expected |
 | --- | --- |
-| mobile Jest | 15 suites / 161 tests (committed `fff31da`); 13/133 on `0c78e56` |
-| worker pytest | 110 tests (committed `fff31da`); 106 on `0c78e56` |
+| mobile Jest | Historical only: 16 suites / 178 tests (merged recovery tree, verified 2026-10-16); current simplified tree has not been run or recounted |
+| worker pytest | 110 tests (merged recovery tree); earlier: 106 on `0c78e56` |
 | Deno tests | 16 tests |
 | contract scripts | all `OK:` |
-| mobile exports | iOS 1,569 · Android 1,590 modules (committed `fff31da`); 1,753/1,774 on `0c78e56` |
+| mobile exports | historical: iOS 1,569 · Android 1,590 modules (`fff31da`); 1,753/1,774 (`0c78e56`). Rerun for the SDK 57 tree |
 
-## Audit gates — fixed and committed in `fff31da`
+## Audit gates (history and current state)
 
 Both production-audit failures below were found on base `0c78e56` and are
-fixed in committed `fff31da`. Re-run both audits on the current tree to confirm
-they are still green.
+fixed in `fff31da`. The merged recovery tree was re-verified on 2026-10-16
+(`check:release` and `audit:production` both pass); rerun both audits on any
+final tree.
 
 | Check | Base `0c78e56` | Fix in `fff31da` |
 | --- | --- | --- |
@@ -94,12 +101,15 @@ Still unverified on that tree: a fresh simulator/device visual pass, a
 reset-based API E2E rerun, production 027/028 rollout, and the admin/web
 deploys.
 
-**2026-10-05 advisory regression:** the mobile production audit is now **red**
-(26 high, 0 critical) on a clean `npm ci` from newly published `braces`
-GHSA-vfj7-8cjw-p6xm (affected `<=3.0.3`, **no patched release**) and
-`node-forge` GHSA-86w9-cpqp-85rv, both build/test-only transitive paths. Do not
-weaken or bypass the gate; this needs an owner/engineering decision. Landing is
-green after a `next@16.3.8` lockfile refresh within `^16.3.5` (critical
+**2026-10-05 advisory regression — resolved 2026-10-10 (merged in PR #7):**
+the mobile production audit went **red** on `braces` GHSA-vfj7-8cjw-p6xm
+(affected `<=3.0.3`, **no patched release**) and `node-forge`
+GHSA-86w9-cpqp-85rv, both build/test-only transitive paths. It now **passes**
+with a narrowly scoped, owner-approved, time-boxed exception list in
+`mobile/scripts/production-audit-policy.js` (exact GHSA + package match;
+criticals never excepted; re-review by 2026-12-01). Do not weaken or bypass
+the gate further; remove each exception when an upstream patch ships. Landing
+is green after a `next@16.3.8` lockfile refresh within `^16.3.5` (critical
 GHSA-vcvr-r3jv-pc5j cleared).
 
 ## Rules

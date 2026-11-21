@@ -7,7 +7,7 @@ import { SUPPORT_EMAIL } from "@/lib/support";
 
 // NOTE: This text should be reviewed by a lawyer before launch — it is a
 // good-faith draft, not legal advice.
-const LAST_UPDATED = "July 14, 2026";
+const LAST_UPDATED = "November 16, 2026";
 const TERMS_TITLE = "Terms of Service - ReloGo";
 const TERMS_DESCRIPTION =
   "The terms that govern your use of the ReloGo app and website.";
@@ -138,14 +138,13 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="Your account">
+        <Section title="Checklist and support identity">
           <p>
-            The app creates an anonymous account for you — no email or password
-            is required. Because the account is anonymous and your sensitive
-            details are stored only on your device, we cannot recover your
-            checklist or personal details if you lose your device or delete the
-            app. You can permanently erase your account and data at any time
-            via <span className="font-medium text-slate-900">Profile &rarr; Delete My Data</span>.
+            You can use the checklist without a login. Move details and
+            checkmarks are saved on your device and cannot be recovered if they
+            are removed from the device. Opening Help creates an anonymous
+            support identity so your server-stored conversation can be shown
+            again on that device; there is no email or password recovery.
           </p>
         </Section>
 
@@ -172,13 +171,12 @@ export default function TermsPage() {
           </ul>
         </Section>
 
-        <Section title="Support chat and AI">
+        <Section title="Human support chat">
           <p>
-            In-app support lets you choose from fixed general questions and may
-            generate replies using a third-party AI provider. There is no
-            free-text user input. AI answers can be wrong or incomplete and are
-            provided for general guidance only — verify anything important
-            against official sources.
+            In-app support lets you choose from fixed general questions. A
+            human support team member may reply in the conversation. The
+            conversation is stored on our server and cached on your device.
+            There is no free-text user message box in the current app.
           </p>
         </Section>
 
@@ -222,8 +220,9 @@ export default function TermsPage() {
 
         <Section title="Termination">
           <p>
-            You can stop using the Service at any time; deleting your data in
-            the app removes your account. We may suspend or terminate access
+            You can stop using the Service at any time. Clearing your checklist
+            removes local route and progress data; server-stored support chats
+            are handled under the Privacy Policy. We may suspend or terminate access
             that violates these Terms or harms the Service, and we may modify
             or discontinue the Service (in whole or in part) at any time.
           </p>

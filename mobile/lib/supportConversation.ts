@@ -1,17 +1,63 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
+import { CURRENT_CONSENT_VERSION } from "@/lib/legalConsent";
 import { assertRequestActive, withAbortableTimeout } from "@/lib/startupTimeout";
 import type { SupportQuestion } from "@/lib/supportQuestions";
-import type { SupportThreadStatus } from "@/types/database";
+import type { SupportMessage, SupportThread } from "@/types/database";
 
 export const SUPPORT_REQUEST_TIMEOUT_MS = 10_000;
-export const SUPPORT_AI_TIMEOUT_MS = 20_000;
+const CHAT_CACHE_PREFIX = "relogo.support-chat.v1:";
 
-/** Bound the entire initial load, including auth which has no abort option. */
+type ChatMessage = Pick<SupportMessage, "id" | "thread_id" | "sender" | "body" | "created_at">;
+export type ConversationSnapshot = {
+  userId: string;
+  thread: SupportThread | null;
+  messages: ChatMessage[];
+};
+
+async function ensureSupportUser(signal: AbortSignal) {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  assertRequestActive(signal);
+  if (sessionError) throw sessionError;
+  if (sessionData.session?.user) return sessionData.session.user;
+
+  const { data, error } = await supabase.auth.signInAnonymously();
+  assertRequestActive(signal);
+  if (error || !data.user) throw error ?? new Error("Support session unavailable");
+  return data.user;
+}
+
+export async function loadCachedSupportConversation(parentSignal?: AbortSignal): Promise<ConversationSnapshot | null> {
+  return withAbortableTimeout(async (signal) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    assertRequestActive(signal);
+    const userId = session?.user.id;
+    if (!userId) return null;
+    const raw = await AsyncStorage.getItem(`${CHAT_CACHE_PREFIX}${userId}`);
+    assertRequestActive(signal);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as ConversationSnapshot;
+    } catch {
+      await AsyncStorage.removeItem(`${CHAT_CACHE_PREFIX}${userId}`);
+      return null;
+    }
+  }, SUPPORT_REQUEST_TIMEOUT_MS, parentSignal);
+}
+
+export async function saveCachedSupportConversation(snapshot: ConversationSnapshot): Promise<void> {
+  await AsyncStorage.setItem(`${CHAT_CACHE_PREFIX}${snapshot.userId}`, JSON.stringify(snapshot));
+}
+
 export function loadSupportConversation(parentSignal?: AbortSignal) {
   return withAbortableTimeout(async (signal) => {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await ensureSupportUser(signal);
+    const { error: consentError } = await supabase.rpc(
+      "record_support_policy_acceptance",
+      { p_consent_version: CURRENT_CONSENT_VERSION },
+    ).abortSignal(signal);
     assertRequestActive(signal);
-    if (authError || !user) throw new Error("No active session");
+    if (consentError) throw consentError;
 
     const { data: threads, error: threadError } = await supabase
       .from("support_threads").select("*").eq("user_id", user.id)
@@ -32,8 +78,6 @@ export function loadSupportConversation(parentSignal?: AbortSignal) {
   }, SUPPORT_REQUEST_TIMEOUT_MS, parentSignal);
 }
 
-/** Run after SUBSCRIBED to cover changes between the initial read and channel
- * activation. The screen merges messages and guards status against new events. */
 export function reconcileSupportConversation(threadId: string, parentSignal?: AbortSignal) {
   return withAbortableTimeout(async (signal) => {
     const { data: thread, error: threadError } = await supabase
@@ -51,40 +95,22 @@ export function reconcileSupportConversation(threadId: string, parentSignal?: Ab
   }, SUPPORT_REQUEST_TIMEOUT_MS, parentSignal);
 }
 
-export async function createSupportThread(
-  userId: string, status: "AI" | "AWAITING_HUMAN", parentSignal?: AbortSignal,
-) {
+export async function createSupportThread(userId: string, parentSignal?: AbortSignal) {
   const { data, error } = await withAbortableTimeout((signal) => supabase
-    .from("support_threads").insert({ user_id: userId, status })
-    .select().abortSignal(signal).single(), SUPPORT_REQUEST_TIMEOUT_MS, parentSignal);
-  if (error) throw error;
-  return data;
-}
-
-export async function updateSupportStatus(
-  threadId: string, status: Exclude<SupportThreadStatus, "HUMAN">,
-  parentSignal?: AbortSignal,
-) {
-  const { data, error } = await withAbortableTimeout((signal) => supabase
-    .from("support_threads").update({ status }).eq("id", threadId)
+    .from("support_threads").insert({ user_id: userId, status: "AWAITING_HUMAN" })
     .select().abortSignal(signal).single(), SUPPORT_REQUEST_TIMEOUT_MS, parentSignal);
   if (error) throw error;
   return data;
 }
 
 export async function insertSupportQuestion(
-  threadId: string, body: SupportQuestion, parentSignal?: AbortSignal,
+  threadId: string,
+  body: SupportQuestion,
+  parentSignal?: AbortSignal,
 ) {
   const { data, error } = await withAbortableTimeout((signal) => supabase
     .from("support_messages").insert({ thread_id: threadId, sender: "user", body })
     .select().abortSignal(signal).single(), SUPPORT_REQUEST_TIMEOUT_MS, parentSignal);
   if (error) throw error;
   return data;
-}
-
-export async function requestSupportReply(threadId: string, parentSignal?: AbortSignal) {
-  const { error } = await withAbortableTimeout((signal) => supabase.functions
-    .invoke("support-ai", { body: { thread_id: threadId }, signal }),
-  SUPPORT_AI_TIMEOUT_MS, parentSignal);
-  if (error) throw error;
 }

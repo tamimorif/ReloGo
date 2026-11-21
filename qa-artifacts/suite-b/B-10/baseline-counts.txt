@@ -1,3 +1,0 @@
-migrations=27
-auth_users=0
-profiles=0

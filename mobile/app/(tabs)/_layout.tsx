@@ -55,7 +55,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+        title: "Move",
           headerTitle: "My Profile",
           tabBarIcon: ({ color, size }) => (
             <Ionicons
