@@ -35,7 +35,7 @@ function RootLayoutInner() {
   const [journey, setJourney] = useState<LocalJourney | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => undefined);
